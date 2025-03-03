@@ -1,0 +1,209 @@
+%% Statstical analysis script for Optical Properties
+%{
+The purpose of this script is to analyze the optical properties in the
+parenchymal tissue surrounding the EPVS and the vasculature. This covers
+just the following cases:
+- CAA6 (frontal + occip)
+- CAA 17 occipital
+- CAA 22 (frontal + occip)
+- CAA 25 (frontal + occip)
+- CAA 26 (frontal + occip)
+
+Outline:
+- IMPORT struct containing optical properties (mus + retardance)
+- LME model
+-   epvs vs. non-epvs
+
+TODO:
+- create table for each tissue volume
+- compare epvs vs. non-epvs
+- setup LME model 
+%}
+
+%% Prepare environment
+clc; close all;
+% Add top-level directory
+current_dir = pwd;
+addpath(fullfile(current_dir));
+% Directory for loading seg, mus, ret, mask, epvs
+data_dir = ['/autofs/cluster/octdata2/users/mjhyman/' ...
+    'oct_caa_analyses/optical_properties'];
+% load the parenchymal optical properties
+load(fullfile(data_dir,'parenchyma_optical_properties.mat'));
+
+%% Bar Charts
+%%% Retrieve data
+% Retrieve vessels (scattering)
+ves_pmus_17o = parench.caa17.occip.ves.pmus;
+ves_pmus_22f = parench.caa22.front.ves.pmus;
+ves_pmus_22o = parench.caa22.occip.ves.pmus;
+ves_pmus_25o = parench.caa25.occip.ves.pmus;
+ves_pmus_26o = parench.caa26.occip.ves.pmus;
+ves_mus = vertcat(ves_pmus_17(:),ves_pmus_22f(:),ves_pmus_22o(:),...
+                  ves_pmus_25(:),ves_pmus_26o(:));
+
+% Retrieve vessels (retardance)
+ves_pret_17 = parench.caa17.occip.ves.pret;
+ves_pret_22f = parench.caa22.front.ves.pret;
+ves_pret_22o = parench.caa22.occip.ves.pret;
+% ves_pret_25 = parench.caa25.occip.ves.pret;
+ves_pret_26 = parench.caa26.occip.ves.pret;
+% ves_ret = vertcat(ves_pret_17(:),ves_pret_22f(:),ves_pret_22o(:),...
+%     ves_pret_25(:),ves_pret_26(:));
+ves_ret = vertcat(ves_pret_17(:),ves_pret_22f(:),ves_pret_22o(:),...
+    ves_pret_26(:));
+
+% Retrieve EPVS (scattering)
+epvs_pmus_17 = parench.caa17.occip.epvs.pmus;
+epvs_pmus_22f = parench.caa22.front.epvs.pmus;
+epvs_pmus_22o = parench.caa22.occip.epvs.pmus;
+% epvs_pmus_25 = parench.caa25.occip.epvs.pmus;
+epvs_pmus_26 = parench.caa26.occip.epvs.pmus;
+% epvs_mus = vertcat(epvs_pmus_17(:),epvs_pmus_22f(:),epvs_pmus_22o(:),...
+%     epvs_pmus_25(:),epvs_pmus_26(:));
+epvs_mus = vertcat(epvs_pmus_17(:),epvs_pmus_22f(:),epvs_pmus_22o(:),...
+    epvs_pmus_26(:));
+
+% Retrieve EPVS (retardance)
+epvs_pret_17 = parench.caa17.occip.epvs.pret;
+epvs_pret_22f = parench.caa22.front.epvs.pret;
+epvs_pret_22o = parench.caa22.occip.epvs.pret;
+% epvs_pret_25 = parench.caa25.occip.epvs.pret;
+epvs_pret_26 = parench.caa26.occip.epvs.pret;
+% epvs_ret = vertcat(epvs_pret_17(:),epvs_pret_22f(:),epvs_pret_22o(:),...
+%     epvs_pret_25(:),epvs_pret_26(:));
+epvs_ret = vertcat(epvs_pret_17(:),epvs_pret_22f(:),epvs_pret_22o(:),...
+    epvs_pret_26(:));
+
+%%% Bar Chart - Scattering
+% Subject mean EPVS scattering coefficient
+mean_epvs_mus = [mean(epvs_pmus_17),mean(epvs_pmus_22f),...
+                mean(epvs_pmus_22o),mean(epvs_pmus_26)];
+% Subject mean vessel scattering coefficient
+mean_ves_mus = [mean(ves_pmus_17o),mean(ves_pmus_22f),...
+                mean(ves_pmus_22o),mean(ves_pmus_26o)];
+% Barchart
+figure;
+x = categorical({'CAA 17','CAA 22 Front','CAA 22 Occip','CAA 26 Occip'});
+bar(x,[mean_ves_mus',mean_epvs_mus'])
+title('Scattering Coefficient')
+xtickangle(45)
+set(gca,'FontSize',25)
+
+%%% Bar Chart - Retardance
+% Subject mean EPVS scattering coefficient
+mean_epvs_ret = [mean(epvs_pret_17),mean(epvs_pret_22f),...
+                mean(epvs_pret_22o),mean(epvs_pret_26)];
+% Subject mean vessel scattering coefficient
+mean_ves_ret = [mean(ves_pret_17),mean(ves_pret_22f),...
+                mean(ves_pret_22o),mean(ves_pret_26)];
+% Barchart
+figure;
+x = categorical({'CAA 17','CAA 22 Front','CAA 22 Occip','CAA 26 Occip'});
+bar(x,[mean_ves_ret',mean_epvs_ret'])
+title('Retardance')
+xtickangle(45)
+set(gca,'FontSize',25)
+
+%% T-test
+%%% t-test scattering coefficient (EPVS vs. non-EPVS)
+[h_mus,p_mus] = ttest2(ves_mus,epvs_mus,'Alpha',0.05);
+
+%%% t-test retardance (EPVS vs. non-EPVS)
+[h_ret,p_ret] = ttest2(ves_ret,epvs_ret,'Alpha',0.05);
+
+%% LME model
+
+        %% Generate a linear mixed-effects model
+        % The purpose is to incorporate a random effect into the analysis
+        % to account for a potential correlation between outcomes on the
+        % same person.
+
+        %%% Create column vector of subject IDs for each group
+        % Initialize counter for N values per group
+        nval_ad = 0;
+        nval_cte = 0;
+        nval_nc = 0;
+        % Initialize counter for number of values per subject
+        nval = zeros(length(subids),1);
+        % Iterate over subjects
+        for s = 1:length(subids)
+            % Count number of values in array
+            tmp = hm.(subids{s}).(regions{ii}).(params{j});
+            nval(s) = length(tmp);
+            % Add N values to the respective group list
+            if contains(subids(s), 'AD_')
+                nval_ad = nval_ad + nval(s);
+            elseif contains(subids(s), 'CTE_')
+                nval_cte = nval_cte + nval(s);
+            elseif contains(subids(s), 'NC_')
+                nval_nc = nval_nc + nval(s);
+            end
+        end
+        % Create column vector with subject identifier for each value
+        subID_vec = zeros(sum(nval),1);
+        % Start index
+        s0 = 1;
+        for s = 1:length(subids)
+            % Update end index
+            sf = s0 + nval(s) - 1;
+            % Add subject ID for each value
+            subID_vec(s0:sf) = ones(nval(s),1) .* s;
+            % Update start index
+            s0 = sf + 1;
+        end
+        % Separate the groups (AD, CTE, NC)
+        ad_vec = subID_vec(1 : nval_ad);
+        cte_vec = subID_vec(nval_ad+1 : nval_ad+nval_cte);
+        nc_vec = subID_vec(nval_ad+nval_cte+1 : nval_ad+nval_cte+nval_nc);
+
+
+        %%% Create a table for fitting the LME model
+        % Column 1 = group label
+        % Column 2 = vascular metric value
+        % Create the group labels
+        g_ad = repmat({'AD'},[length(ad),1]);
+        g_cte = repmat({'CTE'},[length(cte),1]);
+        g_nc = repmat({'HC'},[length(nc),1]);
+        groups_ad_nc = vertcat(g_ad, g_nc);
+        groups_cte_nc = vertcat(g_cte, g_nc);
+        % Combine vascular metrics into column vector
+        vmets_ad_nc = [ad; nc];
+        vmets_cte_nc = [cte; nc];
+        % Combine the subject IDs into column vector
+        subids_ad_nc = vertcat(ad_vec, nc_vec);
+        subids_cte_nc = vertcat(cte_vec, nc_vec);
+        % Table (group labels, subjectID, vascular metric values)
+        tbl_ad_nc = table(groups_ad_nc,subids_ad_nc,vmets_ad_nc,...
+              'VariableNames',{'Groups','subID','VascularMetric'});
+        tbl_cte_nc = table(groups_cte_nc,subids_cte_nc,vmets_cte_nc,...
+              'VariableNames',{'Groups','subID','VascularMetric'});
+               
+        %%% Fit linear mixed-effects model (LME) (table)
+        % Define the model:
+        %   response = vascular metric array
+        %   random effect (intercept/subject): subID
+        %   fixed effect: Groups
+        fml = 'VascularMetric ~ Groups + (1 | subID)';
+        % Fit the model for AD vs. HC
+        lme_ad_nc = fitlme(tbl_ad_nc,fml);
+        % Fit the model for CTE vs. HC
+        lme_cte_nc = fitlme(tbl_cte_nc,fml);
+        
+        %%% Estimates of fixed effects 
+        [~,~,stats_ad_nc] = fixedEffects(lme_ad_nc);
+        [~,~,stats_cte_nc] = fixedEffects(lme_cte_nc);
+        % Store the p-value for the stats tests
+        p = zeros(2,1);
+        p(1) = stats_ad_nc{2,6};
+        p(2) = stats_cte_nc{2,6};
+        
+        %%% print region/parameter/inequal. for significance/trend
+        % Median values
+        med_ad = median(ad);
+        med_cte = median(cte);
+        med_nc = median(nc);
+        % Mean values
+        mean_ad = mean(ad);
+        mean_cte = mean(cte);
+        mean_nc = mean(nc);
