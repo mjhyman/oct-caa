@@ -1,23 +1,18 @@
 %% Import the scattering and retardance volumes for the CAA dataset.
 %{
-Outline of script:
-- import scattering and retardance for each subject
-- combine into single data struct
-- save struct to: /autofs/cluster/octdata2/users/mjhyman/oct-caa/
+For each subject:
+- import scattering, retardance, segmentation, tissue mask, EPVS (if
+    applicable)
+- align volumes
+- save struct to:
+    /autofs/cluster/octdata2/users/mjhyman/...
+        oct_caa_analyses/optical_properties/[subject]
 
 Missing Data:
-  - CAA 17 frontal
-
-To Do for Each volume:
-- Import the tissue mask
-- Import segmentation
-    - even the ones that were for subsets of the stack
-- Scale scattering, retardance, segmentation to tissue mask
-    - Create struct: mus, ret, seg, mask
-    - Save struct for each subject to individual .MAT structs
+  - CAA 17 frontal (this was out of focus and so unusable)
 %}
 %% Prepare environment
-% clear; clc; close all;
+clear; clc; close all;
 % Add top-level directory
 d = pwd;
 addpath(fullfile(pwd));
@@ -47,14 +42,15 @@ p_flag = 0;
 vox_z = 20; 
 
 %%% properties to save MRI
-save_nifti_flag = 1; % flag for saving NIFTI of each run
+save_nifti_flag = 0; % flag for saving NIFTI of each run
 pflag = 0; % permute flag
 mus_res = [0.02,0.02,0.02]; % resolution in mm
 ret_res = [0.01,0.01,0.1]; % resolution in mm
 dtype = 'float'; % float is the equivalent of single
 
-%% CAA 6 front:
 %{
+%% CAA 6 front:
+
 %%% import tissue mask
 mask = ['/autofs/cluster/octdata2/users/epc28/data/CAA/caa6/' ...
     'frontal/derivatives/predictions/caa6-frontal_unet-tissuemask.nii'];
@@ -749,6 +745,7 @@ caa25.occip.seg = seg;
 caa25.occip.mask = mask;
 caa25.occip.epvs = epvs;
 save(fullfile(fout_base,'/caa25/caa25.mat'),'caa25','-v7.3');
+%}
 
 %% CAA 26 front:
 % Caroline manually aligned the retardance and then saved it as:
@@ -758,17 +755,21 @@ save(fullfile(fout_base,'/caa25/caa25.mat'),'caa25','-v7.3');
 % match dimensions of mask, mus).
 
 %%% import tissue mask
+fprintf('Import CAA26 front tissue mask\n')
 mask = ['/autofs/cluster/octdata2/users/epc28/data/CAA/caa26/frontal/' ...
     'derivatives/predictions/caa26-frontal_unet-tissuemask.nii'];
 mask = MRIread(mask,h_flag,p_flag);
 mask = imbinarize(mask.vol);
+fprintf('Finished importing CAA26 front tissue mask\n')
 
 %%% Import vasculature
+fprintf('Import CAA26 front segmentation\n')
 seg = ['/autofs/cluster/octdata2/users/epc28/data/CAA/caa26/frontal/' ...
     'derivatives/predictions/' ...
     'sub-caa26_sample-frontal_chunk-01_label-vessels-mask.nii'];
 seg = MRIread(seg,h_flag,p_flag);
 seg = imbinarize(seg.vol);
+fprintf('Finished imorting CAA26 front segmentation\n')
 
 %%% Scattering filename and proerties
 % Filenames of scattering
@@ -831,7 +832,6 @@ pad = zeros(size(mus,1),offset,size(mus,3));
 mus = cat(2,pad,mus_rm);
 
 %%% Retardance
-%}
 fprintf('Starting CAA26 Front Retardance\n')
 ret = ['/autofs/cluster/octdata2/users/mjhyman/oct_caa_analyses/'...
     'optical_properties/caa26/front/ret_reg2mus.nii'];
@@ -863,56 +863,49 @@ end
 %% CAA 26 occip:
 
 %%% Import EPVS
+fprintf('Loading EPVS\n')
 epvs = ['/autofs/space/omega_001/users/caa/CAA26_Occipital/' ...
-    'Process_caa26_occipital/reg/EPVS/EPVS_mus_segmentation.mgz'];
+    'Process_caa26_occipital/reg/EPVS/EPVS_mus_segmentation.nii'];
 epvs = MRIread(epvs,h_flag,p_flag);
 epvs = imbinarize(epvs.vol);
+fprintf('Finished EPVS\n')
 
 %%% import tissue mask
+fprintf('Loading mask\n')
 mask = ['/autofs/cluster/octdata2/users/epc28/data/CAA/caa26/' ...
     'occipital/sub-caa26_sample-occipital_chunk-01_OCT_TISSUEMASK.nii'];
 mask = MRIread(mask,h_flag,p_flag);
 mask = imbinarize(mask.vol);
+fprintf('Finished mask\n')
 
 %%% Import vasculature
+fprintf('Loading vasculature\n')
 seg = ['/autofs/cluster/octdata2/users/epc28/data/CAA/caa26/' ...
     'occipital/derivatives/predictions/' ...
     'sub-caa26_sample-occipital_chunk-01_label-vessels-mask.nii'];
 seg = MRIread(seg,h_flag,p_flag);
 seg = imbinarize(seg.vol);
+fprintf('Finished vasculature\n')
 
 %%% Import scattering
-mus = ['/autofs/space/omega_001/users/caa/CAA26_Occipital/' ...
-    'Process_caa26_occipital/mus/mus_mean_20um-iso.nii'];
+fprintf('Loading scattering\n')
+mus = ['/autofs/cluster/octdata2/users/mjhyman/oct_caa_analyses/' ...
+    'optical_properties/caa26/occip/mus_reg2mask.nii'];
 mus = MRIread(mus,h_flag,p_flag);
 mus = single(mus.vol);
+fprintf('Finished scattering\n')
 
 %%% Retardance
 fprintf('Starting CAA26 Occip Retardance\n')
-ret = ['/autofs/space/omega_001/users/caa/CAA26_Occipital/' ...
-    'Process_caa26_occipital/StackNii/Stacked_Retardance.nii'];
+ret = ['/autofs/cluster/octdata2/users/mjhyman/oct_caa_analyses/' ...
+    'optical_properties/caa26/occip/ret_reg2mask_2.nii'];
 ret = MRIread(ret,h_flag,p_flag);
 ret = single(ret.vol);
 fprintf('Finished CAA26 Occip Retardance\n')
 
-%%% Align mus, retardance, segmentation to mask
-mus = permute(mus,[2,1,3]);
-% # rows and columns for rescaling
-nrow = size(mask,1);
-ncol = size(mask,2);
-% Scale retardance to mask
-ret = imresize3(ret,[nrow,ncol,size(ret,3)]);
-
-%%% Interpolate retardance in z-axis to match dimensions of mus
-% measure dimensions of full volume
-full_dims = size(mask);
-% Expand retardance to match dimensions fo full volume
-[ret_full] = expand_ret(ret,full_dims);
-
 %%% Add to struct and save CAA 26
 caa26.occip.mus = mus;
-caa26.occip.ret = ret;
-caa26.occip.ret_full = ret_full;
+caa26.occip.ret_full = ret;
 caa26.occip.seg = seg;
 caa26.occip.mask = mask;
 caa26.occip.epvs = epvs;

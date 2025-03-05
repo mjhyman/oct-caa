@@ -48,9 +48,9 @@ dtype = 'float'; % float is the equivalent of single
 
 %%% Flag for loading .MAT struct and creating WM masks
 % flag for reloading the .MAT struct for each subject
-flag_load_caa_structs = false;
+flag_load_caa_structs = true;
 % flag for creating wm masks
-flag_make_wm_mask = false;
+flag_make_wm_mask = true;
 % flag for saving wm mask nifti
 flag_save_wm_mask = true;
 
@@ -71,8 +71,8 @@ if flag_load_caa_structs
     caa25 = load(fullfile(data_dir,'/caa25/caa25.mat'));
     caa25 = caa25.caa25;
     % CAA 26
-    caa26 = load(fullfile(data_dir,'/caa26/caa26.mat'));
-    caa26 = caa26.caa26;
+    % caa26 = load(fullfile(data_dir,'/caa26/caa26.mat'));
+    % caa26 = caa26.caa26;
 end
 
 if flag_make_wm_mask
