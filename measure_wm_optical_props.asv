@@ -551,8 +551,7 @@ parench = parse_caa_measure_parenchyma(subjects, se);
 % evaluate the distance at which the optical properties are similar between
 % the pathological and non-pathological.
 
-% TODO: write a function to measure parenchyma at increasing distances
-% within a disjoint cylinder
+
 
 
 %% Function to load data

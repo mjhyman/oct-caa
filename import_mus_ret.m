@@ -48,7 +48,7 @@ mus_res = [0.02,0.02,0.02]; % resolution in mm
 ret_res = [0.01,0.01,0.1]; % resolution in mm
 dtype = 'float'; % float is the equivalent of single
 
-%{
+
 %% CAA 6 front:
 
 %%% import tissue mask
