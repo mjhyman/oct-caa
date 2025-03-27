@@ -30,6 +30,10 @@ addpath(fullfile(current_dir));
 data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
     'oct_caa_analyses/optical_properties'];
 % Initialize structuring element for dilation
+r = 3; % units are voxels from origin to edge
+se = strel('disk',r);
+% Structure for storing parenchymal optical properties
+parench = struct();
 
 %%% MRIread parameters
 % Voxel z-dimension (microns)
@@ -223,6 +227,35 @@ parench = parse_caa_measure_parenchyma(subjects,radii);
 % Backup struct
 fout = fullfile(data_dir,'parenchyma_optical_properties.mat');
 save(fout,"parench",'-v7.3');
+
+%% Scatterplot of optical property vs. distance (disjoint ring)
+% y-axis = average optical property  for epvs or vessel
+% x-axis = distance of ring from edge of epvs or vessel
+% repeat this for all 3 properties (mus, ret, ori)
+
+% optical properties list
+pnames = {'pmus','pret','pori'};
+
+% list of subjects
+subs = fieldnames(subjects);
+
+%%% Iterate distance, subjects, optical property
+% iterate distance
+for ii = 1:length(radii)
+    % radius for this iteration
+    rad = radii(ii);
+    % radius name within structure
+    rname = strcat('rad',num2str(rad));
+    % iterate subjects
+    for j = 1:length(fieldnames(subjects))
+        % retrieve jth subject
+        sub = subs{j};
+        % iterate optical properties
+        for k = length(pnames)
+            op = parench.(sub).(rname)
+        end
+    end
+end
 
 %% Function to load data
 function [parench] = parse_caa_measure_parenchyma(subjects,radii)
