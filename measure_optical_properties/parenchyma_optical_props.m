@@ -1,4 +1,6 @@
-function [mus_outer, ret_outer, ori_outer, mus_inner, ret_inner, ori_inner] = ...
+function [mus_outer, ret_outer, ori_outer,...
+        mus_inner, ret_inner, ori_inner,...
+        parench_outer, parench_inner] = ...
     parenchyma_optical_props(seg, mus, ret, ori, se1, se2)
 % Measure optical properties in parenchyma of all vessels
 %   INPUTS:
@@ -26,6 +28,8 @@ function [mus_outer, ret_outer, ori_outer, mus_inner, ret_inner, ori_inner] = ..
 %           - xor of outer/inner = disjoint ring
 %       - Measure scattering, retardance, orientation in xor output
 
+% Keep 
+
 % First case: XOR of dilated regions (seg_dil1 and seg_dil2)
 seg_dil1 = imdilate(seg, se1);
 seg_dil2 = imdilate(seg, se2);
@@ -50,10 +54,12 @@ function [mus, ret, ori_std] = measure_properties(parench, mus, ret, ori)
 
     % Measure mus & ret within parenchyma
     mus = rmmissing(cell2mat(cellfun(@(x) mean(x, 'omitnan'),...
-        cellfun(@(idx) mus(idx), idx, 'UniformOutput', false), 'UniformOutput', false)));
+                    cellfun(@(idx) mus(idx), idx, 'UniformOutput', false), ...
+                    'UniformOutput', false)));
     
     ret = rmmissing(cell2mat(cellfun(@(x) mean(x, 'omitnan'),...
-        cellfun(@(idx) ret(idx), idx, 'UniformOutput', false), 'UniformOutput', false)));
+                    cellfun(@(idx) ret(idx), idx, 'UniformOutput', false), ...
+                    'UniformOutput', false)));
 
     % Measure mean and std of orientation
     ori = deg2rad(ori);  % Convert orientation to radians and remove NaN

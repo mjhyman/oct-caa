@@ -10,13 +10,13 @@ just the following cases:
 - CAA 26 (frontal + occip)
 
 Outline:
-- IMPORT struct containing:
+- IMPORT struct containing measurements at various distances
 - Create scatterplot (property vs. distance)
 - Create box/whisker plot
 %}
 
 %% Prepare environment
-clear; clc; close all;
+clc; close all;
 % Add top-level directory
 current_dir = pwd;
 addpath(fullfile(current_dir));
@@ -26,7 +26,73 @@ data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
 scat_out = fullfile(data_dir,'/scatter_plots');
 bw_out = fullfile(data_dir,'/bw_plots');
 % Load parenchyam struct
-load(fullfile(data_dir,"parenchyma_optical_properties.mat"));
+load(fullfile(data_dir,"parenchyma_optical_properties_100um_thick.mat"));
+% Scatter plot dot size
+scat_size = 100;
+% Isotropic voxel size (microns)
+vox = 20;
+% Filename substring
+substr = '_100um_donut';
+
+%% Scatterplot of optical property vs. distance (most & least severe)
+% ONLY most severe (CAA22 occip) + least severe (CAA26 occip) EPVS cases
+% y-axis = average optical property  for epvs or vessel
+% x-axis = distance of ring from edge of epvs or vessel
+% Repeat this for all 3 properties (mus, ret, ori)
+% This will only use the "outer" ring, which is disjoint from the annotated
+% vessel/epvs
+
+%%% Extract number of radii
+r = fieldnames(parench.caa22.occip);
+% First radius
+ri = r{1};
+ri = r
+ri = regexp(ri,'\d+','match');
+ri = str2double(ri{1});
+% Last radius
+rf = r{end};
+rf = regexp(rf,'\d+','match');
+rf = str2double(rf{1});
+% Increment radius
+rint = uint64(rf ./ length(r));
+% Generate x-axis (voxels)
+x = ri : rint : rf;
+% Convert x-axis to microns
+x = x.*vox;
+x = [100, 200, 260, 300, 400, 500];
+
+%%% Scatterplots of most & least severe
+%{
+%%% Most severe subject
+% set subject ID and region
+sub = 'caa22';
+reg = 'occip';
+% subfolder for most severe subject
+fout = fullfile(scat_out,'/most_severe_epvs/');
+% subtitle
+sub_tit = 'CAA22 Occipital';
+% Call function to measure average for this subject at each radius
+[ves_mus, ves_ret, ves_ori, epvs_mus, epvs_ret, epvs_ori] =...
+    meas_sub(parench,sub,reg);
+% Call scatterplot function
+subject_scatter(x,ves_mus, ves_ret, ves_ori,...
+                epvs_mus, epvs_ret, epvs_ori,fout,sub_tit)
+
+%%% Least severe subject
+% set subject ID and region
+sub = 'caa26';
+reg = 'occip';
+% subfolder for most severe subject
+fout = fullfile(scat_out,'/least_severe_epvs/');
+% subtitle
+sub_tit = 'CAA26 Occipital';
+% Call function to measure average for this subject at each radius
+[ves_mus, ves_ret, ves_ori, epvs_mus, epvs_ret, epvs_ori] =...
+    meas_sub(parench,sub,reg);
+% Call scatterplot function
+subject_scatter(x,ves_mus, ves_ret, ves_ori,...
+                epvs_mus, epvs_ret, epvs_ori,fout,sub_tit)
+%}
 
 %% Scatterplot of optical property vs. distance (disjoint ring)
 % y-axis = average optical property  for epvs or vessel
@@ -125,59 +191,64 @@ for ii = 1:length(radii)
     epvs_ori(ii) = real(mean(epvs_ori_tmp));
 end
 
-%% Create scatterplot
-% Initialize x-axis array (voxels)
-x = 2:2:24;
-% Convert voxels to micron (20um / voxel)
-x = x .* 20;
+%%% Create scatterplot
 % vessel - mus
 set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-scatter(x,ves_mus,'filled','k');
+scatter(x,ves_mus,scat_size,'filled','k');
 xlabel('Distance (\mum)'); ylabel('\mus (cm^-^1)');
 title('Vessels \mus vs. Distance'); set(gca,'fontsize',24);
-fout = fullfile(scat_out,'vessels_mus_vs_distance.png');
+fname = strcat('vessels_mus_vs_distance',substr,'.png');
+fout = fullfile(scat_out,'/all_subjects/',fname);
 pause(1); saveas(gcf,fout);
 % vessel - retardance
 set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-scatter(x,ves_ret,'filled','k');
+scatter(x,ves_ret,scat_size,'filled','k');
 xlabel('Distance (\mum)'); ylabel('Retardance (degrees)');
 title('Vessels Retardance vs. Distance'); set(gca,'fontsize',24);
-fout = fullfile(scat_out,'vessels_ret_vs_distance.png');
+fname = strcat('vessels_ret_vs_distance',substr,'.png');
+fout = fullfile(scat_out,'/all_subjects/',fname);
 pause(1); saveas(gcf,fout);
 % vessel - orientation
 set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-scatter(x,ves_ori,'filled','k');
+scatter(x,ves_ori,scat_size,'filled','k');
 xlabel('Distance (\mum)'); ylabel('\sigma_{orientation} (radians)');
 title('Vessels \sigma_{orientation} vs. Distance'); set(gca,'fontsize',24);
-fout = fullfile(scat_out,'vessels_ori_vs_distance.png');
+fname = strcat('vessels_ori_vs_distance',substr,'.png');
+fout = fullfile(scat_out,'/all_subjects/',fname);
 pause(1); saveas(gcf,fout);
 % EPVS - mus
 set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-scatter(x,epvs_mus,'filled','k');
+scatter(x,epvs_mus,scat_size,'filled','k');
 xlabel('Distance (\mum)'); ylabel('\mus (cm^-^1)');
 title('EPVS \mus vs. Distance'); set(gca,'fontsize',24);
-fout = fullfile(scat_out,'epvs_mus_vs_distance.png');
+fname = strcat('epvs_mus_vs_distance',substr,'.png');
+fout = fullfile(scat_out,'/all_subjects/',fname);
 pause(1); saveas(gcf,fout);
 % EPVS - retardance
 set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-scatter(x,epvs_ret,'filled','k');
+scatter(x,epvs_ret,scat_size,'filled','k');
 xlabel('Distance (\mum)'); ylabel('Retardance (degrees)');
 title('EPVS Retardance vs. Distance'); set(gca,'fontsize',24);
-fout = fullfile(scat_out,'epvs_ret_vs_distance.png');
+fname = strcat('epvs_ret_vs_distance',substr,'.png');
+fout = fullfile(scat_out,'/all_subjects/',fname);
 pause(1); saveas(gcf,fout);
 % EPVS - orientation
 set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-scatter(x,epvs_ori,'filled','k');
+scatter(x,epvs_ori,scat_size,'filled','k');
 xlabel('Distance (\mum)'); ylabel('\sigma_{orientation} (radians)');
 title('EPVS \sigma_{orientation} vs. Distance'); set(gca,'fontsize',24);
-fout = fullfile(scat_out,'epvs_ori_vs_distance.png');
+fname = strcat('epvs_ori_vs_distance',substr,'.png');
+fout = fullfile(scat_out,'/all_subjects/',fname);
 pause(1); saveas(gcf,fout);
 
 %% Box/whisker Plots
 
+% Reorder the subjects list in terms of severity
+subjects = {'caa6','caa26','caa17','caa25','caa22'};
+
 %%% Iterate distance, subjects, optical property
 % iterate distance from edge of epvs/vessel
-for ii = 1:2:length(radii)
+for ii = 1:length(radii)
     % local radii name
     rname = string(radii(ii));
     % cell arrays to store the values grouped by subject
@@ -261,15 +332,16 @@ for ii = 1:2:length(radii)
     % Create y-axis of all concatenated observations
     y = [ves_mus{:}];
     % create boxplot
+    figure;
     set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-    boxplot(y,g)
+    bx = boxplot(y,g); ylim([0,50]); set(bx,'LineWidth',2);
     ylabel('\mus (cm^-^1)');
     title({'Vessels - \mus',['Inner radius = ', num2str(x(ii)),'\mum']});
     set(gca,'fontsize',24);
     % Save output
-    fname = strcat('mus_radius_',num2str(x(ii)),'.png');
+    fname = strcat('ves_mus_radius_',num2str(x(ii)),substr,'.png');
     fout = fullfile(bw_out,fname);
-    pause(1); saveas(gcf,fout); close all;
+    pause(1); saveas(gcf,fout); pause(0.5); close all;
 
     %%% Box/Whisker Plot (ret)
     % Create group labels for each observation (for unbalanced b/w plots)
@@ -277,95 +349,173 @@ for ii = 1:2:length(radii)
     % Create y-axis of all concatenated observations
     y = [ves_ret{:}];
     % create boxplot
+    figure;
     set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-    boxplot(y,g)
+    bx = boxplot(y,g); ylim([0,50]); set(bx,'LineWidth',2);
     ylabel('Retardance (degrees)');
     title({'Vessels - Retardance',['Inner radius = ', num2str(x(ii)),'\mum']});
     set(gca,'fontsize',24);
     % Save output
-    fname = strcat('ret_radius_',num2str(x(ii)),'.png');
+    fname = strcat('ves_ret_radius_',num2str(x(ii)),substr,'.png');
     fout = fullfile(bw_out,fname);
-    pause(1); saveas(gcf,fout); close all;
+    pause(1); saveas(gcf,fout); pause(0.5); close all;
 
     %%% Box/Whisker Plot (ori)
     % Create group labels for each observation (for unbalanced b/w plots)
-    g = vertcat(ves_mus_name{:});
+    g = vertcat(ves_ori_name{:});
     % Create y-axis of all concatenated observations
-    y = [ves_mus{:}];
+    y = [ves_ori{:}];
     % create boxplot
+    figure;
     set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-    boxplot(y,g)
+    bx = boxplot(y,g); ylim([0,3]); set(bx,'LineWidth',2);
     ylabel('\sigma_{orientation} (radians)');
     title({'Vessels - Orientation',['Inner radius = ', num2str(x(ii)),'\mum']});
     set(gca,'fontsize',24);
     % Save output
-    fname = strcat('ori_radius_',num2str(x(ii)),'.png');
+    fname = strcat('ves_ori_radius_',num2str(x(ii)),substr,'.png');
     fout = fullfile(bw_out,fname);
-    pause(1); saveas(gcf,fout); close all;
+    pause(1); saveas(gcf,fout); pause(0.5); close all;
     
     %%% EPVS Box/Whisker Plot (mus)
-    %%% EPVS Box/Whisker Plot (mus)
     % Create group labels for each observation (for unbalanced b/w plots)
-    g = vertcat(ves_mus_name{:});
+    g = vertcat(epvs_mus_name{:});
     % Create y-axis of all concatenated observations
-    y = [ves_mus{:}];
+    y = [epvs_mus{:}];
     % create boxplot
+    figure;
     set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-    boxplot(y,g)
+    bx = boxplot(y,g); ylim([0,30]); set(bx,'LineWidth',2);
     ylabel('\mus (cm^-^1)');
-    title({'Vessels - \mus',['Inner radius = ', num2str(x(ii)),'\mum']});
+    title({'EPVS - \mus',['Inner radius = ', num2str(x(ii)),'\mum']});
     set(gca,'fontsize',24);
     % Save output
-    fname = strcat('mus_radius_',num2str(x(ii)),'.png');
+    fname = strcat('epvs_mus_radius_',num2str(x(ii)),substr,'.png');
     fout = fullfile(bw_out,fname);
-    pause(1); saveas(gcf,fout); close all;
+    pause(1); saveas(gcf,fout); pause(0.5); close all;
 
-    %%% Box/Whisker Plot (ret)
+    %%% EPVS Box/Whisker Plot (ret)
     % Create group labels for each observation (for unbalanced b/w plots)
-    g = vertcat(ves_ret_name{:});
+    g = vertcat(epvs_ret_name{:});
     % Create y-axis of all concatenated observations
-    y = [ves_ret{:}];
+    y = [epvs_ret{:}];
     % create boxplot
+    figure;
     set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-    boxplot(y,g)
+    bx = boxplot(y,g); ylim([0,50]); set(bx,'LineWidth',2);
     ylabel('Retardance (degrees)');
-    title({'Vessels - Retardance',['Inner radius = ', num2str(x(ii)),'\mum']});
+    title({'EPVS - Retardance',['Inner radius = ', num2str(x(ii)),'\mum']});
     set(gca,'fontsize',24);
     % Save output
-    fname = strcat('ret_radius_',num2str(x(ii)),'.png');
+    fname = strcat('epvs_ret_radius_',num2str(x(ii)),substr,'.png');
     fout = fullfile(bw_out,fname);
-    pause(1); saveas(gcf,fout); close all;
+    pause(1); saveas(gcf,fout); pause(0.5); close all;
 
-    %%% Box/Whisker Plot (ori)
+    %%% EPVS Box/Whisker Plot (ori)
     % Create group labels for each observation (for unbalanced b/w plots)
-    g = vertcat(ves_mus_name{:});
+    g = vertcat(epvs_ori_name{:});
     % Create y-axis of all concatenated observations
-    y = [ves_mus{:}];
+    y = [epvs_ori{:}];
     % create boxplot
+    figure;
     set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
-    boxplot(y,g)
+    bx = boxplot(y,g); ylim([0,3]); set(bx,'LineWidth',2);
     ylabel('\sigma_{orientation} (radians)');
-    title({'Vessels - Orientation',['Inner radius = ', num2str(x(ii)),'\mum']});
+    title({'EPVS - Orientation',['Inner radius = ', num2str(x(ii)),'\mum']});
     set(gca,'fontsize',24);
     % Save output
-    fname = strcat('ori_radius_',num2str(x(ii)),'.png');
+    fname = strcat('epvs_ori_radius_',num2str(x(ii)),substr,'.png');
     fout = fullfile(bw_out,fname);
-    pause(1); saveas(gcf,fout); close all;
+    pause(1); saveas(gcf,fout); pause(0.5); close all;
 end
 
+%% Function to measure the mean optical property across a single subject
+function [ves_mus, ves_ret, ves_ori, epvs_mus, epvs_ret, epvs_ori] =...
+    meas_sub(parench,sub,reg)
 
+%%% Initialize arrays for storing optical properties measurements
+% Retrieve radii within struct
+radii = fieldnames(parench.(sub).(reg));
+% Initialize array for pairs of optical proprety vs. distance
+ves_mus = zeros(length(radii),1);
+ves_ret = zeros(length(radii),1);
+ves_ori = zeros(length(radii),1);
+epvs_mus = zeros(length(radii),1);
+epvs_ret = zeros(length(radii),1);
+epvs_ori = zeros(length(radii),1);
 
+%%% Iterate distance & optical property
+% iterate distance from edge of epvs/vessel
+for ii = 1:length(radii)
+    % local radii name
+    rname = string(radii(ii));
+    
+    %%% Vessel measurements
+    % Retrieve vessel measurements (mus, ret, ori)
+    ves = parench.(sub).(reg).(rname).outter.ves;
+    % Take average of mus, ret, ori
+    ves_mus(ii) = mean(ves.pmus,'omitnan');
+    ves_ret(ii)  = mean(ves.pret,'omitnan');
+    ves_ori(ii) = mean(ves.pori,'omitnan');
 
+    %%% EPVS measurements (if exist)
+    if isfield(parench.(sub).(reg).(rname).outter, 'epvs')
+        epvs = parench.(sub).(reg).(rname).outter.epvs;
+        % Take average of mus, ret, ori
+        epvs_mus(ii) = mean(epvs.pmus,'omitnan');
+        epvs_ret(ii) = mean(epvs.pret,'omitnan');
+        epvs_ori(ii) = real(mean(epvs.pori,'omitnan'));
+    end
+end
+end
 
+%% Scatterplot for individual subject
+function subject_scatter(x,ves_mus, ves_ret, ves_ori,...
+    epvs_mus, epvs_ret, epvs_ori,scat_out,sub_tit)
+% SUBJECT_SCATTER scatter plot for an individual subject
+% INPUTS:
+%   x (cell array): x-axis subject labels
+%   ves_mus (vector): vessel scattering coefficient vector
+%   ves_ret (vector): vessel retardance vector
+%   ves_ori (vector): vessel circular std. dev. orientation
+%   epvs_mus (vector): EPVS scattering coefficient vector
+%   epvs_ret (vector): EPVS retardance vector
+%   epvs_ori (vector): EPVS circular std. dev. orientation
+%   scat_out (string): filepath for saving
+%   sub_tit (string): subtitle string
 
+% vessel - mus
+plot_and_save(x,ves_mus,'\mus (mm^-^1)',sub_tit,...
+              'Vessels \mus vs. Distance',scat_out,...
+              'vessels_mus_vs_distance.png')
+% vessel - retardance
+plot_and_save(x,ves_ret,'Retardance (degrees)',sub_tit,...
+              'Vessels Retardance vs. Distance',scat_out,...
+              'vessels_ret_vs_distance.png')
+% vessel - orientation
+plot_and_save(x,ves_ori,'\sigma_{orientation} (radians)',sub_tit,...
+              'Vessels \sigma_{orientation} vs. Distance',scat_out,...
+              'vessels_ori_vs_distance.png')
+% EPVS - mus
+plot_and_save(x,epvs_mus,'\mus (mm^-^1)',sub_tit,...
+              'EPVS \mus vs. Distance',scat_out,...
+              'epvs_mus_vs_distance.png')
+% EPVS - retardance
+plot_and_save(x,epvs_ret,'Retardance (degrees)',sub_tit,...
+              'EPVS Retardance vs. Distance',scat_out,...
+              'epvs_ret_vs_distance.png')
+% EPVS - orientation
+plot_and_save(x,epvs_ori,'\sigma_{orientation} (radians)',sub_tit,...
+              'EPVS \sigma_{orientation} vs. Distance',scat_out,...
+              'epvs_ori_vs_distance.png')
 
+    function plot_and_save(x,y,ylab,tstr1,tstr2,scat_out,fname)
+        set(gcf,'Units','Normalized','OuterPosition',[0, 0.04, 1, 0.96]);
+        scatter(x,y,100,'filled','k');
+        xlabel('Distance (\mum)'); ylabel(ylab);
+        title({tstr1,tstr2}); set(gca,'fontsize',24);
+        scat_out = fullfile(scat_out,fname);
+        pause(1); saveas(gcf,scat_out); pause(0.5);
+    end
 
-
-
-
-
-
-
-
-
-
+end

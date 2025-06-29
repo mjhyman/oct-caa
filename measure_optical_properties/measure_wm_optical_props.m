@@ -23,32 +23,22 @@ Outline:
 
 %% Prepare environment
 clc; close all;
-% Add top-level directory
-current_dir = pwd;
-addpath(fullfile(current_dir));
+% Add top-level directory + subdirectories
+addpath(genpath(fullfile(pwd, '..')))
 % Directory for loading seg, mus, ret, mask, epvs
 data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
     'oct_caa_analyses/optical_properties'];
-% Initialize structuring element for dilation
-
-%%% MRIread parameters
-% Voxel z-dimension (microns)
-zvox = 20;
-% header only flag
-h_flag = 0;
-% permute x,y dimensions flag
-pflag = 0;
+% WM mask directory (from Taylor)
+wm_dir = ['/autofs/space/turtle_001/users/xz875/projects/' ...
+          'Multi-resolution_Unets_Semi_OCT/prediction'];
 % Voxel dimensions (microns) for all runs
 res = [20,20,20]; % resolution in microns
-dtype = 'float'; % float is the equivalent of single
 
 %%% Flag for loading .MAT struct and creating WM masks
 % flag for reloading the .MAT struct for each subject
 flag_load_caa_structs = false;
-% flag for creating wm masks
-flag_make_wm_mask = false;
-% flag for saving wm mask nifti
-flag_save_wm_mask = false;
+% flag for importing updated wm masks
+flag_import_wm_mask = false;
 
 %% Load each subject's .MAT struct and create WM mask
 
@@ -81,128 +71,151 @@ if flag_load_caa_structs
     fprintf('Finished Loading CAA26\n')
 end
 
-if flag_make_wm_mask
+if flag_import_wm_mask
     %%% CAA 6 Frontal
+    fprintf('Importing caa6 frontal\n')
+    % import wm mask
+    mask_wm = fullfile(data_dir,'caa6/front/wm_mask_revised.nii');
+    mask_wm = MRIread(mask_wm,0,0);
+    % Keep just WM (wm = 1)
+    mask_wm = mask_wm.vol;
+    mask_wm = logical(mask_wm==1);
+    % Flip about the horizontal to align with scattering
+    mask_wm = flip(mask_wm,1);
     % import local variables
-    ret = caa6.front.ret_full;
     seg = caa6.front.seg;
-    mask = caa6.front.mask;
-    % retardance white matter threshold
-    th = 19;
-    % Create WM mask and apply to vasculature
-    fout = fullfile(data_dir,'/caa6/front/wm_mask.nii');
-    [mask_wm,seg_wm] = create_wm_mask(mask,ret,seg,th,fout,flag_save_wm_mask);
-    caa6.front.seg_wm = seg_wm;
+    % Apply WM mask to vasculature
+    caa6.front.seg_wm = seg .* mask_wm;
     caa6.front.mask_wm = mask_wm;
     
     %%% CAA 6 Occip
+    fprintf('Importing caa6 occip\n')
+    % import wm mask
+    mask_wm = fullfile(data_dir,'caa6/occip/wm_mask_revised.nii');
+    mask_wm = MRIread(mask_wm,0,0);
+    % Keep just WM (wm = 1)
+    mask_wm = mask_wm.vol;
+    mask_wm = logical(mask_wm==1);
+    % Flip about the horizontal to align with scattering
+    mask_wm = flip(mask_wm,1);
     % import local variables
-    ret = caa6.occip.ret_full;
     seg = caa6.occip.seg;
-    mask = caa6.occip.mask;
-    % retardance white matter threshold
-    th = 22;
     % Create WM mask and apply to vasculature
-    fout = fullfile(data_dir,'/caa6/occip/wm_mask.nii');
-    [mask_wm,seg_wm] = create_wm_mask(mask,ret,seg,th,fout,flag_save_wm_mask);
-    caa6.occip.seg_wm = seg_wm;
+    caa6.occip.seg_wm = seg .* mask_wm;
     caa6.occip.mask_wm = mask_wm;
     
     %%% CAA 17 Occip
+    fprintf('Importing caa17 occip\n')
+    % import wm mask
+    mask_wm = fullfile(data_dir,'caa17/occip/wm_mask_revised.nii');
+    mask_wm = MRIread(mask_wm,0,0);
+    % Keep just WM (wm = 1)
+    mask_wm = mask_wm.vol;
+    mask_wm = logical(mask_wm==1);
+    % Flip about the horizontal to align with scattering
+    mask_wm = flip(mask_wm,1);
     % import local variables
-    ret = caa17.occip.ret_full;
     seg = caa17.occip.seg;
-    mask = caa17.occip.mask;
-    % retardance white matter threshold
-    th = 19;
-    % Create WM mask and apply to vasculature
-    fout = fullfile(data_dir,'/caa17/occip/wm_mask.nii');
-    [mask_wm,seg_wm] = create_wm_mask(mask,ret,seg,th,fout,flag_save_wm_mask);
-    caa17.occip.seg_wm = seg_wm;
+    % Apply WM mask tp vasculature
+    caa17.occip.seg_wm = seg .* mask_wm;
     caa17.occip.mask_wm = mask_wm;
     
     %%% CAA 22 Frontal
+    fprintf('Importing caa22 frontal\n')
+    % import wm mask
+    mask_wm = fullfile(data_dir,'caa22/front/wm_mask_revised.nii');
+    mask_wm = MRIread(mask_wm,0,0);
+    % Keep just WM (wm = 1)
+    mask_wm = mask_wm.vol;
+    mask_wm = logical(mask_wm==1);
+    % Flip about the horizontal to align with scattering
+    mask_wm = flip(mask_wm,1);
     % import local variables
-    ret = caa22.front.ret_full;
     seg = caa22.front.seg;
-    mask = caa22.front.mask;
-    % retardance white matter threshold
-    th = 16.9;
     % Create WM mask and apply to vasculature
-    fout = fullfile(data_dir,'/caa22/front/wm_mask.nii');
-    [mask_wm,seg_wm] = create_wm_mask(mask,ret,seg,th,fout,flag_save_wm_mask);
-    caa22.front.seg_wm = seg_wm;
+    caa22.front.seg_wm = seg .* mask_wm;
     caa22.front.mask_wm = mask_wm;
     
     %%% CAA 22 Occip
+    fprintf('Importing caa6 occip\n')
+    % import wm mask
+    mask_wm = fullfile(data_dir,'caa22/occip/wm_mask_revised.nii');
+    mask_wm = MRIread(mask_wm,0,0);
+    % Keep just WM (wm = 1)
+    mask_wm = mask_wm.vol;
+    mask_wm = logical(mask_wm==1);
+    % Flip about the horizontal to align with scattering
+    mask_wm = flip(mask_wm,1);
     % import local variables
-    ret = caa22.occip.ret_full;
     seg = caa22.occip.seg;
-    mask = caa22.occip.mask;
-    % retardance white matter threshold
-    th = 22.52;
     % Create WM mask and apply to vasculature
-    fout = fullfile(data_dir,'/caa22/occip/wm_mask.nii');
-    [mask_wm,seg_wm] = create_wm_mask(mask,ret,seg,th,fout,flag_save_wm_mask);
-    caa22.occip.seg_wm = seg_wm;
+    caa22.occip.seg_wm = seg .* mask_wm;
     caa22.occip.mask_wm = mask_wm;
     
     %%% CAA 25 Frontal
+    fprintf('Importing caa25 frontal\n')
+    % import wm mask
+    mask_wm = fullfile(data_dir,'caa25/front/wm_mask_revised.nii');
+    mask_wm = MRIread(mask_wm,0,0);
+    % Keep just WM (wm = 1)
+    mask_wm = mask_wm.vol;
+    mask_wm = logical(mask_wm==1);
+    % Flip about the horizontal to align with scattering
+    mask_wm = flip(mask_wm,1);
     % import local variables
-    ret = caa25.front.ret_full;
     seg = caa25.front.seg;
-    mask = caa25.front.mask;
-    % retardance white matter threshold
-    th = 20.5;
     % Create WM mask and apply to vasculature
-    fout = fullfile(data_dir,'/caa25/front/wm_mask.nii');
-    [mask_wm,seg_wm] = create_wm_mask(mask,ret,seg,th,fout,flag_save_wm_mask);
-    caa25.front.seg_wm = seg_wm;
+    caa25.front.seg_wm = seg .* mask_wm;
     caa25.front.mask_wm = mask_wm;
     
     %%% CAA 25 Occip
+    fprintf('Importing caa25 occip\n')
+    % import wm mask
+    mask_wm = fullfile(data_dir,'caa25/occip/wm_mask_revised.nii');
+    mask_wm = MRIread(mask_wm,0,0);
+    % Keep just WM (wm = 1)
+    mask_wm = mask_wm.vol;
+    mask_wm = logical(mask_wm==1);
+    % Flip about the horizontal to align with scattering
+    mask_wm = flip(mask_wm,1);
     % import local variables
-    ret = caa25.occip.ret_full;
     seg = caa25.occip.seg;
-    mask = caa25.occip.mask;
-    % retardance white matter threshold
-    th = 22.5;
     % Create WM mask and apply to vasculature
-    fout = fullfile(data_dir,'/caa25/occip/wm_mask.nii');
-    [mask_wm,seg_wm] = create_wm_mask(mask,ret,seg,th,fout,flag_save_wm_mask);
-    caa25.occip.seg_wm = seg_wm;
+    caa25.occip.seg_wm = seg .* mask_wm;
     caa25.occip.mask_wm = mask_wm;
     
     %%% CAA 26 Frontal
+    fprintf('Importing caa26 frontal\n')
+    % import wm mask
+    mask_wm = fullfile(data_dir,'caa26/front/wm_mask_revised.nii');
+    mask_wm = MRIread(mask_wm,0,0);
+    % Keep just WM (wm = 1)
+    mask_wm = mask_wm.vol;
+    mask_wm = logical(mask_wm==1);
+    % Flip about the horizontal to align with scattering
+    mask_wm = flip(mask_wm,1);
     % import local variables
-    ret = caa26.front.ret_full;
     seg = caa26.front.seg;
-    mask = caa26.front.mask;
-    % retardance white matter threshold
-    th = 26;
     % Create WM mask and apply to vasculature
-    fout = fullfile(data_dir,'/caa26/front/wm_mask.nii');
-    [mask_wm,seg_wm] = create_wm_mask(mask,ret,seg,th,fout,flag_save_wm_mask);
-    caa26.front.seg_wm = seg_wm;
+    caa26.front.seg_wm = seg .* mask_wm;
     caa26.front.mask_wm = mask_wm;
     
     %%% CAA 26 Occip
+    fprintf('Importing caa26 occip\n')
+    % import wm mask
+    mask_wm = fullfile(data_dir,'caa26/occip/wm_mask_revised.nii');
+    mask_wm = MRIread(mask_wm,0,0);
+    % Keep just WM (wm = 1)
+    mask_wm = mask_wm.vol;
+    mask_wm = logical(mask_wm==1);
+    % Flip about the horizontal to align with scattering
+    mask_wm = flip(mask_wm,1);
     % import local variables
-    ret = caa26.occip.ret_full;
     seg = caa26.occip.seg;
-    mask = caa26.occip.mask;
-    % retardance white matter threshold
-    th = 26.6;
     % Create WM mask and apply to vasculature
-    fout = fullfile(data_dir,'/caa26/occip/wm_mask.nii');
-    [mask_wm,seg_wm] = create_wm_mask(mask,ret,seg,th,fout,flag_save_wm_mask);
-    caa26.occip.seg_wm = seg_wm;
+    caa26.occip.seg_wm = seg .* mask_wm;
     caa26.occip.mask_wm = mask_wm;
 end
-
-%% Measure from edge of ves -> edge of enclosed cylinder
-% The purpose of this is to identify the optimal radius that distinguishes
-% a statistical difference between pathological vs non-pathological
 
 %%% Combine all subjects into single struct for ease
 subjects = struct();
@@ -212,29 +225,48 @@ subjects.caa22 = caa22;
 subjects.caa25 = caa25;
 subjects.caa26 = caa26;
 
+%% Measure from edge of ves -> edge of enclosed cylinder
+% The purpose of this is to identify the optimal radius that distinguishes
+% a statistical difference between pathological vs non-pathological
+
 %%% Iterate over radius distance for measuring parenchyma
+% Thickness of ring in microns
+th = 40;
+% Maximum distance of ring
+dmax = 500;
+dmax = floor(dmax/th) .* th;
 % radii in units of microns
-radii = 40:40:480;
+% radii = [100, 200, 260, 300, 400, 500];
+radii = 40 : 40 : dmax;
 % radii in units of voxels
 radii = radii ./ res(1);
-parench = parse_caa_measure_parenchyma(subjects,radii);
-
-%% Save optical properties of tissue surrounding EPVS
+% Radii to include for generating "donut" masks
+radii_include = radii;
+% Thickness of ring in voxels
+th = th ./ res(1);
+% Minimum number of voxels per group
+n_min = 50;
+% Call parench over all radii
+parench = parse_caa_measure_parenchyma(subjects,radii,radii_include,...
+                                       th,data_dir,res,n_min);
 % Backup struct
-fout = fullfile(data_dir,'parenchyma_optical_properties.mat');
+fout = fullfile(data_dir,'parenchyma_optical_properties_40um_thick_26Jun2025.mat');
 save(fout,"parench",'-v7.3');
 
 %% Function to load data
-function [parench] = parse_caa_measure_parenchyma(subjects,radii)
+function [parench] = parse_caa_measure_parenchyma( ...
+                        subjects,radii,radii_include,th,dpath,res,n_min)
 % Function to process CAA data for multiple subjects and regions.
 % INPUTS:
 %   subjects (struct): struct containing substruct for each subject
 %   radii (array): radii of dilation in terms of voxels
-%   cont (logical): whether to segment a continuous section of parenchyma
-%                   or a disjoint section of parenchy. The continuous
-%                   section is for identifying the optimal radii to
-%                   measure. The disjoint section is for identifying a
-%                   trend in the changes in the optical properties.
+%   radii_include (int vector): these are the radii (in voxels) that will
+%                               be used to generate the "donut" masks
+%                               (and saved as .nii files)
+%   th (double): thickness of segmentation ring
+%   dpath (string): file path for saving the donut masks
+%   res (array): resolution of voxels (microns)
+%   n_min (int): minimum number of elements in volume to retain
 % OUTPUTS:
 %   parench (struct): the structure containing the optical properties for
 %                     each subject/region. For example, it will appear as:
@@ -252,11 +284,13 @@ function [parench] = parse_caa_measure_parenchyma(subjects,radii)
 
 % retrieve subject IDs
 subs = fieldnames(subjects);
+parench = struct();
 
 % Loop over each subject
 for i = 1:length(subs)
     % subject ID
     sub = subs{i};  
+    fprintf('STARTING sub %s\n',sub)
     % regions for this subject
     regions = fieldnames(subjects.(sub));
     % Loop over each region (e.g., 'front', 'occip')
@@ -268,6 +302,11 @@ for i = 1:length(subs)
         [mus, ret, seg, seg_wm, ori, epvs] = ...
             load_local_params(subjects.(sub), loc);
         
+        %%% Discard segments and EPVS with fewer than N voxels (these are
+        % likely false positives)
+        seg = keep_large(seg, n_min);
+        epvs = keep_large(epvs, n_min);
+
         % Exclude vessels from mus and retardance. This is to ensure the
         % parenchyma measurements are only of parenchyma
         mus(seg) = NaN;
@@ -292,10 +331,10 @@ for i = 1:length(subs)
             %%% Create the structuring elements for two dilations
             % se1 is the inner dilation
             se1 = strel('disk',radii(k));
-            % se2 = 2 voxels (40 um) > inner dilation
-            se2 = strel('disk',radii(k)+2);
+            % se2 = "th" voxels greater than > inner dilation
+            se2 = strel('disk',radii(k)+th);
             % Measure optical properties of tissue surrounding vessels
-            [mus_out,ret_out,ori_out,mus_in,ret_in,ori_in] = ...
+            [mus_out,ret_out,ori_out,mus_in,ret_in,ori_in,pout,pin] = ...
                 parenchyma_optical_props(seg_wm_no_epvs,mus,ret,ori,se1,se2);
             
             %%% Add to the struct
@@ -309,10 +348,31 @@ for i = 1:length(subs)
             parench.(sub).(loc).(rad_str).outter.ves.pmus = mus_out;
             parench.(sub).(loc).(rad_str).outter.ves.pret = ret_out;
             parench.(sub).(loc).(rad_str).outter.ves.pori = ori_out;
+            % Save the parenchyma ring if its smallest, 250, or largest
+            if ismember(radii(k),radii_include)
+                %%% Inner
+                % set the filename
+                fname = strcat(rad_str, '_inner.nii');
+                % Set the save path
+                fname = fullfile(dpath,sub,loc,'/ves_donuts/',fname);
+                % Save as nifti
+                fprintf('Saving inner donut to NII: %s, %s, %s\n',...
+                    sub,loc,rad_str)
+                save_mri(pin,fname,res./1000,'uchar',0);
+                %%% Outer
+                % set the filename
+                fname = strcat(rad_str, '_outer.nii');
+                % Set the save path
+                fname = fullfile(dpath,sub,loc,'/ves_donuts/',fname);
+                % Save as nifti
+                fprintf('Saving outer donut to NII: %s, %s, %s\n',...
+                    sub,loc,rad_str)
+                save_mri(pout,fname,res./1000,'uchar',0);
+            end
             
             % If EPVS exists, process EPVS parenchyma as well
             if ~isempty(epvs)
-                [mus_out,ret_out,ori_out,mus_in,ret_in,ori_in] = ...
+                [mus_out,ret_out,ori_out,mus_in,ret_in,ori_in,pout,pin] = ...
                     parenchyma_optical_props(epvs,mus,ret,ori,se1,se2);
                 % add the inner cylinder to struct
                 parench.(sub).(loc).(rad_str).inner.epvs.pmus = mus_in;
@@ -322,6 +382,27 @@ for i = 1:length(subs)
                 parench.(sub).(loc).(rad_str).outter.epvs.pmus = mus_out;
                 parench.(sub).(loc).(rad_str).outter.epvs.pret = ret_out;
                 parench.(sub).(loc).(rad_str).outter.epvs.pori = ori_out;
+                % Save the parenchyma ring if its smallest, 250, or largest
+                if ismember(radii(k),radii_include)
+                    %%% Inner
+                    % set the filename
+                    fname = strcat(rad_str, '_inner.nii');
+                    % Set the save path
+                    fname = fullfile(dpath,sub,loc,'/epvs_donuts/',fname);
+                    % Save as nifti
+                    fprintf('Saving inner donut to NII: %s, %s, %s\n',...
+                        sub,loc,rad_str)
+                    save_mri(pin,fname,res./1000,'uchar',0);
+                    %%% Outer
+                    % set the filename
+                    fname = strcat(rad_str, '_outer.nii');
+                    % Set the save path
+                    fname = fullfile(dpath,sub,loc,'/epvs_donuts/',fname);
+                    % Save as nifti
+                    fprintf('Saving outer donut to NII: %s, %s, %s\n',...
+                        sub,loc,rad_str)
+                    save_mri(pout,fname,res./1000,'uchar',0);
+                end
             end
             fprintf('  --finished radius %d of %d\n', k, length(radii));
         end
@@ -331,32 +412,31 @@ for i = 1:length(subs)
 end
 end
 
-%% Function to load local parameters for each subject/region
-function [mus, ret, seg, seg_wm, ori, epvs] = load_local_params(sub, loc)
-% Function to load the local parameters for a given subject and location.
-% It dynamically loads the data based on subject and region.
-% INPUTS:
-%   sub (struct): structure for a specific subject
-%   loc (string): region under analysis
-% OUTPUTS:
-%   mus (array): scattering coefficient
-%   ret (array): retardance coefficient
-%   seg (logical array): vascular segmentation
-%   seg_wm (logical array): vascular segmentation in white matter
-%   ori (array): orientation 
-%   epvs (logical array): EPVS segmentation
-    
-% Load the common local parameters
-mus = sub.(loc).mus;
-ret = sub.(loc).ret_full;
-seg = sub.(loc).seg;
-seg_wm = sub.(loc).seg_wm;
-ori = sub.(loc).orient;
+function seg_parsed = keep_large(seg, nmin)
+% keepLargeComponents - Keeps connected components with at least nmin voxels (vectorized)
+%
+% Syntax: seg_parsed = keepLargeComponents(seg, nmin)
+%
+% Inputs:
+%    seg - 3D binary matrix (segmentation)
+%    nmin - Minimum number of voxels for a component to be retained
+%
+% Outputs:
+%    seg_parsed - 3D binary matrix with small components removed
 
-% Set epvs to empty if the subject does not have epvs data
-if isfield(sub, loc) && isfield(sub.(loc), 'epvs')
-    epvs = sub.(loc).epvs;
-else
-    epvs = [];
-end
+% Identify connected components in 3D
+CC = bwconncomp(seg, 26); % 26-connectivity for 3D
+
+% Measure component sizes
+componentSizes = cellfun(@numel, CC.PixelIdxList);
+
+% Find components that meet size threshold
+largeComponentsIdx = componentSizes >= nmin;
+
+% Concatenate indices of large components
+voxelsToKeep = vertcat(CC.PixelIdxList{largeComponentsIdx});
+
+% Create the output segmentation
+seg_parsed = false(size(seg));
+seg_parsed(voxelsToKeep) = true;
 end
