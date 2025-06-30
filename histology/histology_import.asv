@@ -39,7 +39,7 @@ folder = fullfile(hist_dir,'LHE/');
 % List all EPVS mask files
 mask_files = dir(fullfile(folder, '*_EPVS_Mask.tif'));
 % Initialize struct array
-lhe = struct();
+data = struct();
 
 for i = 1:length(mask_files)
     % Extract base filename
@@ -49,22 +49,20 @@ for i = 1:length(mask_files)
     % Construct full file paths
     lhe_path = fullfile(folder, [base_name '_M_BackgroundMask.tif']);
     epvs_path = fullfile(folder, epvs_filename);
-    mask_path = fullfile(folder, [base_name '_mask.tif']);
+    mask_path
     
     % Load the images (assume both files exist)
     image = imread(lhe_path);
-    epvs = imread(epvs_path);
-    mask = imread(mask_path);
-
+    mask = imread(epvs_path);
+    
     % Store in struct
-    lhe(i).baseName = base_name;
-    lhe(i).image = image;
-    lhe(i).epvs = epvs;
-    lhe(i).mask = mask;
+    data(i).baseName = base_name;
+    data(i).image = image;
+    data(i).mask = mask;
 end
 
-%%% EPVS measurements (dilate EPVS) + control (uniform sampling)
-lhe = histology_measure_epvs(lhe);
+
+
 
 %% Gallyas
 
@@ -73,9 +71,3 @@ lhe = histology_measure_epvs(lhe);
 %% Fibrin
 
 %% GFAP
-
-%% Function to measure parenchyma surrounding EPVS
-
-
-
-%% Function to perform control measurements

@@ -26,13 +26,13 @@ data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
 scat_out = fullfile(data_dir,'/scatter_plots');
 bw_out = fullfile(data_dir,'/bw_plots');
 % Load parenchyam struct
-load(fullfile(data_dir,"parenchyma_optical_properties_100um_thick.mat"));
+load(fullfile(data_dir,"parenchyma_optical_properties_40um_thick_26Jun2025.mat"));
 % Scatter plot dot size
 scat_size = 100;
 % Isotropic voxel size (microns)
 vox = 20;
 % Filename substring
-substr = '_100um_donut';
+substr = '_40um_donut_26Jun2025';
 
 %% Scatterplot of optical property vs. distance (most & least severe)
 % ONLY most severe (CAA22 occip) + least severe (CAA26 occip) EPVS cases

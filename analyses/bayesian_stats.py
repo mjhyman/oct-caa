@@ -26,7 +26,7 @@ run_model = True
 for sheet in sheet_names:
     # Read in Excel file
     data = pd.read_excel('/autofs/cluster/octdata3/users/mjhyman/'
-                         'oct_caa_analyses/optical_properties/lmm_test1_same_id_100um_donut_100um_outer.xlsx',
+                         'oct_caa_analyses/optical_properties/lmm_test1_same_id_40um_donut_40um_outer.xlsx',
                          sheet_name=sheet)
 
     # Extract columns (subjectID, region, optical property)
@@ -105,7 +105,7 @@ for sheet in sheet_names:
                 y = pm.Normal("y", mu=mu, sigma=sigma_residual, observed=y_obs)
 
             # Sampling
-            trace = pm.sample(1000, tune=1000, target_accept=0.9, cores=2, random_seed=42)
+            trace = pm.sample(2000, tune=1000, target_accept=0.95, cores=2, random_seed=42, chains=4)
         # -------------------------
         # Posterior Summaries
         # -------------------------

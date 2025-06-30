@@ -21,19 +21,22 @@ clc; close all;
 current_dir = pwd;
 addpath(fullfile(current_dir));
 % Directory for loading seg, mus, ret, mask, epvs
-data_dir = '/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical_properties';
-fig_out = '/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/figures/statistics';
+data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
+    'oct_caa_analyses/optical_properties'];
+fig_out = ['/autofs/cluster/octdata3/users/mjhyman/' ...
+    'oct_caa_analyses/figures/statistics'];
 %%% 40 um donut
 % load the parenchymal optical properties
-load(fullfile(data_dir,'parenchyma_optical_properties_40um_thick.mat'));
+load(fullfile(data_dir, ...
+    'parenchyma_optical_properties_40um_thick_26Jun2025.mat'));
 % String indicating EPVS ring radius (in voxels) to access structure
-rad = 'rad8';
+rad = 'rad2';
 
 %%% 100 um donut
-% load the parenchymal optical properties
-load(fullfile(data_dir,'parenchyma_optical_properties_100um_thick.mat'));
-% String indicating EPVS ring radius (in voxels) to access structure
-rad = 'rad5';
+% % load the parenchymal optical properties
+% load(fullfile(data_dir,'parenchyma_optical_properties_100um_thick.mat'));
+% % String indicating EPVS ring radius (in voxels) to access structure
+% rad = 'rad5';
 
 %% Bar Charts
 %{
@@ -216,6 +219,8 @@ n_exp = sum([length(epvs_pmus_17), length(epvs_pmus_22f),...
     length(epvs_pmus_26o)],'omitnan');
 % Test index
 test_idx = 1;
+% Flag for checking linearity assumption
+check_lin = false;
 
 %%% Perform LMM Test 1 (same subID for exp/cont within volume)
 % Flag for incrementing the subject index just for the tissue volume
@@ -223,9 +228,9 @@ flag_subs = true;
 [stats1, p1, exp_mus1, exp_ret1, exp_sori1,...
     ctl_mus1, ctl_ret1, ctl_sori1,...
     tbl_mus, tbl_ret, tbl_sori] =...
-        lmm_test(test_idx, flag_subs, parench, rad, n_ctl, n_exp);
+        lmm_test(check_lin, test_idx, flag_subs, parench, rad, n_ctl, n_exp);
 % Export the tables to CSV
-fout = fullfile(data_dir,'lmm_test1_same_id_100um_donut_100um_outer.xlsx');
+fout = fullfile(data_dir,'lmm_test1_same_id_40um_donut_40um_outer.xlsx');
 writetable(tbl_mus,fout,'Sheet','scattering');
 writetable(tbl_ret,fout,'Sheet','retardance');
 writetable(tbl_sori,fout,'Sheet','orientation');
@@ -247,6 +252,8 @@ n_exp = sum([length(epvs_pmus_17), length(epvs_pmus_22f),...
                 length(epvs_pmus_26o)],'omitnan');
 % Test index
 test_idx = 2;
+% Flag for checking linearity assumption
+check_lin = false;
 
 %%% Perform LMM Test 2 (same subID for exp/cont within volume)
 % Flag for incrementing the subject index just for the tissue volume
@@ -254,7 +261,7 @@ flag_subs = true;
 [stats2, p2, exp_mus2, exp_ret2, exp_sori2,...
     ctl_mus2, ctl_ret2, ctl_sori2,...
     tbl_mus, tbl_ret, tbl_sori] =...
-        lmm_test(test_idx, flag_subs, parench, rad, n_ctl, n_exp);
+        lmm_test(check_lin, test_idx, flag_subs, parench, rad, n_ctl, n_exp);
 % Export the tables to CSV
 % fout = fullfile(data_dir,'lmm_test2_same_id.xlsx');
 % writetable(tbl_mus,fout,'Sheet','scattering');

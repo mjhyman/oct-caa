@@ -2,11 +2,12 @@
 function [stats, p, exp_mus, exp_ret, exp_ori,...
             ctl_mus, ctl_ret, ctl_ori,...
             tbl_mus, tbl_ret, tbl_sori] =...
-        lmm_test(test_idx, flag_subs, parench, rad, n_ctl, n_exp)
+        lmm_test(check_lin, test_idx, flag_subs, parench, rad, n_ctl, n_exp)
 % LMM_TEST Create linear mixed effects model to compare optical props
 % This test will measure across all subjects and compare:
 %   - vessels w/ EPVS vs. vessels w/o EPVS 
 % INPUTS:
+%   check_lin (logical): flag for checking linearity assumptions
 %   test_idx (int): index for the respective statistical test
 %   flag_subs (int): flag for how to increment the subject ID assignment
 %       0 -> iterate subject ID for each tissue volume and EPVS/vessel.
@@ -189,6 +190,7 @@ tbl_sori.OpticalProperty = real(tbl_sori.OpticalProperty);
 %   response = optical property array
 %   random effect (intercept/subject): subID of tissue volume
 %   fixed effect: Groups (experimental or control)
+fprintf('Fitting LME for each optical property')
 fml = 'OpticalProperty ~ Groups + (Groups | subID)';
 % Fit the model for scattering
 lme_mus = fitlme(tbl_mus,fml);
@@ -198,17 +200,21 @@ lme_ret = fitlme(tbl_ret,fml);
 lme_sori = fitlme(tbl_sori,fml);
 
 %%% Check linearity assumptions of GLME
-% Mus
-tstr = 'Scattering Coefficient';
-check_glme_linearity(lme_mus, tbl_mus, 0.05, tstr);
-% retardance
-tstr = 'Retardance';
-check_glme_linearity(lme_ret, tbl_ret, 0.05, tstr);
-% orientation
-tstr = 'Orientation';
-check_glme_linearity(lme_sori, tbl_sori, 0.05, tstr);
+if check_lin
+    fprintf('Checking GLME linearity assumptions\n')
+    % Mus
+    tstr = 'Scattering Coefficient';
+    check_glme_linearity(lme_mus, tbl_mus, 0.05, tstr);
+    % retardance
+    tstr = 'Retardance';
+    check_glme_linearity(lme_ret, tbl_ret, 0.05, tstr);
+    % orientation
+    tstr = 'Orientation';
+    check_glme_linearity(lme_sori, tbl_sori, 0.05, tstr);
+end
 
 %%% Estimates of fixed effects 
+fprintf('measuring fixed effects')
 [~,~,stats_mus] = fixedEffects(lme_mus);
 [~,~,stats_ret] = fixedEffects(lme_ret);
 [~,~,stats_sori] = fixedEffects(lme_sori);
