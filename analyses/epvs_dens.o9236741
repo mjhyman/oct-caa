@@ -1,0 +1,22 @@
+
+                            < M A T L A B (R) >
+                  Copyright 1984-2022 The MathWorks, Inc.
+             R2022b Update 5 (9.13.0.2193358) 64-bit (glnxa64)
+                             February 10, 2023
+
+Warning: X does not support locale C
+ 
+To get started, type doc.
+For product information, visit www.mathworks.com.
+ 
+Loading CAA17
+Finished loading CAA17
+Loading CAA22
+Finished loading CAA22
+Loading CAA25
+Finished loading CAA25
+Loading CAA26
+Finished loading CAA26
+Creating 2D arrays of EPVS density vs. optical prop
+Separating heatmap pairs by subject and region
+Averaging frontal+occipital
