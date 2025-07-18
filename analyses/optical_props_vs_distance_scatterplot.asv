@@ -101,21 +101,13 @@ subjects = fieldnames(parench);
 % Retrieve radii within struct
 radii = fieldnames(parench.(subjects{1}).front);
 
-%%% Initialize array for pairs of optical proprety vs. distance
-% Mean
-mean_ves_mus = zeros(length(radii),1);
-mean_ves_ret = zeros(length(radii),1);
-mean_ves_ori = zeros(length(radii),1);
-mean_epvs_mus = zeros(length(radii),1);
-mean_epvs_ret = zeros(length(radii),1);
-mean_epvs_ori = zeros(length(radii),1);
-% standard error of measurement (SEM)
-sem_ves_mus = zeros(length(radii),1);
-sem_ves_ret = zeros(length(radii),1);
-sem_ves_ori = zeros(length(radii),1);
-sem_epvs_mus = zeros(length(radii),1);
-sem_epvs_ret = zeros(length(radii),1);
-sem_epvs_ori = zeros(length(radii),1);
+% Initialize array for pairs of optical proprety vs. distance
+ves_mus = zeros(length(radii),1);
+ves_ret = zeros(length(radii),1);
+ves_ori = zeros(length(radii),1);
+epvs_mus = zeros(length(radii),1);
+epvs_ret = zeros(length(radii),1);
+epvs_ori = zeros(length(radii),1);
 
 % Count the total number of tissue volumes
 nvol = 0;
@@ -200,14 +192,15 @@ end
 
 %%% Overlay scatterplots (EPVS and ves)
 % Mus
-figure('Position', [100, 100, 900, 900],'Resize', 'off');
+figure;
+set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
 errorbar(x,mean_ves_mus,sem_ves_mus,"-s",'Color','k',...
-    "MarkerFaceColor",'k','MarkerSize',20,'LineWidth',4);
+    "MarkerFaceColor",'k','MarkerSize',20);
 hold on;
 errorbar(x,mean_epvs_mus,sem_epvs_mus,"-s",'Color','r',...
-    "MarkerFaceColor",'r','MarkerSize',20,'LineWidth',4);
+    "MarkerFaceColor",'r','MarkerSize',20);
 xlabel('Distance (\mum)'); ylabel('\mus (cm^-^1)');
-title('\mus vs. Distance (SEM)'); set(gca,'fontsize',24);
+title('\mus vs. Distance'); set(gca,'fontsize',24);
 legend({'Vessels','EPVS'});
 fontname("SansSerif")
 fname = strcat('epvs_ves_mus_vs_distance',substr,'.png');
@@ -215,38 +208,39 @@ fout = fullfile(scat_out,'/all_subjects/',fname);
 pause(1); saveas(gcf,fout);
 
 % Retardance
-figure('Position', [100, 100, 900, 900],'Resize', 'off');
-errorbar(x,mean_ves_ret,sem_ves_ret,"-s",'Color','k',...
-    "MarkerFaceColor",'k','MarkerSize',20,'LineWidth',4);
+figure;
+set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
+errorbar(x,mean_ves_mus,sem_ves_mus,"-s",'Color','k',...
+    "MarkerFaceColor",'k','MarkerSize',20);
 hold on;
-errorbar(x,mean_epvs_ret,sem_epvs_ret,"-s",'Color','r',...
-    "MarkerFaceColor",'r','MarkerSize',20,'LineWidth',4);
-xlabel('Distance (\mum)'); ylabel('Retardance (degrees)');
-title('Retardance vs. Distance (SEM)'); set(gca,'fontsize',24);
+errorbar(x,mean_epvs_mus,sem_epvs_mus,"-s",'Color','r',...
+    "MarkerFaceColor",'r','MarkerSize',20);
+xlabel('Distance (\mum)'); ylabel('\mus (cm^-^1)');
+title('\mus vs. Distance'); set(gca,'fontsize',24);
 legend({'Vessels','EPVS'});
 fontname("SansSerif")
-fname = strcat('epvs_ves_ret_vs_distance',substr,'.png');
+fname = strcat('epvs_ves_mus_vs_distance',substr,'.png');
 fout = fullfile(scat_out,'/all_subjects/',fname);
 pause(1); saveas(gcf,fout);
 
 % Orientation
-figure('Position', [100, 100, 900, 900],'Resize', 'off');
-errorbar(x,mean_ves_ori,sem_ves_ori,"-s",'Color','k',...
-    "MarkerFaceColor",'k','MarkerSize',20,'LineWidth',4);
+figure;
+set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
+errorbar(x,mean_ves_mus,sem_ves_mus,"-s",'Color','k',...
+    "MarkerFaceColor",'k','MarkerSize',20);
 hold on;
-errorbar(x,mean_epvs_ori,sem_epvs_ori,"-s",'Color','r',...
-    "MarkerFaceColor",'r','MarkerSize',20,'LineWidth',4);
-xlabel('Distance (\mum)'); ylabel('\sigma_{orientation} (radians)');
-title('CSDO vs. Distance (SEM)'); set(gca,'fontsize',24);
+errorbar(x,mean_epvs_mus,sem_epvs_mus,"-s",'Color','r',...
+    "MarkerFaceColor",'r','MarkerSize',20);
+xlabel('Distance (\mum)'); ylabel('\mus (cm^-^1)');
+title('\mus vs. Distance'); set(gca,'fontsize',24);
 legend({'Vessels','EPVS'});
 fontname("SansSerif")
-fname = strcat('epvs_ves_ori_vs_distance',substr,'.png');
+fname = strcat('epvs_ves_mus_vs_distance',substr,'.png');
 fout = fullfile(scat_out,'/all_subjects/',fname);
 pause(1); saveas(gcf,fout);
 
 
 %%% Create scatterplots separately
-%{
 % vessel - mus
 set(gcf, 'Units', 'Normalized', 'OuterPosition', [0, 0.04, 1, 0.96]);
 scatter(x,ves_mus,scat_size,'filled','k');
@@ -295,7 +289,6 @@ title('EPVS \sigma_{orientation} vs. Distance'); set(gca,'fontsize',24);
 fname = strcat('epvs_ori_vs_distance',substr,'.png');
 fout = fullfile(scat_out,'/all_subjects/',fname);
 pause(1); saveas(gcf,fout);
-%}
 
 %% Box/whisker Plots
 

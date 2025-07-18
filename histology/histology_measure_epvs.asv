@@ -55,7 +55,7 @@ for ii = 1:length(hist)
         z_stain(mask) = (stain_matched(mask) - mu) / sigma;
         
         %%% Dilate EPVS mask & measure parenchyma
-        [pstain,pstain_mask] = dilate_meas(z_stain,mask,epvs,se1,se2);
+        [pstain] = dilate_meas(stain_matched,mask,epvs,se1,se2);
         
         %%% Measure control (uniform grid)
         % If patch_len undefined, then import control
@@ -63,15 +63,13 @@ for ii = 1:length(hist)
             % Combine EPVS & dilated EPVS into logical matrix to exclude
             exclude_map = epvs | pstain_mask;
             % Take control measurements
-            ctl = uniform_sample_ctl(z_stain, mask, exclude_map,...
+            ctl = uniform_sample_ctl(stain_matched, mask, exclude_map,...
                                     patch_len, patch_dist);
         else
-            % Import vessel annotations
             ves = logical(hist(ii).ves);
-            % Create map of pixels to exclude
-            ctl = dilate_meas(z_stain,mask,ves,se1,se2);
+            ctl = dilate_meas(stain_matched,mask,epvs,se1,se2);
         end
-        
+    
         %%% Add experimental + control to structure
         hist(ii).meas(j).exp = pstain;
         hist(ii).meas(j).ctl = ctl;

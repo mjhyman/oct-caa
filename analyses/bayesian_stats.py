@@ -11,6 +11,7 @@ import scipy.stats as stats
 # -----------------------
 # spreadsheet sheet names for each optical property
 sheet_names = ["scattering", "retardance", "orientation"]
+sheet_names = ["scattering"]
 
 # Optional: store summaries for each response
 summary_dict = {}
@@ -98,14 +99,11 @@ for sheet in sheet_names:
             # Formula for modeling the data
             mu = mu_intercept + beta_condition * condition + subject_effect[subject_idx] + tissue_effect[tissue_idx]
 
-            # LogNormal if strictly positive, else fallback to Normal
-            if (y_obs > 0).all() and stats.skew(y_obs) > 1:
-                y = pm.LogNormal("y", mu=mu, sigma=sigma_residual, observed=y_obs)
-            else:
-                y = pm.Normal("y", mu=mu, sigma=sigma_residual, observed=y_obs)
+            # Sample distribution (LogNormal if strictly positive)
+            y = pm.LogNormal("y", mu=mu, sigma=sigma_residual, observed=y_obs)
 
             # Sampling
-            trace = pm.sample(2000, tune=1000, target_accept=0.95, cores=2, random_seed=42, chains=4)
+            trace = pm.sample(6000, tune=4000, target_accept=0.97, cores=2, random_seed=42, chains=4)
         # -------------------------
         # Posterior Summaries
         # -------------------------
