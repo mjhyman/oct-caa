@@ -52,7 +52,7 @@ mask_suffix = '_mask.tif';
 [lhe] = import_stain(stain_dir,...
                     stain_suffix,epvs_suffix,mask_suffix);
 
-%% EPVS measurements (dilate EPVS) + control (uniform sampling)
+%%% EPVS measurements (dilate EPVS) + control (uniform sampling)
 % Define radii of measurements
 radii = [0,5,10,15,20];
 % Define threshold for increasing donut
@@ -60,19 +60,14 @@ th = 5;
 % Measure EPVS
 lhe = histology_measure_epvs(lhe,radii,th,patch_len,patch_dist);
 
-%%% TODO: Statistics: experimental vs. control
-%{
-% Iterate over each radius
-
-% Extract exp & ctl from all subjects
-exp = lhe.('exp');
-ctl = lhe.('ctl');
-exp_mean = mean(exp(:),'omitnan');
-ctl_mean = mean(ctl(:),'omitnan');
-
-% Plot exp vs. control
-%}
-
+%%% Statistics
+% Extract exp + control from all subjects & perform Wilcoxon
+[p,h,w,z] = wilcoxon_epvs_ctl(lhe);
+% Print the stats
+fprintf('LHE: p = %f, h = %d\n',p,h)
+fprintf('LHE: exp_med = %f, ctl_med = %f\n',median(epvs),median(ves))
+fprintf('LHE: W = %f\n',w);
+fprintf('LHE: Z-score = %f\n',z);
 
 %% CD68
 % Stain directory
@@ -96,6 +91,15 @@ th = 5;
 fprintf('Measuring CD68\n')
 cd68 = histology_measure_epvs(cd68,radii,th,patch_len,patch_dist);
 
+%%% Statistics
+% Extract exp + control from all subjects & perform Wilcoxon
+[p,h,w,z] = wilcoxon_epvs_ctl(cd68);
+% Print the stats
+fprintf('CD68: p = %f, h = %d\n',p,h)
+fprintf('CD68: exp_med = %f, ctl_med = %f\n',median(epvs),median(ves))
+fprintf('CD68: W = %f\n',w);
+fprintf('CD68: Z-score = %f\n',z);
+
 %% GFAP
 % Stain directory
 stain_dir = fullfile(hist_dir,'GFAP/');
@@ -117,6 +121,15 @@ th = 5;
 % Measure EPVS
 fprintf('Measuring CD68\n')
 gfap = histology_measure_epvs(gfap,radii,th,patch_len,patch_dist);
+
+%%% Statistics
+% Extract exp + control from all subjects & perform Wilcoxon
+[p,h,w,z] = wilcoxon_epvs_ctl(gfap);
+% Print the stats
+fprintf('GFAP: p = %f, h = %d\n',p,h)
+fprintf('GFAP: exp_med = %f, ctl_med = %f\n',median(epvs),median(ves))
+fprintf('GFAP: W = %f\n',w);
+fprintf('GFAP: Z-score = %f\n',z);
 
 %% Gallyas
 
@@ -195,7 +208,7 @@ for ii = 1:length(subdirs)
     gal(ii).ret = ret;
 end
 
-%%% Measure histology vs. retardance
+%%% Statistics: histology vs. retardance
 % Define radii of measurements
 radii = [0,2,4,6,8];
 % Define threshold for increasing donut
@@ -207,11 +220,45 @@ gal = corr_histo_oct(gal,radii,th);
 % some of the imported images have three channels, but they are all
 % logical. this is due to an issue from Fiji. Just keep one of these
 % channels
-
 function im = single_ch(im)
-
 if ~ismatrix(im)
     im = im(:,:,1);
 end
+end
+
+%% Function to extract exp. + control from struct
+function [p,h,w,z] = wilcoxon_epvs_ctl(histo)
+% Extract the average of the measurements surrounding the EPVS and control
+%   INPUTS
+%       histo (struct): pathology struct. Each number entry corresponds to
+%                       a different tissue section.
+%   OUTPUTS:
+%       w (float): wilcoxon signed rank test statistic
+%       z (float): z-statistics
+%       p (float): p-value
+%       h (int): result of hypothesis test
+
+% Create vectors for storing experimental and control
+nsec = length(histo);
+epvs = zeros(nsec,1);
+ves = zeros(nsec,1);
+% Iterate over all tissue sections
+for ii = 1:nsec
+    % Open all measurements from current tissue section
+    data = histo(ii).meas;
+    % Extract first sample surrounding EPVS
+    epvs(ii) = data(1).exp_mean;
+    ves(ii) = data(1).ctl_mean;
+end
+
+%%% Wilcoxon Signed-Rank test
+% The approximate method is typically used for large samples (>15). It is
+% used here just to compute the Z-score
+[~,~,stats] = signrank(epvs,ves,'method','approximate');
+w = stats.signedrank;
+z = stats.zval;
+% The exact method is used to compute the exact p-value since there are few
+% number of samples
+[p,h,~] = signrank(epvs,ves);
 
 end
