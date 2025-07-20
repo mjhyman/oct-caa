@@ -58,7 +58,7 @@ radii = [0,5,10,15,20];
 % Define threshold for increasing donut
 th = 5;
 % Measure EPVS
-lhe = measure_epvs_and_control(lhe,radii,th,patch_len,patch_dist);
+lhe = histology_measure_epvs(lhe,radii,th,patch_len,patch_dist);
 
 %%% Statistics
 % Extract exp + control from all subjects & perform Wilcoxon
@@ -89,7 +89,7 @@ radii = [0,5,10,15,20];
 th = 5;
 % Measure EPVS
 fprintf('Measuring CD68\n')
-cd68 = measure_epvs_and_control(cd68,radii,th,patch_len,patch_dist);
+cd68 = histology_measure_epvs(cd68,radii,th,patch_len,patch_dist);
 
 %%% Statistics
 % Extract exp + control from all subjects & perform Wilcoxon
@@ -120,9 +120,9 @@ radii = [0,5,10,15,20];
 th = 5;
 % Measure EPVS
 fprintf('Measuring CD68\n')
-gfap = measure_epvs_and_control(gfap,radii,th,patch_len,patch_dist);
+gfap = histology_measure_epvs(gfap,radii,th,patch_len,patch_dist);
 
-%%% Statistics
+%% Statistics
 % Extract exp + control from all subjects & perform Wilcoxon
 [p,h,w,z] = wilcoxon_epvs_ctl(gfap);
 % Print the stats
