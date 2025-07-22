@@ -30,7 +30,12 @@ Deconvolved:
 
 %% Top-level settings
 clear; clc; close all;
-hist_dir='/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/histology';
+
+%%% Directories
+% Input directory
+hdir='/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/histology';
+% Directory to save output
+stat_sheet = fullfile(hdir, 'histo_stats.xlsx');
 
 %%% Control sample dimensions
 % side length of patch square
@@ -40,7 +45,7 @@ patch_dist = 20;
 
 %% LHE
 % Stain directory
-stain_dir = fullfile(hist_dir,'LHE/');
+stain_dir = fullfile(hdir,'LHE/');
 % stain suffix
 stain_suffix = '_M_BackgroundMask.tif';
 % EPVS suffix
@@ -58,20 +63,26 @@ radii = [0,5,10,15,20];
 % Define threshold for increasing donut
 th = 5;
 % Measure EPVS
-lhe = histology_measure_epvs(lhe,radii,th,patch_len,patch_dist);
+lhe = measure_epvs_and_control(lhe,radii,th,patch_len,patch_dist);
 
-%%% Statistics
+%%% LHE Statistics
 % Extract exp + control from all subjects & perform Wilcoxon
-[p,h,w,z] = wilcoxon_epvs_ctl(lhe);
-% Print the stats
-fprintf('LHE: p = %f, h = %d\n',p,h)
-fprintf('LHE: exp_med = %f, ctl_med = %f\n',median(epvs),median(ves))
-fprintf('LHE: W = %f\n',w);
-fprintf('LHE: Z-score = %f\n',z);
+[comb,front,occip] = wilcoxon_epvs_ctl(lhe);
+
+% Create table to write to a spreadsheet
+T = table( ...
+    [comb.p; front.p; occip.p], ...
+    [comb.h; front.h; occip.h], ...
+    [comb.w; front.w; occip.w], ...
+    [comb.z; front.z; occip.z], ...
+    'VariableNames', {'p', 'h', 'w', 'z'}, ...
+    'RowNames', {'comb', 'front', 'occip'});
+% Write to specific sheet named "LHE"
+writetable(T, stat_sheet, 'WriteRowNames', true, 'Sheet', 'LHE');
 
 %% CD68
 % Stain directory
-stain_dir = fullfile(hist_dir,'CD68/');
+stain_dir = fullfile(hdir,'CD68/');
 % stain suffix
 stain_suffix = '_shrunk_deconv.tif';
 % EPVS suffix
@@ -89,20 +100,27 @@ radii = [0,5,10,15,20];
 th = 5;
 % Measure EPVS
 fprintf('Measuring CD68\n')
-cd68 = histology_measure_epvs(cd68,radii,th,patch_len,patch_dist);
+cd68 = measure_epvs_and_control(cd68,radii,th,patch_len,patch_dist);
 
-%%% Statistics
+%%% CD68 Statistics
+
 % Extract exp + control from all subjects & perform Wilcoxon
-[p,h,w,z] = wilcoxon_epvs_ctl(cd68);
-% Print the stats
-fprintf('CD68: p = %f, h = %d\n',p,h)
-fprintf('CD68: exp_med = %f, ctl_med = %f\n',median(epvs),median(ves))
-fprintf('CD68: W = %f\n',w);
-fprintf('CD68: Z-score = %f\n',z);
+[comb,front,occip] = wilcoxon_epvs_ctl(cd68);
+
+% Create table to write to a spreadsheet
+T = table( ...
+    [comb.p; front.p; occip.p], ...
+    [comb.h; front.h; occip.h], ...
+    [comb.w; front.w; occip.w], ...
+    [comb.z; front.z; occip.z], ...
+    'VariableNames', {'p', 'h', 'w', 'z'}, ...
+    'RowNames', {'comb', 'front', 'occip'});
+% Write to specific sheet named "LHE"
+writetable(T, stat_sheet, 'WriteRowNames', true, 'Sheet', 'CD68');
 
 %% GFAP
 % Stain directory
-stain_dir = fullfile(hist_dir,'GFAP/');
+stain_dir = fullfile(hdir,'GFAP/');
 % stain suffix
 stain_suffix = '_shrunk_deconv.tif';
 % EPVS suffix
@@ -120,9 +138,9 @@ radii = [0,5,10,15,20];
 th = 5;
 % Measure EPVS
 fprintf('Measuring CD68\n')
-gfap = histology_measure_epvs(gfap,radii,th,patch_len,patch_dist);
+gfap = measure_epvs_and_control(gfap,radii,th,patch_len,patch_dist);
 
-%% Statistics
+%%% GFAP Statistics
 % Extract exp + control from all subjects & perform Wilcoxon
 [p,h,w,z] = wilcoxon_epvs_ctl(gfap);
 % Print the stats
@@ -226,39 +244,3 @@ if ~ismatrix(im)
 end
 end
 
-%% Function to extract exp. + control from struct
-function [p,h,w,z] = wilcoxon_epvs_ctl(histo)
-% Extract the average of the measurements surrounding the EPVS and control
-%   INPUTS
-%       histo (struct): pathology struct. Each number entry corresponds to
-%                       a different tissue section.
-%   OUTPUTS:
-%       w (float): wilcoxon signed rank test statistic
-%       z (float): z-statistics
-%       p (float): p-value
-%       h (int): result of hypothesis test
-
-% Create vectors for storing experimental and control
-nsec = length(histo);
-epvs = zeros(nsec,1);
-ves = zeros(nsec,1);
-% Iterate over all tissue sections
-for ii = 1:nsec
-    % Open all measurements from current tissue section
-    data = histo(ii).meas;
-    % Extract first sample surrounding EPVS
-    epvs(ii) = data(1).exp_mean;
-    ves(ii) = data(1).ctl_mean;
-end
-
-%%% Wilcoxon Signed-Rank test
-% The approximate method is typically used for large samples (>15). It is
-% used here just to compute the Z-score
-[~,~,stats] = signrank(epvs,ves,'method','approximate');
-w = stats.signedrank;
-z = stats.zval;
-% The exact method is used to compute the exact p-value since there are few
-% number of samples
-[p,h,~] = signrank(epvs,ves);
-
-end

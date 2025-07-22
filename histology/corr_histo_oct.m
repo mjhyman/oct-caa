@@ -1,4 +1,4 @@
-function hist = corr_histo_oct(hist,radii,th)
+function hist = corr_histo_oct(hist,radii,r)
 % Measure correlation b/w histology and OCT optical property
 % Create donut around EPVS or vessel, measure parenchyma and respective OCT
 % value, measure correlation (Spearman's rho).
@@ -6,7 +6,7 @@ function hist = corr_histo_oct(hist,radii,th)
 %   INPUTS:
 %       - hist (struct): contains image, epvs mask, tissue border mask
 %       - radii (array): inner radii of dilation
-%       - th (uint): threshold to increase outer radius
+%       - r (uint): constant to dilate outer radius
 %   OUTPUTS:
 %       - hist (struct):
 %           - exp (matrix): experimental measurements (around EPVS)
@@ -28,7 +28,7 @@ for ii = 1:length(hist)
     for j=1:length(radii)
         %%% Create structuring elements for dilation
         se1 = strel('disk',radii(j));
-        se2 = strel('disk',radii(j)+th);
+        se2 = strel('disk',radii(j)+r);
 
         %%% Retrieve local variables
         stain = im2single(hist(ii).image);
@@ -66,27 +66,40 @@ for ii = 1:length(hist)
         ret_epvs = dilate_meas(ret,mask,epvs,se1,se2);
         % Measure around vessels
         ret_ves = dilate_meas(ret,mask,ves,se1,se2);
-
-        %%% Measure correlation b/w EPVS & ves vs. OCT
-        % Compare EPVS
-        [epvs_r,epvs_p] = corr(ret_epvs',stain_epvs','Type','Spearman',...
-                            'Rows','pairwise');
-        % Compare vessels
-        [ves_r,ves_p] = corr(ret_ves',stain_ves','Type','Spearman',...
-                            'Rows','pairwise');
         
         %%% Add experimental + control to structure
-        hist(ii).meas(j).exp = stain_epvs;
-        hist(ii).meas(j).ctl = stain_ves;
-        hist(ii).meas(j).exp_mean = mean(stain_epvs,'omitnan');
-        hist(ii).meas(j).ctl_mean = mean(stain_ves,'omitnan');
+        hist(ii).meas(j).histo_epvs = stain_epvs;
+        hist(ii).meas(j).histo_ves = stain_ves;
+        hist(ii).meas(j).histo_epvs_mean = mean(stain_epvs,'omitnan');
+        hist(ii).meas(j).histo_ves_mean = mean(stain_ves,'omitnan');
         hist(ii).meas(j).ret_epvs = ret_epvs;
         hist(ii).meas(j).ret_ves = ret_ves;
-        hist(ii).meas(j).epvs_r = epvs_r;
-        hist(ii).meas(j).epvs_p = epvs_p;
-        hist(ii).meas(j).ves_r = ves_r;
-        hist(ii).meas(j).ves_p = ves_p;
+        hist(ii).meas(j).ret_epvs_mean = mean(ret_epvs,'omitnan');
+        hist(ii).meas(j).ret_ves_mean = mean(ret_ves,'omitnan');
     end
+    %%% Measure correlation b/w EPVS & ves vs. OCT
+    % Extract average pathology measurements at each radii
+    histo_epvs = [hist(ii).meas.histo_epvs_mean];
+    histo_ves = [hist(ii).meas.histo_ves_mean];
+    ret_epvs = [hist(ii).meas.ret_epvs_mean];
+    ret_ves = [hist(ii).meas.ret_ves_mean];
+    % Add to struct
+    hist(ii).histo_epvs = histo_epvs;
+    hist(ii).histo_ves = histo_ves;
+    hist(ii).ret_epvs = ret_epvs;
+    hist(ii).ret_ves = ret_ves;
+    
+    % Compare EPVS
+    [epvs_r,epvs_p] = corr(histo_epvs',ret_epvs','Type','Spearman',...
+                        'Rows','pairwise');
+    % Compare vessels
+    [ves_r,ves_p] = corr(histo_ves',ret_ves','Type','Spearman',...
+                        'Rows','pairwise');
+    % Add to struct
+    hist(ii).epvs_r = epvs_r;
+    hist(ii).epvs_p = epvs_p;
+    hist(ii).ves_r = ves_r;
+    hist(ii).ves_p = ves_p;
 end
 
 

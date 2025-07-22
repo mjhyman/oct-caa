@@ -30,7 +30,15 @@ Deconvolved:
 
 %% Top-level settings
 clear; clc; close all;
-hist_dir='/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/histology';
+
+%%% Directories
+% Input directory
+hdir='/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/histology';
+% Directory to save output
+stat_sheet = fullfile(hdir, 'histo_stats.xlsx');
+% Directory to save output figures
+figdir = ['/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/' ...
+            'figures/Histology/ret_gallyas'];
 
 %%% Control sample dimensions
 % side length of patch square
@@ -40,7 +48,7 @@ patch_dist = 20;
 
 %% LHE
 % Stain directory
-stain_dir = fullfile(hist_dir,'LHE/');
+stain_dir = fullfile(hdir,'LHE/');
 % stain suffix
 stain_suffix = '_M_BackgroundMask.tif';
 % EPVS suffix
@@ -60,18 +68,20 @@ th = 5;
 % Measure EPVS
 lhe = measure_epvs_and_control(lhe,radii,th,patch_len,patch_dist);
 
-%%% Statistics
-% Extract exp + control from all subjects & perform Wilcoxon
-[p,h,w,z] = wilcoxon_epvs_ctl(lhe);
-% Print the stats
-fprintf('LHE: p = %f, h = %d\n',p,h)
-fprintf('LHE: exp_med = %f, ctl_med = %f\n',median(epvs),median(ves))
-fprintf('LHE: W = %f\n',w);
-fprintf('LHE: Z-score = %f\n',z);
+%% LHE Statistics
+% One-sided Wilcoxon signed-rank test
+% Hypothesize myelin rarefaction around EPVS
+%   --> (med(EPVS) - med(control)) < 0
+%   --> left tailed
+tail = 'left';
+% Wilcoxon signed rank
+[T] = wilcoxon_epvs_ctl(lhe,tail);
+% Write to specific sheet named "LHE"
+writetable(T, stat_sheet, 'WriteRowNames', true, 'Sheet', 'LHE');
 
 %% CD68
 % Stain directory
-stain_dir = fullfile(hist_dir,'CD68/');
+stain_dir = fullfile(hdir,'CD68/');
 % stain suffix
 stain_suffix = '_shrunk_deconv.tif';
 % EPVS suffix
@@ -91,18 +101,20 @@ th = 5;
 fprintf('Measuring CD68\n')
 cd68 = measure_epvs_and_control(cd68,radii,th,patch_len,patch_dist);
 
-%%% Statistics
-% Extract exp + control from all subjects & perform Wilcoxon
-[p,h,w,z] = wilcoxon_epvs_ctl(cd68);
-% Print the stats
-fprintf('CD68: p = %f, h = %d\n',p,h)
-fprintf('CD68: exp_med = %f, ctl_med = %f\n',median(epvs),median(ves))
-fprintf('CD68: W = %f\n',w);
-fprintf('CD68: Z-score = %f\n',z);
+%% CD68 Statistics
+% One-sided Wilcoxon signed-rank test
+% Hypothesize increased scattering (CD68) around EPVS
+%   --> (med(EPVS) - med(control)) > 0
+%   --> right tailed
+tail = 'right';
+% Wilcoxon signed rank
+[T] = wilcoxon_epvs_ctl(cd68,tail);
+% Write to specific sheet named "LHE"
+writetable(T, stat_sheet, 'WriteRowNames', true, 'Sheet', 'CD68');
 
 %% GFAP
 % Stain directory
-stain_dir = fullfile(hist_dir,'GFAP/');
+stain_dir = fullfile(hdir,'GFAP/');
 % stain suffix
 stain_suffix = '_shrunk_deconv.tif';
 % EPVS suffix
@@ -122,14 +134,16 @@ th = 5;
 fprintf('Measuring CD68\n')
 gfap = measure_epvs_and_control(gfap,radii,th,patch_len,patch_dist);
 
-%%% Statistics
-% Extract exp + control from all subjects & perform Wilcoxon
-[p,h,w,z] = wilcoxon_epvs_ctl(gfap);
-% Print the stats
-fprintf('GFAP: p = %f, h = %d\n',p,h)
-fprintf('GFAP: exp_med = %f, ctl_med = %f\n',median(epvs),median(ves))
-fprintf('GFAP: W = %f\n',w);
-fprintf('GFAP: Z-score = %f\n',z);
+%% GFAP Statistics
+% One-sided Wilcoxon signed-rank test
+% Hypothesize increased scattering (GFAP) around EPVS
+%   --> (med(EPVS) - med(control)) > 0
+%   --> right tailed
+tail = 'right';
+% Wilcoxon signed rank
+[T] = wilcoxon_epvs_ctl(gfap,tail);
+% Write to specific sheet named "LHE"
+writetable(T, stat_sheet, 'WriteRowNames', true, 'Sheet', 'gfap');
 
 %% Gallyas
 
@@ -208,13 +222,21 @@ for ii = 1:length(subdirs)
     gal(ii).ret = ret;
 end
 
-%%% Statistics: histology vs. retardance
-% Define radii of measurements
-radii = [0,2,4,6,8];
-% Define threshold for increasing donut
-th = 5;
+%% Statistics: histology vs. retardance
+% Define constant for dilating donut from the inner radius
+r = 2;
+% Define vector of radii (pixels)
+radii = 0:r:20;
 % Measure at each distance and measure correlation
-gal = corr_histo_oct(gal,radii,th);
+gal_stat = corr_histo_oct(gal,radii,r);
+% Scatter plot + stats for each subject
+scatter_histo_oct(gal_stat,figdir);
+
+%% Combine all subjects at each distance
+% Limits for scatter plots
+xl = [-0.2, 0.65];
+yl = [30, 32.2];
+gal_stats_table = corr_region_distance(gal_stat,xl,yl,figdir);
 
 %% Function to keep first channel from logical
 % some of the imported images have three channels, but they are all
@@ -226,39 +248,3 @@ if ~ismatrix(im)
 end
 end
 
-%% Function to extract exp. + control from struct
-function [p,h,w,z] = wilcoxon_epvs_ctl(histo)
-% Extract the average of the measurements surrounding the EPVS and control
-%   INPUTS
-%       histo (struct): pathology struct. Each number entry corresponds to
-%                       a different tissue section.
-%   OUTPUTS:
-%       w (float): wilcoxon signed rank test statistic
-%       z (float): z-statistics
-%       p (float): p-value
-%       h (int): result of hypothesis test
-
-% Create vectors for storing experimental and control
-nsec = length(histo);
-epvs = zeros(nsec,1);
-ves = zeros(nsec,1);
-% Iterate over all tissue sections
-for ii = 1:nsec
-    % Open all measurements from current tissue section
-    data = histo(ii).meas;
-    % Extract first sample surrounding EPVS
-    epvs(ii) = data(1).exp_mean;
-    ves(ii) = data(1).ctl_mean;
-end
-
-%%% Wilcoxon Signed-Rank test
-% The approximate method is typically used for large samples (>15). It is
-% used here just to compute the Z-score
-[~,~,stats] = signrank(epvs,ves,'method','approximate');
-w = stats.signedrank;
-z = stats.zval;
-% The exact method is used to compute the exact p-value since there are few
-% number of samples
-[p,h,~] = signrank(epvs,ves);
-
-end

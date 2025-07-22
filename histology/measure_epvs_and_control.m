@@ -1,4 +1,4 @@
-function hist = histology_measure_epvs(hist,radii,th,patch_len,patch_dist)
+function hist = measure_epvs_and_control(hist,radii,th,patch_len,patch_dist)
 %HISTOLOGY_MEASURE_DONUT Measure controls + parenchyma around EPVS.
 %   INPUTS:
 %       - hist (struct): contains image, epvs mask, tissue border mask
