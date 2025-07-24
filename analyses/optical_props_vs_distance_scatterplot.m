@@ -288,9 +288,9 @@ for ii = 1:length(radii)
 end
 
 %% Scatterplot limits for each optical property
-mus_yl = [9.5, 13];
-ret_yl = [24, 30.5];
-ori_yl = [0.2, 0.65];
+mus_yl = [9.5, 14];
+ret_yl = [21.5, 30.5];
+ori_yl = [0.15, 0.8];
 
 %%% COMBINED scatterplots (EPVS and ves)
 % Mus
