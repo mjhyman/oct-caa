@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pickle
 import os
 from patsy import dmatrix
 
@@ -14,8 +15,7 @@ sheet_names = ["scattering", "retardance", "orientation"]
 
 output_excel_path = (
     "/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical_properties/statistics/"
-    "trace_summaries_20Jul2025__outliers_removed__non_centered_parameterization__regional.xlsx"
-)
+    "trace_summaries_24Jul2025__outliers_removed__spline.xlsx")
 
 posterior_dir = "/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical_properties/statistics"
 os.makedirs(posterior_dir, exist_ok=True)
@@ -23,7 +23,7 @@ os.makedirs(posterior_dir, exist_ok=True)
 view_distro = False
 run_model = True
 
-def run_pymc_model(data, sheet, region_str, use_tissue_effect=True):
+def run_pymc_model(data, sheet, region_str, stats_dir, use_tissue_effect=True):
     # --- Preprocess ---
     data.columns = data.columns.str.strip().str.lower()
     data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)
@@ -95,7 +95,7 @@ def run_pymc_model(data, sheet, region_str, use_tissue_effect=True):
         trace = pm.sample(draws=4000, tune=2000, target_accept=0.97,
                           chains=4, cores=2, random_seed=42, progressbar=False)
 
-    # Summary
+    # ---- Summary ----
     var_names = ["beta_spline", "mu_intercept", "sigma_subject", "sigma_residual"]
     if use_tissue_effect:
         var_names.append("sigma_tissue")
@@ -104,16 +104,64 @@ def run_pymc_model(data, sheet, region_str, use_tissue_effect=True):
     print(f"\nSummary statistics for sheet '{sheet}' and region '{region_str}':")
     print(summary_df.to_string())
 
-    return trace, summary_df, X_spline, spline_basis, condition_code
+    # ---- Save outputs ----
+    safe_sheet = sheet.replace(" ", "_").lower()
+    safe_region = region_str.replace(" ", "_").lower()
+    suffix = f"{safe_sheet}_{safe_region}"
+    outdir = os.path.join(stats_dir,f"spline_model_outputs/{suffix}")
+    os.makedirs(outdir, exist_ok=True)
+    # Save trace
+    with open(os.path.join(outdir, f"trace_{suffix}.pkl"), "wb") as f:
+        pickle.dump(trace, f)
+    # Save summary as pickle
+    with open(os.path.join(outdir, f"summary_{suffix}.pkl"), "wb") as f:
+        pickle.dump(summary_df, f)
+    # Save X_spline as pickle
+    with open(os.path.join(outdir, f"xspline_{suffix}.pkl"), "wb") as f:
+        pickle.dump(X_spline, f)
+    # Save spline_basis as pickle (preserves DataFrame structure and column names)
+    with open(os.path.join(outdir, f"spline_basis_{suffix}.pkl"), "wb") as f:
+        pickle.dump(spline_basis, f)
+
+    # ---- Plot the spline fit ----
+    try:
+        # Extract posterior means for spline coefficients
+        beta_spline_mean = trace.posterior["beta_spline"].mean(dim=["chain", "draw"]).values
+        n_splines = spline_basis.shape[1]
+
+        # Reconstruct splines for each condition
+        spline_vals_cond0 = spline_basis.values @ beta_spline_mean[:n_splines]
+        spline_vals_cond1 = spline_basis.values @ beta_spline_mean[n_splines:]
+
+        # Sort the distance values (X-axis) for plotting
+        sort_idx = np.argsort(distance_vals)
+
+        # Plot
+        plt.figure(figsize=(8, 5))
+        plt.plot(distance_vals[sort_idx], spline_vals_cond0[sort_idx], label="Condition 0", color="blue")
+        plt.plot(distance_vals[sort_idx], spline_vals_cond1[sort_idx], label="Condition 1", color="red")
+        plt.xlabel("Distance (micron)")
+        plt.ylabel("Spline fit (a.u.)")
+        plt.title(f"Spline Fit Comparison: {sheet}, {region_str}")
+        plt.legend()
+        plt.tight_layout()
+
+        # Save plot
+        plot_path = os.path.join(outdir, f"spline_plot_{suffix}.png")
+        plt.savefig(plot_path, dpi=300)
+        plt.close()
+    except Exception as e:
+        print(f"Plotting failed for {sheet}, {region_str}: {e}")
+
+
+    return trace, summary_df, X_spline, spline_basis
 
 
 with pd.ExcelWriter(output_excel_path, engine="openpyxl") as writer:
     for sheet in sheet_names:
         full_data = pd.read_excel(
             '/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical_properties/'
-            'lmm_test1_same_id_40um_donut_40um_outer.xlsx',
-            sheet_name=sheet
-        )
+            'caa_all_radii_40um_donut.xlsx',sheet_name=sheet)
 
         full_data.columns = full_data.columns.str.strip().str.lower()
         full_data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)
@@ -139,7 +187,8 @@ with pd.ExcelWriter(output_excel_path, engine="openpyxl") as writer:
         print(f"Running model for sheet '{sheet}' with frontal region only.")
         frontal_data = full_data[full_data["region"].str.lower() == "front"].copy()
         if len(frontal_data) > 10:
-            trace_frontal, summary_frontal = run_pymc_model(frontal_data, sheet, 'frontal', False)
+            trace_frontal, summary_frontal, xspline_front, spline_basis_front = \
+                run_pymc_model(frontal_data, sheet, 'frontal', posterior_dir, False)
             summary_frontal.to_excel(writer, sheet_name=f"{sheet}_frontal")
             posterior_samples_frontal = trace_frontal.posterior["beta_condition"].values.flatten()
             posterior_samples_dict["Frontal"] = posterior_samples_frontal
@@ -154,7 +203,8 @@ with pd.ExcelWriter(output_excel_path, engine="openpyxl") as writer:
         print(f"Running model for sheet '{sheet}' with occipital region only.")
         occipital_data = full_data[full_data["region"].str.lower() == "occip"].copy()
         if len(occipital_data) > 10:
-            trace_occipital, summary_occipital = run_pymc_model(occipital_data, sheet, 'occipital', False)
+            trace_occipital, summary_occipital, xspline_occip, spline_basis_occip = \
+                run_pymc_model(occipital_data, sheet, 'occipital', posterior_dir,False)
             summary_occipital.to_excel(writer, sheet_name=f"{sheet}_occipital")
             posterior_samples_occipital = trace_occipital.posterior["beta_condition"].values.flatten()
             posterior_samples_dict["Occipital"] = posterior_samples_occipital
@@ -167,7 +217,8 @@ with pd.ExcelWriter(output_excel_path, engine="openpyxl") as writer:
 
         # All regions combined
         print(f"\nRunning model for sheet '{sheet}' with all regions combined.")
-        trace_all, summary_all = run_pymc_model(full_data.copy(), sheet, 'combined', True)
+        trace_all, summary_all, xspline_all, spline_basis_all = \
+            run_pymc_model(full_data.copy(), sheet, 'combined', posterior_dir, True)
         summary_all.to_excel(writer, sheet_name=f"{sheet}_all")
         posterior_samples_all = trace_all.posterior["beta_condition"].values.flatten()
         posterior_samples_dict["All regions"] = posterior_samples_all
