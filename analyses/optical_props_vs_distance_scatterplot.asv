@@ -52,11 +52,12 @@ end
 % Convert x-axis to microns
 x = x.*vox;
 
-%%% Most severe subject
 % Scatterplot limits for each optical property
-mus_yl = [12.5, 13.5];
+mus_yl = [10, 13];
 ret_yl = [19, 21.1];
 ori_yl = [0.1, 0.8];
+
+%%% Most severe subject
 % set subject ID and region
 sub = 'caa22';
 reg = 'front';
@@ -66,16 +67,15 @@ fout = fullfile(scat_out,'/most_severe_epvs/');
 subject_scatter_op_vs_dist(x, parench, sub, reg,...
                         mus_yl, ret_yl, ori_yl, fout)
 
-%% Least severe subject
-% Scatterplot limits for each optical property
-mus_yl = [11, 13];
-ret_yl = [30.5, 32.5];
-ori_yl = [0.3, 0.9];
+%%% Least severe subject
 % set subject ID and region
 sub = 'caa26';
 reg = 'occip';
 % subfolder for most severe subject
 fout = fullfile(scat_out,'/least_severe_epvs/');
+% Call function to measure average for this subject at each radius
+[ves_mus, ves_ret, ves_ori, epvs_mus, epvs_ret, epvs_ori] =...
+    meas_sub(parench,sub,reg);
 % Call scatterplot function
 subject_scatter_op_vs_dist(x, parench, sub, reg,...
                         mus_yl, ret_yl, ori_yl, fout)

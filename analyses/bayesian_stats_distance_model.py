@@ -15,32 +15,42 @@ sheet_names = ["scattering", "retardance", "orientation"]
 
 output_excel_path = (
     "/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical_properties/statistics/"
-    "trace_summaries_24Jul2025__outliers_removed__spline.xlsx")
+    "trace_summaries_06Aug2025__outliers_removed__spline.xlsx")
 
 posterior_dir = "/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical_properties/statistics"
 os.makedirs(posterior_dir, exist_ok=True)
 
-view_distro = False
-run_model = True
-
 def run_pymc_model(data, sheet, region_str, stats_dir, use_tissue_effect=True):
+    import matplotlib.patches as patches
+
     # --- Preprocess ---
     data.columns = data.columns.str.strip().str.lower()
     data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)
     data = data[(data["y"] > 0) & np.isfinite(data["y"]) & data["y"].notna()]
 
+    # Extract Values from dataframes
     y_obs = data["y"].values
     distance_vals = data["distance"].values
+    subject_idx = data["subject"].values
+
+    # ---- Scale/standardize distance to improve parameter scale + numerical stability
+    distance_mean = data["distance"].mean()
+    distance_std = data["distance"].std()
+    distance_scaled = (data["distance"].values - distance_mean) / distance_std
+
+    # ---- Convert Categories to Codes ----
+    # Condition (1 = EPVS. 0 = vessels)
     condition_code = pd.Categorical(data["condition"]).codes
-    subject_idx = pd.Categorical(data["subject"]).codes
     tissue_idx = pd.Categorical(data["region"]).codes
 
+    # ----  Retrieve number of subjects and tissue regions ----
     n_subjects = len(np.unique(subject_idx))
     n_tissues = len(np.unique(tissue_idx))
 
     # --- Spline basis for nonlinear distance effect ---
-    spline_basis = dmatrix("bs(distance_vals, df=4, degree=3, include_intercept=False) - 1",
-                           {"distance_vals": distance_vals}, return_type='dataframe')
+    DF_SPLINE = 4
+    spline_basis = dmatrix(f"bs(distance_scaled, df={DF_SPLINE}, degree=3, include_intercept=False) - 1",
+                           {"distance_scaled": distance_scaled}, return_type='dataframe')
     X_base = spline_basis.values
     n_splines = X_base.shape[1]
 
@@ -57,46 +67,53 @@ def run_pymc_model(data, sheet, region_str, stats_dir, use_tissue_effect=True):
     residual_std = (y_obs - data.groupby(condition_code)["y"].transform("mean")).std(ddof=1)
 
     with pm.Model() as model:
-        # Intercept and scale terms
+        # Distribution of priors for intercept, subject, residual
         mu_intercept = pm.Normal("mu_intercept", mu=mu_inter, sigma=sigma_inter)
         sigma_subject = pm.HalfNormal("sigma_subject", sigma=subject_std)
         sigma_residual = pm.HalfNormal("sigma_residual", sigma=residual_std)
 
         # subject-level effects
-        if sheet == "scattering":
-            z_subject = pm.Normal("z_subject", mu=0, sigma=1, shape=n_subjects)
-            subject_effect = pm.Deterministic("subject_effect", z_subject * sigma_subject)
-        else:
-            subject_effect = pm.Normal("subject_effect", mu=0, sigma=sigma_subject, shape=n_subjects)
+        z_subject = pm.Normal("z_subject", mu=0, sigma=1, shape=n_subjects)
+        subject_effect = pm.Deterministic("subject_effect", z_subject * sigma_subject)
 
         # Spline coefficients (2 × n_splines for 2 conditions)
-        beta_spline = pm.Normal("beta_spline", mu=0, sigma=1, shape=2 * n_splines)
+        beta_spline = pm.Normal("beta_spline", mu=0, sigma=0.5, shape=2 * n_splines)
+
+        # Deterministic: difference of splines (condition 1 - condition 0)
+        beta_diff = pm.Deterministic("beta_diff", beta_spline[n_splines:] - beta_spline[:n_splines])
+
         spline_term = pm.math.dot(X_spline, beta_spline)
 
         # Tissue effect when combining frontal and occipital
         if use_tissue_effect:
             tissue_std = data.groupby(tissue_idx)["y"].mean().std(ddof=1)
             sigma_tissue = pm.HalfNormal("sigma_tissue", sigma=tissue_std)
-            if sheet == "scattering":
-                z_tissue = pm.Normal("z_tissue", mu=0, sigma=1, shape=n_tissues)
-                tissue_effect = pm.Deterministic("tissue_effect", z_tissue * sigma_tissue)
-            else:
-                tissue_effect = pm.Normal("tissue_effect", mu=0, sigma=sigma_tissue, shape=n_tissues)
+            z_tissue = pm.Normal("z_tissue", mu=0, sigma=1, shape=n_tissues)
+            tissue_effect = pm.Deterministic("tissue_effect", z_tissue * sigma_tissue)
             # Linear Predictor
             mu = mu_intercept + spline_term + subject_effect[subject_idx] + tissue_effect[tissue_idx]
         else:
             # Linear Predictor
             mu = mu_intercept + spline_term + subject_effect[subject_idx]
 
-        # Likelihood Distribution from log normal (only positive values for each optical property)
-        y = pm.LogNormal("y", mu=mu, sigma=sigma_residual, observed=y_obs)
+        # ---- Likelihood Distribution from log normal (only positive values for each optical property) ----
+        # y = pm.LogNormal("y", mu=mu, sigma=sigma_residual, observed=y_obs)
 
-        # Sample the distribution "y"
-        trace = pm.sample(draws=4000, tune=2000, target_accept=0.97,
+        # ---- Prior for degrees of freedom of StudentT ----
+        nu = pm.Exponential("nu", 1 / 30)  # mean about 30
+        # Likelihood: StudentT on log-scale
+        log_y_obs = np.log(y_obs)
+        y = pm.StudentT("y", mu=mu, sigma=sigma_residual, nu=nu, observed=log_y_obs)
+
+        # ---- Sample the distribution "y" ----
+        print(f"\nSampling the MCMC distribution.")
+        # trace = pm.sample(draws=1000, tune=1000, target_accept=0.8,
+        #                   chains=2, cores=1, random_seed=42, progressbar=True)
+        trace = pm.sample(draws=4000, tune=2000, target_accept=0.97, max_treedepth=15,
                           chains=4, cores=2, random_seed=42, progressbar=False)
 
     # ---- Summary ----
-    var_names = ["beta_spline", "mu_intercept", "sigma_subject", "sigma_residual"]
+    var_names = ["beta_spline", "beta_diff", "mu_intercept", "sigma_subject", "sigma_residual"]
     if use_tissue_effect:
         var_names.append("sigma_tissue")
     # Create printable summary of results
@@ -110,6 +127,9 @@ def run_pymc_model(data, sheet, region_str, stats_dir, use_tissue_effect=True):
     suffix = f"{safe_sheet}_{safe_region}"
     outdir = os.path.join(stats_dir,f"spline_model_outputs/{suffix}")
     os.makedirs(outdir, exist_ok=True)
+    # Save summary to spreadsheet
+    with pd.ExcelWriter(output_excel_path, engine="openpyxl") as writer:
+        summary_df.to_excel(writer, sheet_name=f"{suffix}")
     # Save trace
     with open(os.path.join(outdir, f"trace_{suffix}.pkl"), "wb") as f:
         pickle.dump(trace, f)
@@ -153,92 +173,197 @@ def run_pymc_model(data, sheet, region_str, stats_dir, use_tissue_effect=True):
     except Exception as e:
         print(f"Plotting failed for {sheet}, {region_str}: {e}")
 
+    # ---- Plot difference spline curve and highlight significant distances ----
+    try:
+        # Create fine grid for distance
+        distance_grid = np.linspace(distance_vals.min(), distance_vals.max(), 100)
+        spline_basis_grid = dmatrix(
+            f"bs(distance_grid, df={DF_SPLINE}, degree=3, include_intercept=False) - 1",
+            {"distance_grid": distance_grid}, return_type='dataframe')
+        X_grid = spline_basis_grid.values  # (100, n_splines)
 
-    return trace, summary_df, X_spline, spline_basis
+        # Extract posterior beta_diff samples: combine chains and draws
+        beta_diff_samples = trace.posterior["beta_diff"].stack(sample=("chain", "draw")).values.T  # (samples, n_splines)
 
+        # Compute difference function posterior samples at grid points: (samples, 100)
+        diff_posterior = beta_diff_samples @ X_grid.T
 
-with pd.ExcelWriter(output_excel_path, engine="openpyxl") as writer:
-    for sheet in sheet_names:
-        full_data = pd.read_excel(
-            '/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical_properties/'
-            'caa_all_radii_40um_donut.xlsx',sheet_name=sheet)
+        # Mean and 95% credible interval
+        diff_mean = np.mean(diff_posterior, axis=0)
+        diff_hpd = az.hdi(diff_posterior.T, hdi_prob=0.95)  # shape (100, 2)
 
-        full_data.columns = full_data.columns.str.strip().str.lower()
-        full_data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)
+        # Identify significant bins where HPD excludes zero
+        significant = (diff_hpd[:, 0] > 0) | (diff_hpd[:, 1] < 0)
 
-        if sheet in ["scattering", "retardance"]:
-            Q1 = np.percentile(full_data["y"], 25)
-            Q3 = np.percentile(full_data["y"], 75)
-            IQR = Q3 - Q1
-            lower_bound = Q1 - 1.5 * IQR
-            upper_bound = Q3 + 1.5 * IQR
-            full_data = full_data[(full_data["y"] >= lower_bound) & (full_data["y"] <= upper_bound)]
-            print(f"\nSheet: {sheet} - {len(full_data)} samples after outlier removal.")
+        # Plot difference curve with credible interval
+        plt.figure(figsize=(8, 5))
+        plt.plot(distance_grid, diff_mean, color='black', label="Difference (Cond1 - Cond0)")
+        plt.fill_between(distance_grid, diff_hpd[:, 0], diff_hpd[:, 1], color='gray', alpha=0.3, label='95% Credible Interval')
 
-        full_data = full_data[full_data["y"] > 0]
-        full_data = full_data[np.isfinite(full_data["y"])]
-        full_data = full_data.dropna(subset=["y"])
-        assert len(full_data) > 10, "Too few observations left after cleaning!"
-        assert (full_data["y"] > 0).all(), "All values must be > 0 for LogNormal"
+        # Highlight significant intervals
+        highlight_significant_intervals(distance_grid, significant)
 
-        posterior_samples_dict = {}
-
-        # Frontal
-        print(f"Running model for sheet '{sheet}' with frontal region only.")
-        frontal_data = full_data[full_data["region"].str.lower() == "front"].copy()
-        if len(frontal_data) > 10:
-            trace_frontal, summary_frontal, xspline_front, spline_basis_front = \
-                run_pymc_model(frontal_data, sheet, 'frontal', posterior_dir, False)
-            summary_frontal.to_excel(writer, sheet_name=f"{sheet}_frontal")
-            posterior_samples_frontal = trace_frontal.posterior["beta_condition"].values.flatten()
-            posterior_samples_dict["Frontal"] = posterior_samples_frontal
-            pd.DataFrame(posterior_samples_frontal, columns=["beta_condition"]).to_csv(
-                os.path.join(posterior_dir, f"{sheet}_frontal_posterior.csv"), index=False)
-            az.plot_posterior(trace_frontal, var_names=["beta_condition"])
-            plt.title(f"Posterior of beta_condition - {sheet} (Frontal only)")
-            plt.savefig(os.path.join(posterior_dir, f"{sheet}_frontal_posterior.png"))
-            plt.close()
-
-        # Occipital
-        print(f"Running model for sheet '{sheet}' with occipital region only.")
-        occipital_data = full_data[full_data["region"].str.lower() == "occip"].copy()
-        if len(occipital_data) > 10:
-            trace_occipital, summary_occipital, xspline_occip, spline_basis_occip = \
-                run_pymc_model(occipital_data, sheet, 'occipital', posterior_dir,False)
-            summary_occipital.to_excel(writer, sheet_name=f"{sheet}_occipital")
-            posterior_samples_occipital = trace_occipital.posterior["beta_condition"].values.flatten()
-            posterior_samples_dict["Occipital"] = posterior_samples_occipital
-            pd.DataFrame(posterior_samples_occipital, columns=["beta_condition"]).to_csv(
-                os.path.join(posterior_dir, f"{sheet}_occipital_posterior.csv"), index=False)
-            az.plot_posterior(trace_occipital, var_names=["beta_condition"])
-            plt.title(f"Posterior of beta_condition - {sheet} (Occipital only)")
-            plt.savefig(os.path.join(posterior_dir, f"{sheet}_occipital_posterior.png"))
-            plt.close()
-
-        # All regions combined
-        print(f"\nRunning model for sheet '{sheet}' with all regions combined.")
-        trace_all, summary_all, xspline_all, spline_basis_all = \
-            run_pymc_model(full_data.copy(), sheet, 'combined', posterior_dir, True)
-        summary_all.to_excel(writer, sheet_name=f"{sheet}_all")
-        posterior_samples_all = trace_all.posterior["beta_condition"].values.flatten()
-        posterior_samples_dict["All regions"] = posterior_samples_all
-        pd.DataFrame(posterior_samples_all, columns=["beta_condition"]).to_csv(
-            os.path.join(posterior_dir, f"{sheet}_all_posterior.csv"), index=False)
-        az.plot_posterior(trace_all, var_names=["beta_condition"])
-        plt.title(f"Posterior of beta_condition - {sheet} (All regions)")
-        plt.savefig(os.path.join(posterior_dir, f"{sheet}_all_posterior.png"))
-        plt.close()
-
-        # Overlay plot
-        plt.figure(figsize=(10, 6))
-        for label, samples in posterior_samples_dict.items():
-            sns.kdeplot(samples, label=label, fill=True, alpha=0.4)
-        plt.title(f"Overlay Posterior Distributions of beta_condition - {sheet}")
-        plt.xlabel("beta_condition")
-        plt.ylabel("Density")
+        plt.xlabel("Distance (micron)")
+        plt.ylabel("Difference in spline fit (a.u.)")
+        plt.title(f"Difference Between Conditions with Significant Regions\n{sheet}, {region_str}")
         plt.legend()
         plt.tight_layout()
-        overlay_path = os.path.join(posterior_dir, f"{sheet}_overlay_posterior.png")
-        plt.savefig(overlay_path)
+
+        diff_plot_path = os.path.join(outdir, f"difference_spline_{suffix}.png")
+        plt.savefig(diff_plot_path, dpi=300)
         plt.close()
-        print(f"Overlay posterior plot saved to {overlay_path}")
+
+        print(f"Saved difference spline plot with significant regions to {diff_plot_path}")
+    except Exception as e:
+        print(f"Failed to plot difference spline for {sheet}, {region_str}: {e}")
+
+    return diff_mean, diff_hpd, significant, distance_grid
+
+def plot_overlay_difference_splines(results_dict,
+                                    distance_grid=None,
+                                    title="Overlay of Difference Spline Posteriors",
+                                    xlabel="Distance (micron)",
+                                    ylabel="Difference (Cond1 - Cond0)",
+                                    savepath=None):
+    """
+    Plot overlay of difference spline mean and credible intervals for multiple regions.
+
+    Parameters
+    ----------
+    results_dict : dict
+        Dictionary keyed by region name, each with a dict containing:
+          - "mean": 1D numpy array of mean difference curve over distance_grid
+          - "hpd": 2D numpy array shape (len(distance_grid), 2) with lower and upper HPD bounds
+          - "significant": boolean 1D numpy array (len(distance_grid)) indicating significant points
+
+    distance_grid : 1D numpy array, optional
+        Common x-axis values (distance). If None, keys will be taken from first region.
+
+    title : str, optional
+        Plot title.
+
+    xlabel, ylabel : str, optional
+        Axis labels.
+
+    savepath : str or None, optional
+        If provided, save the plot PNG to this path.
+
+    Returns
+    -------
+    None
+    """
+
+    colors = plt.cm.tab10.colors
+    plt.figure(figsize=(10, 6))
+
+    if distance_grid is None:
+        # take from first region mean
+        first_region = next(iter(results_dict))
+        distance_grid = np.arange(len(results_dict[first_region]["mean"]))  # fallback
+
+    for i, (region, region_data) in enumerate(results_dict.items()):
+        mean = region_data["mean"]
+        hpd = region_data["hpd"]
+        sig = region_data["significant"]
+        color = colors[i % len(colors)]
+        # Create Plot
+        plt.plot(distance_grid, mean, label=f"{region} mean", color=color)
+        plt.fill_between(distance_grid, hpd[:, 0], hpd[:, 1], color=color, alpha=0.25)
+        highlight_significant_intervals(distance_grid, sig, color=color, alpha=0.1)
+    # Configure figure
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.legend()
+    plt.tight_layout()
+
+    if savepath is not None:
+        plt.savefig(savepath, dpi=300)
+        plt.close()
+        print(f"Overlay difference plot saved to: {savepath}")
+    else:
+        plt.show()
+
+def highlight_significant_intervals(x_vals, sig_mask, color='yellow', alpha=0.3):
+    ax = plt.gca()
+    in_sig = False
+    start_idx = None
+    for i, sig in enumerate(sig_mask):
+        if sig and not in_sig:
+            in_sig = True
+            start_idx = i
+        elif not sig and in_sig:
+            in_sig = False
+            ax.axvspan(x_vals[start_idx], x_vals[i-1], color=color, alpha=alpha)
+    if in_sig:
+        ax.axvspan(x_vals[start_idx], x_vals[-1], color=color, alpha=alpha)
+
+# ---- Iterate over optical properties ----
+for sheet in sheet_names:
+    full_data = pd.read_excel(
+        '/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical_properties/'
+        'caa_all_radii_40um_donut.xlsx',sheet_name=sheet)
+
+    full_data.columns = full_data.columns.str.strip().str.lower()
+    full_data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)
+
+    if sheet in ["scattering", "retardance"]:
+        Q1 = np.percentile(full_data["y"], 25)
+        Q3 = np.percentile(full_data["y"], 75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        full_data = full_data[(full_data["y"] >= lower_bound) & (full_data["y"] <= upper_bound)]
+        print(f"\nSheet: {sheet} - {len(full_data)} samples after outlier removal.")
+
+    full_data = full_data[full_data["y"] > 0]
+    full_data = full_data[np.isfinite(full_data["y"])]
+    full_data = full_data.dropna(subset=["y"])
+    assert len(full_data) > 10, "Too few observations left after cleaning!"
+    assert (full_data["y"] > 0).all(), "All values must be > 0 for LogNormal"
+
+    posterior_samples_dict = {}
+
+    # Frontal
+    print(f"Running model for sheet '{sheet}' with frontal region only.")
+    frontal_data = full_data[full_data["region"].str.lower() == "front"].copy()
+    if len(frontal_data) > 10:
+        diff_mean_frontal, diff_hpd_frontal, significant_frontal, _ = \
+            run_pymc_model(frontal_data, sheet, 'frontal', posterior_dir, False)
+
+    # Occipital
+    print(f"Running model for sheet '{sheet}' with occipital region only.")
+    occipital_data = full_data[full_data["region"].str.lower() == "occip"].copy()
+    if len(occipital_data) > 10:
+        diff_mean_occipital, diff_hpd_occipital, significant_occipital, _ = \
+            run_pymc_model(occipital_data, sheet, 'occipital', posterior_dir,False)
+
+    # All regions combined
+    print(f"\nRunning model for sheet '{sheet}' with all regions combined.")
+    diff_mean_combined, diff_hpd_combined, significant_combined, distance_grid = \
+        run_pymc_model(full_data.copy(), sheet, 'combined', posterior_dir, True)
+
+    print(f"\nCreating figure with all regions combined.")
+    # ---- Overlay plot ----
+    results_to_plot = {
+        "Frontal": {
+            "mean": diff_mean_frontal,
+            "hpd": diff_hpd_frontal,
+            "significant": significant_frontal
+        },
+        "Occipital": {
+            "mean": diff_mean_occipital,
+            "hpd": diff_hpd_occipital,
+            "significant": significant_occipital
+        },
+        "Combined": {
+            "mean": diff_mean_combined,
+            "hpd": diff_hpd_combined,
+            "significant": significant_combined
+        }
+    }
+
+    plot_overlay_difference_splines(results_to_plot,
+                                    distance_grid=distance_grid,
+                                    title="Difference Between Conditions by Region",
+                                    savepath=os.path.join(posterior_dir,f"spline_model_outputs/{sheet}_regions_posteriors.png"))
