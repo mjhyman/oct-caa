@@ -11,6 +11,8 @@ Purpose of this script:
     - convert to uint8 grayscale (if not already)
 - import EPVS annotations
     - convert to logical
+- import non-EPVS Vessel annotations
+    - convert to logical
 - import tissue border
     - convert to logical
 - systematic control measurements:
@@ -35,16 +37,19 @@ clear; clc; close all;
 % Input directory
 hdir='/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/histology';
 % Directory to save output
-stat_sheet = fullfile(hdir, 'histo_stats.xlsx');
+stat_sheet = fullfile(hdir, 'histo_stats_04Sep2025.xlsx');
 % Directory to save output figures
 figdir = ['/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/' ...
             'figures/Histology/ret_gallyas'];
 
-%%% Control sample dimensions
-% side length of patch square
-patch_len = 5;
-% spacing between patch centers (pixels)
-patch_dist = 20;
+%%% measurement radius (units = pixels)
+mrad = 25;
+
+%%% Flags
+% histogram matching
+hflag = true;
+% plot figure flag
+pflag = false;
 
 %% LHE
 % Stain directory
@@ -53,20 +58,19 @@ stain_dir = fullfile(hdir,'LHE/');
 stain_suffix = '_M_BackgroundMask.tif';
 % EPVS suffix
 epvs_suffix = '_EPVS_Mask.tif';
+% Vessel filename suffix
+ves_suffix = '_VESSEL_Mask.tif';
 % Mask suffix
 mask_suffix = '_mask.tif';
 
 %%% Import LHE stain
-[lhe] = import_stain(stain_dir,...
-                    stain_suffix,epvs_suffix,mask_suffix);
+[lhe] = import_stain(stain_dir,stain_suffix,epvs_suffix, ...
+                    ves_suffix,mask_suffix);
 
-%%% EPVS measurements (dilate EPVS) + control (uniform sampling)
-% Define radii of measurements
-radii = [0,5,10,15,20];
-% Define threshold for increasing donut
-th = 5;
-% Measure EPVS
-lhe = measure_epvs_and_control(lhe,radii,th,patch_len,patch_dist);
+%% LHE EPVS + Vessel measurements
+fout = ['/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/' ...
+        'figures/Histology/ret_LHE_myelin'];
+lhe = measure_epvs_and_vessel_constant(lhe,mrad,fout,hflag,pflag);
 
 %% LHE Statistics
 % One-sided Wilcoxon signed-rank test
@@ -75,9 +79,9 @@ lhe = measure_epvs_and_control(lhe,radii,th,patch_len,patch_dist);
 %   --> left tailed
 tail = 'left';
 % Wilcoxon signed rank
-[T] = wilcoxon_epvs_ctl(lhe,tail);
+[lhe_stats] = wilcoxon_epvs_ves(lhe,tail);
 % Write to specific sheet named "LHE"
-writetable(T, stat_sheet, 'WriteRowNames', true, 'Sheet', 'LHE');
+writetable(lhe_stats, stat_sheet, 'WriteRowNames', true, 'Sheet', 'LHE');
 
 %% CD68
 % Stain directory
@@ -86,20 +90,18 @@ stain_dir = fullfile(hdir,'CD68/');
 stain_suffix = '_shrunk_deconv.tif';
 % EPVS suffix
 epvs_suffix = '_shrunk_EPVS.tif';
+% Vessel filename suffix
+ves_suffix = '_shrunk_VESSEL.tif';
 % Mask suffix
 mask_suffix = '_shrunk_mask.tif';
 
 %%% Import LHE stain
-[cd68] = import_stain(stain_dir,stain_suffix,epvs_suffix,mask_suffix);
+[cd68] = import_stain(stain_dir,stain_suffix,epvs_suffix, ...
+                    ves_suffix,mask_suffix);
 
-%%% EPVS measurements (dilate EPVS) + control (uniform sampling)
-% Define radii of measurements
-radii = [0,5,10,15,20];
-% Define threshold for increasing donut
-th = 5;
-% Measure EPVS
-fprintf('Measuring CD68\n')
-cd68 = measure_epvs_and_control(cd68,radii,th,patch_len,patch_dist);
+%% CD68 EPVS + Vessel measurements
+fout = [];
+cd68 = measure_epvs_and_vessel_constant(cd68,mrad,fout,hflag,pflag);
 
 %% CD68 Statistics
 % One-sided Wilcoxon signed-rank test
@@ -108,9 +110,9 @@ cd68 = measure_epvs_and_control(cd68,radii,th,patch_len,patch_dist);
 %   --> right tailed
 tail = 'right';
 % Wilcoxon signed rank
-[T] = wilcoxon_epvs_ctl(cd68,tail);
+[cd68_stats] = wilcoxon_epvs_ves(cd68,tail);
 % Write to specific sheet named "LHE"
-writetable(T, stat_sheet, 'WriteRowNames', true, 'Sheet', 'CD68');
+writetable(cd68_stats, stat_sheet, 'WriteRowNames', true, 'Sheet', 'CD68');
 
 %% GFAP
 % Stain directory
@@ -119,20 +121,18 @@ stain_dir = fullfile(hdir,'GFAP/');
 stain_suffix = '_shrunk_deconv.tif';
 % EPVS suffix
 epvs_suffix = '_shrunk_EPVS.tif';
+% Vessel filename suffix
+ves_suffix = '_shrunk_VESSEL.tif';
 % Mask suffix
 mask_suffix = '_shrunk_mask.tif';
 
 %%% Import LHE stain
-[gfap] = import_stain(stain_dir,stain_suffix,epvs_suffix,mask_suffix);
+[gfap] = import_stain(stain_dir,stain_suffix,epvs_suffix, ...
+                    ves_suffix,mask_suffix);
 
-%%% EPVS measurements (dilate EPVS) + control (uniform sampling)
-% Define radii of measurements
-radii = [0,5,10,15,20];
-% Define threshold for increasing donut
-th = 5;
-% Measure EPVS
-fprintf('Measuring CD68\n')
-gfap = measure_epvs_and_control(gfap,radii,th,patch_len,patch_dist);
+%% GFAP EPVS + Vessel measurements
+fout = [];
+gfap = measure_epvs_and_vessel_constant(gfap,mrad,fout,hflag,pflag);
 
 %% GFAP Statistics
 % One-sided Wilcoxon signed-rank test
@@ -141,9 +141,9 @@ gfap = measure_epvs_and_control(gfap,radii,th,patch_len,patch_dist);
 %   --> right tailed
 tail = 'right';
 % Wilcoxon signed rank
-[T] = wilcoxon_epvs_ctl(gfap,tail);
+[gfap_stats] = wilcoxon_epvs_ves(gfap,tail);
 % Write to specific sheet named "LHE"
-writetable(T, stat_sheet, 'WriteRowNames', true, 'Sheet', 'gfap');
+writetable(gfap_stats, stat_sheet, 'WriteRowNames', true, 'Sheet', 'gfap');
 
 %% Gallyas
 
@@ -238,6 +238,49 @@ xl = [-0.2, 0.65];
 yl = [30, 32.2];
 gal_stats_table = corr_region_distance(gal_stat,xl,yl,figdir);
 
+%% Combine all subjects within each stain (separate EVPS & Vessel)
+
+[epvs, ves] = stain_epvs_ves(lhe, 'LHE');
+fprintf('LHE: Median EPVS = %f\n',median(epvs,'omitnan'));
+fprintf('LHE: Median Ves = %f\n',median(ves,'omitnan'));
+fprintf('LHE: Mean EPVS = %f\n',mean(epvs,'omitnan'));
+fprintf('LHE: Mean Ves = %f\n',mean(ves,'omitnan'));
+[epvs, ves] = stain_epvs_ves(cd68, 'CD68');
+fprintf('CD68: Median EPVS = %f\n',median(epvs,'omitnan'));
+fprintf('CD68: Median Ves = %f\n',median(ves,'omitnan'));
+fprintf('CD68: Mean EPVS = %f\n',mean(epvs,'omitnan'));
+fprintf('CD68: Mean Ves = %f\n',mean(ves,'omitnan'));
+[epvs, ves] = stain_epvs_ves(gfap, 'GFAP');
+fprintf('GFAP: Median EPVS = %f\n',median(epvs,'omitnan'));
+fprintf('GFAP: Median Ves = %f\n',median(ves,'omitnan'));
+fprintf('GFAP: Mean EPVS = %f\n',mean(epvs,'omitnan'));
+fprintf('GFAP: Mean Ves = %f\n',mean(ves,'omitnan'));
+
+%% Create figure overlaying z-score with donuts
+
+% Create first layer of z-score stain
+zstain = lhe(2).z_stain;
+mask = lhe(2).mask;
+zstain(~mask) = -4;
+figure;
+imagesc(zstain); hold on;
+
+% Overlay with annotation
+epvs = lhe(2).epvs;
+se1 = strel('disk',0);
+se2 = strel('disk',mrad);
+inner = imdilate(epvs,se1);
+outter = imdilate(epvs,se2);
+annot = xor(inner, outter);
+overlay = cat(3, ones(size(zstain)), zeros(size(zstain)), zeros(size(zstain)));
+h = imagesc(overlay);
+% set(h,'AlphaData',0);
+set(h,'AlphaData',annot * 0.5);
+hold off
+set(gca,'XTick',[]); set(gca,'YTick',[])
+colorbar
+set(gca,'FontSize',20)
+
 %% Function to keep first channel from logical
 % some of the imported images have three channels, but they are all
 % logical. this is due to an issue from Fiji. Just keep one of these
@@ -248,3 +291,37 @@ if ~ismatrix(im)
 end
 end
 
+%% Function to create overlapping histograms of individual donuts
+% Purpose: compare distributions b/w EPVS and Vessel to determine whether
+% there is a difference in distributions. 
+
+function [epvs, ves] = stain_epvs_ves(stain, tstring)
+% Overlay histograms of the distributions of the EPVS & Vessel donuts
+% INPUTS:
+%   stain (struct): contains measurements
+%   tstring (string): title of histogram
+
+epvs = [];
+ves = [];
+for ii = 1:length(stain)
+    epvs = [epvs, stain(ii).exp];
+    ves = [ves, stain(ii).ctl];
+end
+pause(0.1)
+
+% Plot the first histogram (red)
+figure;
+histogram(epvs, 'Normalization', 'pdf', 'FaceColor', [1 0 0],...
+                'FaceAlpha', 0.5);
+hold on
+% Plot the second histogram (blue)
+histogram(ves, 'Normalization', 'pdf', 'FaceColor', [0 0 1],...
+                'FaceAlpha', 0.5);
+hold off
+legend('EPVS','Vessel')
+xlabel('Z-Score Normalized Value')
+ylabel('Probability Density')
+title(tstring)
+set(gca, 'FontSize', 20)
+
+end

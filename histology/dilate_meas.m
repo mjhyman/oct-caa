@@ -7,7 +7,8 @@ function [pstain,pstain_mask] = dilate_meas(stain,mask,annot,se1,se2)
 %   se1 (struct element): inner ring dilation structuring element
 %   se2 (struct element): outter ring dilation structuring element
 % OUTPUTS:
-%   pstain (array): measurements within parenchyma
+%   pstain (array): average stain value within parenchyma
+%   pstain_mask (array): logical mask of measurements
 
 % Set the non-tissue pixels equal to NaN
 stain(~mask) = NaN;
