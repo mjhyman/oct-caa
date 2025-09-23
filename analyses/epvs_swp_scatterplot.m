@@ -1,0 +1,278 @@
+%% Analyze the EPVS density heatmap
+% Import the EPVS density heatmaps
+% Import the .MAT of the optical properties
+% Measure correlation between EPVS density and optical properties
+
+%% Add top-level directory of code repository to path
+clear; clc; close all;
+% Print current working directory
+mydir  = pwd;
+% Find indices of slashes separating directories
+if ispc
+    idcs = strfind(mydir,'\');
+elseif isunix
+    idcs = strfind(mydir,'/');
+end
+% Remove the two sub folders to reach parent
+% (psoct_human_brain\vasculature\vesSegment)
+topdir = mydir(1:idcs(end));
+addpath(genpath(topdir));
+% Set maximum number of threads equal to number of threads for script
+ncores = feature('numcores');
+maxNumCompThreads(ncores);
+% Flag for loading CAA structs (false if already in environment)
+flag_load_caa_structs = false;
+% Directory containing seg, mus, ret, mask, epvs structs
+mat_dir = '/projectnb/npbssmic/s/mhyman/CAA_data/matlab_structs';
+% Heatmap directory
+heat_dir = '/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps';
+
+%% Load heat maps
+%%% Fully interpolated EPVS heat maps
+caa17o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa17/occip/caa17_occip_interpolated_heatmap.mat']);
+caa17o = caa17o.interpolated_volume;
+caa22f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa22/front/caa22_front_interpolated_heatmap.mat']);
+caa22f = caa22f.interpolated_volume;
+caa22o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa22/occip/caa22_occip_interpolated_heatmap.mat']);
+caa22o = caa22o.interpolated_volume;
+caa25f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa25/front/caa25_front_interpolated_heatmap.mat']);
+caa25f = caa25f.interpolated_volume;
+caa25o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa25/occip/caa25_occip_interpolated_heatmap.mat']);
+caa25o = caa25o.interpolated_volume;
+caa26o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa26/occip/caa26_occip_interpolated_heatmap.mat']);
+caa26o = caa26o.interpolated_volume;
+% Output filename
+stats_out = fullfile(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'interpolated_epvs_heatmap_stats.mat']);
+
+%% Load matlab structs
+fprintf('Loading CAA17\n')
+caa17 = load(fullfile(mat_dir,"caa17.mat"));
+fprintf('Finished loading CAA17\n')
+
+fprintf('Loading CAA22\n')
+caa22 = load(fullfile(mat_dir,"caa22.mat"));
+fprintf('Finished loading CAA22\n')
+
+fprintf('Loading CAA25\n')
+caa25 = load(fullfile(mat_dir,"caa25.mat"));
+fprintf('Finished loading CAA25\n')
+
+fprintf('Loading CAA26\n')
+caa26 = load(fullfile(mat_dir,"caa26.mat"));
+fprintf('Finished loading CAA26\n')
+
+% Remove top-level struct
+caa17 = caa17.caa17;
+caa22 = caa22.caa22;
+caa25 = caa25.caa25;
+caa26 = caa26.caa26;
+
+%% Create 2D arrays of optical property vs. EPVS density
+% 2xN Matrix for each optical property:
+%   - top row = EPVS density from heatmap
+%   - bottom row = optical property from heatmap
+%   - column = pairwise observations from same tissue volume
+
+fprintf('Creating 2D arrays of EPVS density vs. optical prop\n')
+
+% struct for storing pairs
+heat_pairs = struct();
+
+% struct for iterating over subjects
+subjects = struct();
+subjects.caa17 = caa17;
+subjects.caa22 = caa22;
+subjects.caa25 = caa25;
+subjects.caa26 = caa26;
+
+% subject names
+subs = fields(subjects);
+% add EPVS heatmaps to struct
+subjects.caa17.occip.epvs_heat = caa17o;
+subjects.caa22.front.epvs_heat = caa22f;
+subjects.caa22.occip.epvs_heat = caa22o;
+subjects.caa25.front.epvs_heat = caa25f;
+subjects.caa25.occip.epvs_heat = caa25o;
+subjects.caa26.occip.epvs_heat = caa26o;
+
+for ii = 1:length(fields(subjects))
+    sub = subs{ii};
+    regions = fields(subjects.(subs{ii}));
+    for j = 1:length(regions)
+        % retrieve local properties
+        reg = regions{j};
+        if isfield(subjects.(sub).(reg), 'epvs_heat')
+            epvs = subjects.(sub).(reg).epvs_heat;
+            mus = subjects.(sub).(reg).mus;
+            ret = subjects.(sub).(reg).ret_full;
+            % Remove vessels from the epvs heatmap
+            ves = subjects.(sub).(reg).seg;
+            epvs(ves) = NaN;
+            % call function to create pairs
+            [mus_pair, ret_pair] = create_pair(epvs,mus,ret);
+            % add pairs to heatmap struct
+            heat_pairs.(sub).(reg).mus_pair = mus_pair;
+            heat_pairs.(sub).(reg).ret_pair = ret_pair;
+        else
+            continue
+        end
+    end
+end
+
+%% Separate/combine heat_pairs across subject and region
+
+fprintf('Separating heatmap pairs by subject and region\n')
+
+%%% combine across occip + frontal
+[mus_combined,ret_combined]=combine_subjects_regions(heat_pairs);
+
+%%% Combine subjects, split regions
+region_data = combine_subjects(heat_pairs);
+% Frontal pairs
+front_mus = region_data.front.mus;
+front_ret = region_data.front.ret;
+% Occip pairs
+occip_mus = region_data.occip.mus;
+occip_ret = region_data.occip.ret;
+
+
+%% Plot optical property vs. EPVS density
+
+% Minimum threshold for EPVS density 
+th = 5*10^5;
+% Window size
+d = 1e7;
+
+%%% combined subjects and regions
+% scattering coefficient
+xlab = 'EPVS SWP';
+ylab = '\mu_s (cm^-^1)';
+tit = 'Combined (full) -- \mu_s vs. EPVS SWP';
+scatter_subset(mus_combined, xlab, ylab, tit, th, d)
+% retardance
+ylab = 'retardance (degrees)';
+tit = 'Combined (full) -- Retardance vs. EPVS SWP';
+scatter_subset(ret_combined, xlab, ylab, tit, th,d)
+
+%%% Frontal
+% Scattering
+ylab = '\mu_s (cm^-^1)';
+tit = 'Frontal (full) -- \mu_s vs. EPVS SWP';
+scatter_subset(front_mus, xlab, ylab, tit, th, d)
+% Retardance
+ylab = 'retardance (degrees)';
+tit = 'Frontal (full) -- Retardance vs. EPVS SWP';
+scatter_subset(front_ret, xlab, ylab, tit, th, d)
+
+%%% Occipital
+% Scattering
+ylab = '\mu_s (cm^-^1)';
+tit = 'Occipital (full) -- \mu_s vs. EPVS SWP';
+scatter_subset(occip_mus, xlab, ylab, tit, th, d)
+% Retardance
+ylab = 'retardance (degrees)';
+tit = 'Occipital (full) -- Retardance vs. EPVS SWP';
+scatter_subset(occip_ret, xlab, ylab, tit, th, d)
+
+%%% Plot lower range of EPVS
+
+%%% Truncate the data at lower bound
+% Combined
+mus_comb_low = mus_combined(mus_combined(:,1) <= 5e6,:);
+ret_comb_low = ret_combined(ret_combined(:,1) <= 5e6,:);
+% Front
+mus_front_low = front_mus(front_mus(:,1) <= 5e6,:);
+ret_front_low = front_ret(front_ret(:,1) <= 5e6,:);
+% Occip
+mus_occip_low = occip_mus(occip_mus(:,1) <= 5e6,:);
+ret_occip_low = occip_ret(occip_ret(:,1) <= 5e6,:);
+
+%%% combined subjects and regions
+% scattering coefficient
+xlab = 'EPVS SWP';
+ylab = '\mu_s (cm^-^1)';
+tit = 'Combined (low) -- \mu_s vs. SWP';
+scatter_subset(mus_combined, xlab, ylab, tit, th, d)
+% retardance
+ylab = 'retardance (degrees)';
+tit = 'Combined (low) -- Retardance vs. SWP';
+scatter_subset(ret_combined, xlab, ylab, tit, th,d)
+
+%%% Frontal
+% Scattering
+ylab = '\mu_s (cm^-^1)';
+tit = 'Frontal (low) -- \mu_s vs. SWP';
+scatter_subset(front_mus, xlab, ylab, tit, th, d)
+% Retardance
+ylab = 'retardance (degrees)';
+tit = 'Frontal (low) -- Retardance vs. SWP';
+scatter_subset(front_ret, xlab, ylab, tit, th, d)
+
+%%% Occipital
+% Scattering
+ylab = '\mu_s (cm^-^1)';
+tit = 'Occipital (low) -- \mu_s vs. SWP';
+scatter_subset(occip_mus, xlab, ylab, tit, th, d)
+% Retardance
+ylab = 'retardance (degrees)';
+tit = 'Occipital (low) -- Retardance vs. SWP';
+scatter_subset(occip_ret, xlab, ylab, tit, th, d)
+
+
+%%% Plot upper range of epvs
+
+upper_cutoff = 2e9;
+
+%%% Truncate the data below UPPER bound
+% Combined
+mus_comb_high = mus_combined(mus_combined(:,1) >= upper_cutoff,:);
+ret_comb_high = ret_combined(ret_combined(:,1) >= upper_cutoff,:);
+% Front
+mus_front_high = front_mus(front_mus(:,1) >= upper_cutoff,:);
+ret_front_high = front_ret(front_ret(:,1) >= upper_cutoff,:);
+% Occip
+mus_occip_high = occip_mus(occip_mus(:,1) >= upper_cutoff,:);
+ret_occip_high = occip_ret(occip_ret(:,1) >= upper_cutoff,:);
+
+%%% combined subjects and regions
+% scattering coefficient
+xlab = 'EPVS SWP';
+ylab = '\mu_s (cm^-^1)';
+tit = 'Combined (high) -- \mu_s vs. SWP';
+scatter_subset(mus_combined, xlab, ylab, tit, th, d)
+% retardance
+ylab = 'retardance (degrees)';
+tit = 'Combined (high) -- Retardance vs. SWP';
+scatter_subset(ret_combined, xlab, ylab, tit, th,d)
+
+%%% Frontal
+% Scattering
+ylab = '\mu_s (cm^-^1)';
+tit = 'Frontal (high) -- \mu_s vs. SWP';
+scatter_subset(front_mus, xlab, ylab, tit, th, d)
+% Retardance
+ylab = 'retardance (degrees)';
+tit = 'Frontal (high) -- Retardance vs. SWP';
+scatter_subset(front_ret, xlab, ylab, tit, th, d)
+
+%%% Occipital
+% Scattering
+ylab = '\mu_s (cm^-^1)';
+tit = 'Occipital (high) -- \mu_s vs. SWP';
+scatter_subset(occip_mus, xlab, ylab, tit, th, d)
+% Retardance
+ylab = 'retardance (degrees)';
+tit = 'Occipital (high) -- Retardance vs. SWP';
+scatter_subset(occip_ret, xlab, ylab, tit, th, d)
+
+
+%% Remove outliers and replot
+outlier_rm = struct();
+

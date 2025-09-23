@@ -1,0 +1,163 @@
+%% Analyze the EPVS density heatmap
+% Import the EPVS density heatmaps
+% Import the .MAT of the optical properties
+% Measure correlation between EPVS density and optical properties
+
+%% Add top-level directory of code repository to path
+clear; clc; close all;
+% Print current working directory
+mydir  = pwd;
+% Find indices of slashes separating directories
+if ispc
+    idcs = strfind(mydir,'\');
+elseif isunix
+    idcs = strfind(mydir,'/');
+end
+% Remove the two sub folders to reach parent
+% (psoct_human_brain\vasculature\vesSegment)
+topdir = mydir(1:idcs(end));
+addpath(genpath(topdir));
+% Set maximum number of threads equal to number of threads for script
+ncores = feature('numcores');
+maxNumCompThreads(ncores);
+% Flag for loading CAA structs (false if already in environment)
+flag_load_caa_structs = false;
+% Directory containing seg, mus, ret, mask, epvs structs
+mat_dir = '/projectnb/npbssmic/s/mhyman/CAA_data/matlab_structs';
+% Heatmap directory
+heat_dir = '/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps';
+
+%% Load heat maps
+
+%%% subsampled EPVS heat maps
+%{
+caa17o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa17/occip/caa17_occip_subsample_heatmap.mat']);
+caa17o = caa17o.subsampled_volume;
+caa22f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa22/front/caa22_front_subsample_heatmap.mat']);
+caa22f = caa22f.subsampled_volume;
+caa22o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa22/occip/caa22_occip_subsample_heatmap.mat']);
+caa22o = caa22o.subsampled_volume;
+caa25f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa25/front/caa25_front_subsample_heatmap.mat']);
+caa25f = caa25f.subsampled_volume;
+caa25o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa25/occip/caa25_occip_subsample_heatmap.mat']);
+caa25o = caa25o.subsampled_volume;
+caa26o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa26/occip/caa26_occip_subsample_heatmap.mat']);
+caa26o = caa26o.subsampled_volume;
+% Output filename
+stats_out = fullfile(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'epvs_heatmap_stats.mat']);
+%}
+
+%%% Fully interpolated EPVS heat maps
+fprintf('Loading CAA17 Occip\n')
+caa17o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa17/occip/caa17_occip_interpolated_heatmap.mat']);
+caa17o = caa17o.interpolated_volume;
+
+fprintf('Loading CAA22 Front\n')
+caa22f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa22/front/caa22_front_interpolated_heatmap.mat']);
+caa22f = caa22f.interpolated_volume;
+
+fprintf('Loading CAA22 Occip\n')
+caa22o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa22/occip/caa22_occip_interpolated_heatmap.mat']);
+caa22o = caa22o.interpolated_volume;
+
+fprintf('Loading CAA25 Front\n')
+caa25f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa25/front/caa25_front_interpolated_heatmap.mat']);
+caa25f = caa25f.interpolated_volume;
+
+fprintf('Loading CAA25 Occip\n')
+caa25o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa25/occip/caa25_occip_interpolated_heatmap.mat']);
+caa25o = caa25o.interpolated_volume;
+
+fprintf('Loading CAA26 Occip\n')
+caa26o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'caa26/occip/caa26_occip_interpolated_heatmap.mat']);
+caa26o = caa26o.interpolated_volume;
+% Output filename
+stats_out = fullfile(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+    'interpolated_epvs_heatmap_stats.mat']);
+
+%% Load matlab structs
+%{
+fprintf('Loading CAA17\n')
+caa17 = load(fullfile(mat_dir,"caa17.mat"));
+fprintf('Finished loading CAA17\n')
+
+fprintf('Loading CAA22\n')
+caa22 = load(fullfile(mat_dir,"caa22.mat"));
+fprintf('Finished loading CAA22\n')
+
+fprintf('Loading CAA25\n')
+caa25 = load(fullfile(mat_dir,"caa25.mat"));
+fprintf('Finished loading CAA25\n')
+
+fprintf('Loading CAA26\n')
+caa26 = load(fullfile(mat_dir,"caa26.mat"));
+fprintf('Finished loading CAA26\n')
+
+% Remove top-level struct
+caa17 = caa17.caa17;
+caa22 = caa22.caa22;
+caa25 = caa25.caa25;
+caa26 = caa26.caa26;
+%}
+
+%% EPVS Density score - primary
+% measure the EPVS density just within regions above threshold
+fprintf('Calculating EPVS Density Score\n')
+
+% Create struct to iterate subjects
+subs = struct();
+subs.caa17o.epvs = caa17o;
+subs.caa22f.epvs = caa22f;
+subs.caa22o.epvs = caa22o;
+subs.caa25f.epvs = caa25f;
+subs.caa25o.epvs = caa25o;
+subs.caa26o.epvs = caa26o;
+
+
+% Iterate over structs and calculate score
+f = fields(subs);
+for ii=1:length(f)
+    % create local variable
+    epvs = subs.(f{ii}).epvs;
+
+    % Primary: Take median after removing lowest values
+    subs.(f{ii}).th1 = epvs_density_threshold(epvs);    
+
+    % Secondary: Take median across all values
+    tmp = epvs(epvs>0);
+    subs.(f{ii}).th2 = median(tmp);
+end
+
+
+%% Function to find EPVS density threshold
+function th = epvs_density_threshold(epvs)
+% find minimum threshold for epvs density
+% INPUTS:
+%   epvs (double mat): 3D matrix of EPVS
+% OUTPUTS:
+%   th (double): minimum threshold
+
+%% Remove lowest values that skew data
+% These values are orders of magnitude above the rest. They skew median.
+
+% Use histcounts to exclude the large # counts at lowest end
+[~, edges] = histcounts(epvs, 50);
+epvs = epvs(epvs > edges(2));
+
+% Take median after removing baseline
+th = median(epvs);
+
+end

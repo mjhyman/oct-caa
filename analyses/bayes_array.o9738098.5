@@ -1,0 +1,356 @@
+==========================================================
+Start date : Sun Aug 10 16:21:36 EDT 2025
+Job name : bayes_array
+Job ID : 9738098  5
+Distance = 200 (microns)
+==========================================================
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:49: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['condition_code'] = pd.Categorical(data['condition']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:50: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['region_code'] = pd.Categorical(data['region']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:51: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['subject_code'] = pd.Categorical(data['subject']).codes
+Initializing NUTS using jitter+adapt_diag...
+Multiprocess sampling (4 chains in 4 jobs)
+NUTS: [mu_intercept, beta_condition, sigma_subject, sigma_residual, z_subject]
+Running model for distance = 200 microns
+
+Sheet: scattering - 296378 samples after outlier removal.
+
+Running model for sheet 'scattering' with region '['front']'
+/projectnb/npbssmic/mhyman/.conda/envs/pymc_spline/lib/python3.12/site-packages/pymc/step_methods/hmc/quadpotential.py:316: RuntimeWarning: overflow encountered in dot
+  return 0.5 * np.dot(x, v_out)
+Sampling 4 chains for 2_000 tune and 4_000 draw iterations (8_000 + 16_000 draws total) took 466 seconds.
+There were 85 divergences after tuning. Increase `target_accept` or reparameterize.
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:49: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['condition_code'] = pd.Categorical(data['condition']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:50: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['region_code'] = pd.Categorical(data['region']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:51: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['subject_code'] = pd.Categorical(data['subject']).codes
+Initializing NUTS using jitter+adapt_diag...
+Multiprocess sampling (4 chains in 4 jobs)
+NUTS: [mu_intercept, beta_condition, sigma_subject, sigma_residual, z_subject]
+
+Summary statistics for sheet 'scattering', region 'frontal', distance '200':
+                 mean     sd  hdi_2.5%  hdi_97.5%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
+beta_condition -0.004  0.007    -0.017      0.009      0.000    0.000   11219.0    7740.0    1.0
+mu_intercept    2.424  0.088     2.260      2.619      0.001    0.001    3708.0    4311.0    1.0
+sigma_subject   0.242  0.155     0.068      0.551      0.004    0.009    2177.0    2425.0    1.0
+sigma_residual  0.120  0.001     0.117      0.122      0.000    0.000    8991.0    8027.0    1.0
+Trace saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/scattering_frontal_dist_200_trace.pkl
+Finished model for scattering, frontal, 200 um.Results saved to:
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/scattering_frontal_200_posterior.csv
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/scattering_frontal_200_posterior.png
+
+Running model for sheet 'scattering' with region '['occip']'
+/projectnb/npbssmic/mhyman/.conda/envs/pymc_spline/lib/python3.12/site-packages/pymc/step_methods/hmc/quadpotential.py:316: RuntimeWarning: overflow encountered in dot
+  return 0.5 * np.dot(x, v_out)
+Sampling 4 chains for 2_000 tune and 4_000 draw iterations (8_000 + 16_000 draws total) took 738 seconds.
+There were 3 divergences after tuning. Increase `target_accept` or reparameterize.
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:49: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['condition_code'] = pd.Categorical(data['condition']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:50: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['region_code'] = pd.Categorical(data['region']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:51: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['subject_code'] = pd.Categorical(data['subject']).codes
+Initializing NUTS using jitter+adapt_diag...
+Multiprocess sampling (4 chains in 4 jobs)
+NUTS: [mu_intercept, beta_condition, sigma_subject, sigma_residual, z_subject, sigma_tissue, z_tissue]
+
+Summary statistics for sheet 'scattering', region 'occipital', distance '200':
+                 mean     sd  hdi_2.5%  hdi_97.5%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
+beta_condition  0.005  0.006    -0.006      0.016      0.000    0.000    9823.0    8451.0    1.0
+mu_intercept    2.479  0.042     2.393      2.567      0.001    0.001    3225.0    4731.0    1.0
+sigma_subject   0.099  0.052     0.034      0.199      0.001    0.001    2457.0    3887.0    1.0
+sigma_residual  0.118  0.001     0.117      0.119      0.000    0.000    9196.0    8251.0    1.0
+Trace saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/scattering_occipital_dist_200_trace.pkl
+Finished model for scattering, occipital, 200 um.Results saved to:
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/scattering_occipital_200_posterior.csv
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/scattering_occipital_200_posterior.png
+
+Running model for sheet 'scattering' with region '['occip' 'front']'
+/projectnb/npbssmic/mhyman/.conda/envs/pymc_spline/lib/python3.12/site-packages/pymc/step_methods/hmc/quadpotential.py:316: RuntimeWarning: overflow encountered in dot
+  return 0.5 * np.dot(x, v_out)
+Sampling 4 chains for 2_000 tune and 4_000 draw iterations (8_000 + 16_000 draws total) took 2654 seconds.
+There were 8 divergences after tuning. Increase `target_accept` or reparameterize.
+Chain 0 reached the maximum tree depth. Increase `max_treedepth`, increase `target_accept` or reparameterize.
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:49: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['condition_code'] = pd.Categorical(data['condition']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:50: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['region_code'] = pd.Categorical(data['region']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:51: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['subject_code'] = pd.Categorical(data['subject']).codes
+Initializing NUTS using jitter+adapt_diag...
+Multiprocess sampling (4 chains in 4 jobs)
+NUTS: [mu_intercept, beta_condition, sigma_subject, sigma_residual, z_subject]
+
+Summary statistics for sheet 'scattering', region 'all', distance '200':
+                 mean     sd  hdi_2.5%  hdi_97.5%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
+beta_condition  0.001  0.004    -0.007      0.010      0.000    0.000   13970.0   10408.0    1.0
+mu_intercept    2.444  0.055     2.333      2.553      0.001    0.001    6120.0    7949.0    1.0
+sigma_subject   0.131  0.042     0.068      0.213      0.001    0.001    4301.0    6735.0    1.0
+sigma_residual  0.118  0.001     0.117      0.119      0.000    0.000   16534.0   10680.0    1.0
+sigma_tissue    0.047  0.035     0.000      0.115      0.000    0.000    6409.0    5894.0    1.0
+Trace saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/scattering_all_dist_200_trace.pkl
+Finished model for scattering, all, 200 um.Results saved to:
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/scattering_all_200_posterior.csv
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/scattering_all_200_posterior.png
+
+Overlay posterior plot saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/scattering_distance_200_overlay_posterior.png
+
+Sheet: retardance - 321634 samples after outlier removal.
+
+Running model for sheet 'retardance' with region '['front']'
+Sampling 4 chains for 2_000 tune and 4_000 draw iterations (8_000 + 16_000 draws total) took 687 seconds.
+There were 87 divergences after tuning. Increase `target_accept` or reparameterize.
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:49: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['condition_code'] = pd.Categorical(data['condition']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:50: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['region_code'] = pd.Categorical(data['region']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:51: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['subject_code'] = pd.Categorical(data['subject']).codes
+Initializing NUTS using jitter+adapt_diag...
+Multiprocess sampling (4 chains in 4 jobs)
+NUTS: [mu_intercept, beta_condition, sigma_subject, sigma_residual, z_subject]
+
+Summary statistics for sheet 'retardance', region 'frontal', distance '200':
+                 mean     sd  hdi_2.5%  hdi_97.5%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
+beta_condition  0.029  0.008     0.013      0.044      0.000    0.000    9622.0    7997.0    1.0
+mu_intercept    3.228  0.129     2.965      3.505      0.002    0.002    3450.0    4674.0    1.0
+sigma_subject   0.318  0.188     0.095      0.705      0.003    0.004    2936.0    5034.0    1.0
+sigma_residual  0.144  0.002     0.141      0.147      0.000    0.000    8307.0    7968.0    1.0
+Trace saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/retardance_frontal_dist_200_trace.pkl
+Finished model for retardance, frontal, 200 um.Results saved to:
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/retardance_frontal_200_posterior.csv
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/retardance_frontal_200_posterior.png
+
+Running model for sheet 'retardance' with region '['occip']'
+Sampling 4 chains for 2_000 tune and 4_000 draw iterations (8_000 + 16_000 draws total) took 990 seconds.
+There were 31 divergences after tuning. Increase `target_accept` or reparameterize.
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:49: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['condition_code'] = pd.Categorical(data['condition']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:50: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['region_code'] = pd.Categorical(data['region']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:51: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['subject_code'] = pd.Categorical(data['subject']).codes
+Initializing NUTS using jitter+adapt_diag...
+Multiprocess sampling (4 chains in 4 jobs)
+NUTS: [mu_intercept, beta_condition, sigma_subject, sigma_residual, z_subject, sigma_tissue, z_tissue]
+
+Summary statistics for sheet 'retardance', region 'occipital', distance '200':
+                 mean     sd  hdi_2.5%  hdi_97.5%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
+beta_condition -0.055  0.006    -0.067     -0.042      0.000    0.000    9456.0    7503.0    1.0
+mu_intercept    3.359  0.066     3.220      3.487      0.001    0.001    2802.0    3695.0    1.0
+sigma_subject   0.155  0.079     0.057      0.311      0.002    0.002    2712.0    4232.0    1.0
+sigma_residual  0.135  0.001     0.134      0.137      0.000    0.000    8779.0    7797.0    1.0
+Trace saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/retardance_occipital_dist_200_trace.pkl
+Finished model for retardance, occipital, 200 um.Results saved to:
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/retardance_occipital_200_posterior.csv
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/retardance_occipital_200_posterior.png
+
+Running model for sheet 'retardance' with region '['occip' 'front']'
+/projectnb/npbssmic/mhyman/.conda/envs/pymc_spline/lib/python3.12/site-packages/pymc/step_methods/hmc/quadpotential.py:316: RuntimeWarning: overflow encountered in dot
+  return 0.5 * np.dot(x, v_out)
+Sampling 4 chains for 2_000 tune and 4_000 draw iterations (8_000 + 16_000 draws total) took 3324 seconds.
+There were 404 divergences after tuning. Increase `target_accept` or reparameterize.
+Chain 0 reached the maximum tree depth. Increase `max_treedepth`, increase `target_accept` or reparameterize.
+Chain 1 reached the maximum tree depth. Increase `max_treedepth`, increase `target_accept` or reparameterize.
+Chain 2 reached the maximum tree depth. Increase `max_treedepth`, increase `target_accept` or reparameterize.
+Chain 3 reached the maximum tree depth. Increase `max_treedepth`, increase `target_accept` or reparameterize.
+The rhat statistic is larger than 1.01 for some parameters. This indicates problems during sampling. See https://arxiv.org/abs/1903.08008 for details
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:49: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['condition_code'] = pd.Categorical(data['condition']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:50: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['region_code'] = pd.Categorical(data['region']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:51: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['subject_code'] = pd.Categorical(data['subject']).codes
+Initializing NUTS using jitter+adapt_diag...
+Multiprocess sampling (4 chains in 4 jobs)
+NUTS: [mu_intercept, beta_condition, sigma_subject, sigma_residual, z_subject]
+
+Summary statistics for sheet 'retardance', region 'all', distance '200':
+                 mean     sd  hdi_2.5%  hdi_97.5%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
+beta_condition -0.019  0.005    -0.029     -0.010      0.000    0.000    3365.0    5176.0    1.0
+mu_intercept    3.305  0.124     3.060      3.581      0.003    0.003    1313.0    1846.0    1.0
+sigma_subject   0.183  0.059     0.092      0.298      0.002    0.002    1137.0    2171.0    1.0
+sigma_residual  0.137  0.001     0.136      0.138      0.000    0.000    3687.0    5704.0    1.0
+sigma_tissue    0.288  0.343     0.000      1.039      0.009    0.012    1092.0    1936.0    1.0
+Trace saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/retardance_all_dist_200_trace.pkl
+Finished model for retardance, all, 200 um.Results saved to:
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/retardance_all_200_posterior.csv
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/retardance_all_200_posterior.png
+
+Overlay posterior plot saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/retardance_distance_200_overlay_posterior.png
+
+Running model for sheet 'orientation' with region '['front']'
+Sampling 4 chains for 2_000 tune and 4_000 draw iterations (8_000 + 16_000 draws total) took 154 seconds.
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:49: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['condition_code'] = pd.Categorical(data['condition']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:50: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['region_code'] = pd.Categorical(data['region']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:51: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['subject_code'] = pd.Categorical(data['subject']).codes
+Initializing NUTS using jitter+adapt_diag...
+Multiprocess sampling (4 chains in 4 jobs)
+NUTS: [mu_intercept, beta_condition, sigma_subject, sigma_residual, z_subject]
+
+Summary statistics for sheet 'orientation', region 'frontal', distance '200':
+                 mean     sd  hdi_2.5%  hdi_97.5%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
+beta_condition -0.796  0.049    -0.889     -0.698      0.000    0.000   11767.0    8420.0    1.0
+mu_intercept   -1.294  0.197    -1.684     -0.917      0.003    0.002    3424.0    5257.0    1.0
+sigma_subject   0.415  0.090     0.257      0.599      0.001    0.001    6922.0    7838.0    1.0
+sigma_residual  0.820  0.009     0.802      0.837      0.000    0.000   11541.0    9251.0    1.0
+Trace saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/orientation_frontal_dist_200_trace.pkl
+Finished model for orientation, frontal, 200 um.Results saved to:
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/orientation_frontal_200_posterior.csv
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/orientation_frontal_200_posterior.png
+
+Running model for sheet 'orientation' with region '['occip']'
+Sampling 4 chains for 2_000 tune and 4_000 draw iterations (8_000 + 16_000 draws total) took 571 seconds.
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:49: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['condition_code'] = pd.Categorical(data['condition']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:50: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['region_code'] = pd.Categorical(data['region']).codes
+/projectnb/npbssmic/s/mhyman/oct-caa/analyses/bayesian_stats_lognormal_at_each_distance.py:51: SettingWithCopyWarning: 
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+  data['subject_code'] = pd.Categorical(data['subject']).codes
+Initializing NUTS using jitter+adapt_diag...
+Multiprocess sampling (4 chains in 4 jobs)
+NUTS: [mu_intercept, beta_condition, sigma_subject, sigma_residual, z_subject, sigma_tissue, z_tissue]
+
+Summary statistics for sheet 'orientation', region 'occipital', distance '200':
+                 mean     sd  hdi_2.5%  hdi_97.5%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
+beta_condition  0.177  0.032     0.114      0.241      0.000    0.000    9337.0    7684.0    1.0
+mu_intercept   -0.746  0.205    -1.167     -0.351      0.004    0.003    2937.0    4431.0    1.0
+sigma_subject   0.474  0.109     0.277      0.689      0.001    0.001    5208.0    6059.0    1.0
+sigma_residual  0.675  0.004     0.668      0.682      0.000    0.000   10806.0    8227.0    1.0
+Trace saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/orientation_occipital_dist_200_trace.pkl
+Finished model for orientation, occipital, 200 um.Results saved to:
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/orientation_occipital_200_posterior.csv
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/orientation_occipital_200_posterior.png
+
+Running model for sheet 'orientation' with region '['occip' 'front']'
+Sampling 4 chains for 2_000 tune and 4_000 draw iterations (8_000 + 16_000 draws total) took 1522 seconds.
+There were 10 divergences after tuning. Increase `target_accept` or reparameterize.
+
+Summary statistics for sheet 'orientation', region 'all', distance '200':
+                 mean     sd  hdi_2.5%  hdi_97.5%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
+beta_condition -0.196  0.026    -0.246     -0.144      0.000    0.000   15066.0   10526.0    1.0
+mu_intercept   -1.007  0.197    -1.388     -0.615      0.003    0.002    4599.0    6734.0    1.0
+sigma_subject   0.539  0.101     0.352      0.737      0.001    0.001    5150.0    7651.0    1.0
+sigma_residual  0.712  0.003     0.705      0.719      0.000    0.000   15546.0    9600.0    1.0
+sigma_tissue    0.114  0.080     0.000      0.265      0.001    0.001    7015.0    5743.0    1.0
+Trace saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/orientation_all_dist_200_trace.pkl
+Finished model for orientation, all, 200 um.Results saved to:
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/orientation_all_200_posterior.csv
+  /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/orientation_all_200_posterior.png
+
+Overlay posterior plot saved to /projectnb/npbssmic/ns/CAA/beta_stats/posteriors/orientation_distance_200_overlay_posterior.png

@@ -92,77 +92,44 @@ epvs.caa26o = tmp;
 
 % CAA17 Occip
 tmp = single(epvs.caa17o);
-fname = 'caa17_occipepvs_heatmap_radius200_single.tif';
-dout = fullfile(heat_dir,'/caa17/occip/');
-export_tif(tmp,fname,dout);
+
 
 % CAA 22 Front
 tmp = single(epvs.caa22f);
-fname = 'caa22_frontepvs_heatmap_radius200_single.tif';
-dout = fullfile(heat_dir,'/caa22/front/');
-export_tif(tmp,fname,dout);
 
 % CAA 22 Occip
-tmp = single(epvs.caa22o);
-fname = 'caa22_occipepvs_heatmap_radius200_single.tif';
-dout = fullfile(heat_dir,'/caa22/occip/');
-export_tif(tmp,fname,dout);
+
 
 % CAA 25 Front
-tmp = single(epvs.caa25f);
-fname = 'caa25_frontepvs_heatmap_radius200_single.tif';
-dout = fullfile(heat_dir,'/caa25/front/');
-export_tif(tmp,fname,dout);
+
 
 % CAA 25 Occip
-tmp = single(epvs.caa25o);
-fname = 'caa25_occipepvs_heatmap_radius200_single.tif';
-dout = fullfile(heat_dir,'/caa25/occip/');
-export_tif(tmp,fname,dout);
+
 
 % CAA 26 Occip
-tmp = single(epvs.caa26o);
-fname = 'caa26_occipepvs_heatmap_radius200_single.tif';
-dout = fullfile(heat_dir,'/caa26/occip/');
-export_tif(tmp,fname,dout);
+
 
 %% Export to tif
-function export_tif(vol, fname, dir_out)
-    % vol: 3D single precision array (Height x Width x Frames)
-    % filename: output TIFF file name with .tif extension
-    
-    % Validate input
-    if ~isa(vol, 'single')
-        error('Input volume must be of type single');
-    end
-    
-    % Get dimensions
-    [height, width, numFrames] = size(vol);
+function export_tif(vol,fname,dir_out)
+% EXPORT_TIF save a single volume as a TIF
+% INPUTS
+%   vol (single 3D array): heatmap
+%   fname (string): name of file
+%   dir_out (string): output directory
 
-    % Open Tiff for writing
-    filename = fullfile(dir_out, fname);
-    t = Tiff(filename, 'w8');
+% Example 3D single precision array (e.g., 100x100 pixels x 10 frames)
+imgStack = single(rand(100, 100, 10));
 
-    % Common TIFF tags for all frames
-    tagstruct.ImageLength = height;
-    tagstruct.ImageWidth = width;
-    tagstruct.Photometric = Tiff.Photometric.MinIsBlack;
-    tagstruct.BitsPerSample = 32;
-    tagstruct.SampleFormat = Tiff.SampleFormat.IEEEFP;  % For floating point
-    tagstruct.SamplesPerPixel = 1;
-    tagstruct.RowsPerStrip = height;
-    tagstruct.PlanarConfiguration = Tiff.PlanarConfiguration.Chunky;
-    % No compression:
-    tagstruct.Compression = Tiff.Compression.None;
+filename = 'output_single_precision.tif';
 
-    for k = 1:numFrames
-        t.setTag(tagstruct);
-        t.write(vol(:,:,k));
-        
-        if k < numFrames
-            t.writeDirectory();  % Create new page for next frame
-        end
-    end
-    
-    t.close();
+% Write the first slice/frame
+imwrite(imgStack(:,:,1), filename, 'tif', 'Compression', 'none');
+
+% Append remaining slices/frames
+for k = 2:size(imgStack, 3)
+    imwrite(imgStack(:,:,k), filename, 'tif', 'WriteMode', 'append', ...
+            'Compression', 'none');
+end
+
+
 end

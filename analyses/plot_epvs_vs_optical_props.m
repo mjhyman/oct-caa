@@ -33,40 +33,56 @@ fig_dir = '/projectnb/npbssmic/s/mhyman/CAA_data/figures/';
 load('/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/epvs_heatmap_stats.mat');
 
 %%% All pairs (not averaged)
-mus_combined = data.entire.mus_combined;
-ret_combined = data.entire.ret_combined;
+combined_mus = data.entire.mus_combined;
+combined_ret = data.entire.ret_combined;
 front_mus = data.entire.front_mus;
 front_ret = data.entire.front_ret;
 occip_mus = data.entire.occip_mus;
 occip_ret = data.entire.occip_ret;
 
-%%% Window averaged
-mus = data.window.mus_combined;
-mus_x = mus(1,:);
-mus_y = mus(2,:);
-ret = data.window.ret_combined;
-ret_x = ret(1,:);
-ret_y = ret(2,:);
-% front mus
-front_mus_x = data.window.front_mus_x;
-front_mus_y = data.window.front_mus_y;
-front_mus_std = data.window.front_mus_std;
-front_mus_sem = data.window.front_mus_sem;
-% front ret
-front_ret_x = data.window.front_ret_x;
-front_ret_y = data.window.front_ret_y;
-front_ret_std = data.window.front_ret_std;
-front_ret_sem = data.window.front_ret_sem;
-% occip mus
-occip_mus_x = data.window.occip_mus_x;
-occip_mus_y = data.window.occip_mus_y;
-occip_mus_std = data.window.occip_mus_std;
-occip_mus_sem = data.window.occip_mus_sem;
-% occip ret
-occip_ret_x = data.window.occip_ret_x;
-occip_ret_y = data.window.occip_ret_y;
-occip_ret_std = data.window.occip_ret_std;
-occip_ret_sem = data.window.occip_ret_sem;
+%% Remove outliers
+
+%%% Combined
+% mus
+[combined_mus_clean, mus_lb1, mus_lb2, mus_ub1, mus_ub2] =...
+    remove_joint_outliers(combined_mus);
+% ret
+[combined_ret_clean, ret_lb1, ret_lb2, ret_ub1, ret_ub2] =...
+    remove_joint_outliers(combined_ret);
+
+%%% Front
+% mus
+front_mus_clean = cutoff_array(front_mus,mus_lb1,mus_ub1,mus_lb2,mus_ub2);
+% ret
+front_ret_clean = cutoff_array(front_ret,ret_lb1,ret_ub1,ret_lb2,ret_ub2);
+
+%%% Occip
+% mus
+occip_mus_clean = cutoff_array(occip_mus,mus_lb1,mus_ub1,mus_lb2,mus_ub2);
+% ret
+occip_ret_clean = cutoff_array(occip_ret,ret_lb1,ret_ub1,ret_lb2,ret_ub2);
+
+%% Take binned window average
+% Size of x-axis window for averaging
+window_size = 1e5;
+
+%%% Combined
+% mus
+[comb_mus_x, comb_mus_y,~,~] = window_avg(combined_mus_clean,window_size);
+% ret
+[comb_ret_x, comb_ret_y,~,~] = window_avg(combined_ret_clean,window_size);
+
+%%% Front
+% mus
+[front_mus_x, front_mus_y,~,~] = window_avg(front_mus_clean,window_size);
+% ret
+[front_ret_x, front_ret_y,~,~] = window_avg(front_ret_clean,window_size);
+
+%%% Occip
+% mus
+[occip_mus_x, occip_mus_y,~,~] = window_avg(occip_mus_clean,window_size);
+% ret
+[occip_ret_x, occip_ret_y,~,~] = window_avg(occip_ret_clean,window_size);
 
 %% Spearman's rho correlation coefficients of windows averages
 
@@ -75,36 +91,36 @@ rhop = struct();
 
 %%% combined subjects and regions
 % scattering coefficient
-[rho, p] = corr([mus_x',mus_y'],'type','Spearman','rows','complete');
-rhop.combined.mus.rho = rho;
-rhop.combined.mus.p = p;
+[rho, p] = corr([comb_mus_x',comb_mus_y'],'type','Spearman','rows','complete');
+rhop.combined.mus.rho = rho(1,2);
+rhop.combined.mus.p = p(1,2);
 % retardance
-[rho, p] = corr([ret_x',ret_y'],'type','Spearman','rows','complete');
-rhop.combined.ret.rho = rho;
-rhop.combined.ret.p = p;
+[rho, p] = corr([comb_ret_x',comb_ret_y'],'type','Spearman','rows','complete');
+rhop.combined.ret.rho = rho(1,2);
+rhop.combined.ret.p = p(1,2);
 
 %%% Frontal
 % Scattering
 [rho, p] = corr([front_mus_x',front_mus_y'],'type','Spearman','rows','complete');
-rhop.front.mus.rho = rho;
-rhop.front.mus.p = p;
+rhop.front.mus.rho = rho(1,2);
+rhop.front.mus.p = p(1,2);
 % Retardance
 [rho, p] = corr([front_ret_x',front_ret_y'],'type','Spearman','rows','complete');
-rhop.front.ret.rho = rho;
-rhop.front.ret.p = p;
+rhop.front.ret.rho = rho(1,2);
+rhop.front.ret.p = p(1,2);
 
 %%% Occipital
 % Scattering
 [rho, p] = corr([occip_mus_x',occip_mus_y'],'type','Spearman','rows','complete');
-rhop.occip.mus.rho = rho;
-rhop.occip.mus.p = p;
+rhop.occip.mus.rho = rho(1,2);
+rhop.occip.mus.p = p(1,2);
 % Retardance
 [rho, p] = corr([occip_ret_x',occip_ret_y'],'type','Spearman','rows','complete');
-rhop.occip.ret.rho = rho;
-rhop.occip.ret.p = p;
+rhop.occip.ret.rho = rho(1,2);
+rhop.occip.ret.p = p(1,2);
 
 %% Plot optical property vs. EPVS density (without window averaging)
-
+%{
 %%% Minimum threshold for EPVS density
 th = 5*10^5;
 
@@ -113,12 +129,12 @@ th = 5*10^5;
 xlab = 'EPVS Volume Fraction (percentage occupied by EPVS)';
 ylab = '\mu_s (cm^-^1)';
 tit = 'Combined -- \mu_s vs. EPVS Density';
-scatter_op(mus_combined, xlab, ylab, tit, th)
+scatter_op(combined_mus, xlab, ylab, tit, th)
 % retardance
 xlab = 'EPVS Volume Fraction (percentage occupied by EPVS)';
 ylab = 'retardance (degrees)';
 tit = 'Combined -- Retardance vs. EPVS Density';
-scatter_op(ret_combined, xlab, ylab, tit, th)
+scatter_op(combined_ret, xlab, ylab, tit, th)
 
 %%% Frontal
 % Scattering
@@ -143,6 +159,7 @@ xlab = 'EPVS Volume Fraction (percentage occupied by EPVS)';
 ylab = 'retardance (degrees)';
 tit = 'Occipital -- Retardance vs. EPVS Density';
 scatter_op(occip_ret, xlab, ylab, tit, th)
+%}
 
 %% Plot the windowed averages with error bars
 %{
@@ -179,66 +196,120 @@ sliding_errorbar_plot(occip_ret_x, occip_ret_y, occip_ret_sem, xlab, ylab, tit)
 %}
 
 %% Plot the windowed averages as scatter plot
+% y-axis limits
+xlims = [0, 4.2e6];
+mus_ylims = [11,13.5];
+ret_ylims = [21,32];
+fsize = 32;
 
 %%% combined subjects and regions
 % scattering coefficient
-figure('Position',[100,100,900,900],'Resize','off');
-scatter(mus_x, mus_y)
-xlabel('EPVS Density');
-ylabel('\mu_s (cm^-^1)');
-title('Combined: \mu_s vs. EPVS Density');
-set(gca,'fontsize',24)
+figure('Position',[200,-400,900,900],'Resize','off');
+scatter(comb_mus_x, comb_mus_y,100,'filled')
+xlabel('EPVS Density'); ylabel('\mu_s (cm^-^1)');
+title({'Combined:','\mu_s vs. EPVS Density'}); set(gca,'fontsize',fsize)
+ylim(mus_ylims); xlim(xlims);
 fout = fullfile(fig_dir,'combined_mus_vs_epvs.png');
-saveas(gcf,fout);
+saveas(gcf,fout); pause(0.5)
 % retardance
-figure('Position',[100,100,900,900],'Resize','off');
-scatter(ret_x, ret_y)
-xlabel('EPVS Density');
-ylabel('retardance (degrees)');
-title('Combined: Retardance vs. EPVS Density');
-set(gca,'fontsize',24)
+figure('Position',[200,-400,900,900],'Resize','off');
+scatter(comb_ret_x, comb_ret_y,100,'filled')
+xlabel('EPVS Density'); ylabel('Retardance (\circ)');
+title({'Combined:','Ret vs. EPVS Density'}); set(gca,'fontsize',fsize)
+ylim(ret_ylims); xlim(xlims);
 fout = fullfile(fig_dir,'combined_ret_vs_epvs.png');
-saveas(gcf,fout);
+saveas(gcf,fout); pause(0.5)
 
 %%% Frontal
 % Scattering
-figure('Position',[100,100,900,900],'Resize','off');
-scatter(front_mus_x, front_mus_y)
-xlabel('EPVS Density');
-ylabel('\mu_s (cm^-^1)');
-title('Frontal: \mu_s vs. EPVS Density');
-set(gca,'fontsize',24)
+figure('Position',[200,-400,900,900],'Resize','off');
+scatter(front_mus_x, front_mus_y,100,'filled')
+xlabel('EPVS Density'); ylabel('\mu_s (cm^-^1)');
+title({'Frontal:','\mu_s vs. EPVS Density'}); set(gca,'fontsize',fsize)
+ylim(mus_ylims); xlim(xlims);
 fout = fullfile(fig_dir,'front_mus_vs_epvs.png');
-saveas(gcf,fout);
+saveas(gcf,fout); pause(0.5)
 % Retardance
-figure('Position',[100,100,900,900],'Resize','off');
-scatter(front_ret_x, front_ret_y)
-xlabel('EPVS Density');
-ylabel('retardance (degrees)');
-title('Frontal: Retardance vs. EPVS Density');
-set(gca,'fontsize',24)
+figure('Position',[200,-400,900,900],'Resize','off');
+scatter(front_ret_x, front_ret_y,100,'filled')
+xlabel('EPVS Density'); ylabel('Retardance (\circ)');
+title({'Frontal:','Ret vs. EPVS Density'}); set(gca,'fontsize',fsize)
+ylim(ret_ylims); xlim(xlims);
 fout = fullfile(fig_dir,'front_ret_vs_epvs.png');
-saveas(gcf,fout);
+saveas(gcf,fout); pause(0.5)
 
 %%% Occipital
 % Scattering
-figure('Position',[100,100,900,900],'Resize','off');
-scatter(occip_mus_x, occip_mus_y)
-xlabel('EPVS Density');
-ylabel('\mu_s (cm^-^1)');
-title('Occipital: \mu_s vs. EPVS Density');
-set(gca,'fontsize',24)
+figure('Position',[200,-400,900,900],'Resize','off');
+scatter(occip_mus_x, occip_mus_y,100,'filled')
+xlabel('EPVS Density'); ylabel('\mu_s (cm^-^1)');
+title({'Occipital:','\mu_s vs. EPVS Density'}); set(gca,'fontsize',fsize)
+ylim(mus_ylims); xlim(xlims);
 fout = fullfile(fig_dir,'occip_mus_vs_epvs.png');
-saveas(gcf,fout);
+saveas(gcf,fout); pause(0.5)
 % Retardance
-figure('Position',[100,100,900,900],'Resize','off');
-scatter(occip_ret_x, occip_ret_y)
-xlabel('EPVS Density');
-ylabel('retardance (degrees)');
-title('Occipital: Retardance vs. EPVS Density');
-set(gca,'fontsize',24)
+figure('Position',[200,-400,900,900],'Resize','off');
+scatter(occip_ret_x, occip_ret_y,100,'filled')
+xlabel('EPVS Density'); ylabel('Retardance (\circ)');
+title({'Occipital:','Ret vs. EPVS Density'}); set(gca,'fontsize',fsize)
+ylim(ret_ylims); xlim(xlims);
 fout = fullfile(fig_dir,'occip_ret_vs_epvs.png');
-saveas(gcf,fout);
+saveas(gcf,fout); pause(0.5)
+
+%% Apply upper and lower bounds to array
+function data_clean = cutoff_array(data,lb1,ub1,lb2,ub2)
+
+% Identify outliers in EPVS and optical property
+outlier_col1 = (data(:,1) < lb1) | (data(:,1) > ub1);
+outlier_col2 = (data(:,2) < lb2) | (data(:,2) > ub2);
+
+% Combine outlier flags
+outliers = outlier_col1 | outlier_col2;
+
+% Remove outlier rows
+data_clean = data(~outliers, :);
+
+end
+
+%% Remove outliers with IQR method
+function [data_clean,lb1,lb2,ub1,ub2] = remove_joint_outliers(data)
+% Remove outliers with interquartile range (IQR)
+% INPUTS:
+%   data (Nx2 array): data w/ outliers
+%       Column 1: EPVS density
+%       Column 2: Optical property
+% OUTPUTS:
+%   clean_data (Nx2) array: outliers removed
+
+% Remove rows with NaNs first (optional but recommended)
+data = data(~any(isnan(data),2), :);
+
+% --- Outlier detection in Column 1 (EPVS density) ---
+Q1 = prctile(data(:,1), 25);
+Q3 = prctile(data(:,1), 75);
+IQR = Q3 - Q1;
+lb1 = Q1 - 1.5*IQR;
+ub1 = Q3 + 1.5*IQR;
+outlier_col1 = (data(:,1) < lb1) | (data(:,1) > ub1);
+
+% --- Outlier detection in Column 2 (Optical property) ---
+Q1 = prctile(data(:,2), 25);
+Q3 = prctile(data(:,2), 75);
+IQR = Q3 - Q1;
+lb2 = Q1 - 1.5*IQR;
+ub2 = Q3 + 1.5*IQR;
+outlier_col2 = (data(:,2) < lb2) | (data(:,2) > ub2);
+
+% Combine outlier flags
+outliers = outlier_col1 | outlier_col2;
+
+% Remove outlier rows
+data_clean = data(~outliers, :);
+
+% Display how many rows were removed
+fprintf('Removed %d outliers out of %d samples\n', sum(outliers), size(data,1));
+
+end
 
 
 %% Scatter plot of combined vectors

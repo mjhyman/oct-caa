@@ -370,7 +370,7 @@ scatter_op_vs_dist(x, occip_mean_ves_ori, occip_sem_ves_ori,...
                     occip_mean_epvs_ori, occip_sem_epvs_ori,...
                     xlab, ylab, ori_yl, tit, dir_out, fname)
 
-%% Zoomed-in scatterplot of combined
+%% Lower Range of Optical Property vs EPVS Density (Combined)
 % Limits for each plot
 mus_yl = [11, 12.6];
 ret_yl = [26, 29];

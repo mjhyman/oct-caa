@@ -1,0 +1,7 @@
+==========================================================
+Start date : Sun Aug 10 20:52:25 EDT 2025
+Job name : spline16
+Job ID : 9738942  undefined
+==========================================================
+Initializing NUTS using jitter+adapt_diag...
+/var/spool/sge/scc-up4/job_scripts/9738942: line 23: 3152643 Segmentation fault      python bayesian_stats_distance_model_scc.py
