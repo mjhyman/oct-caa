@@ -52,7 +52,7 @@ def adaptive_region_growing(volume, mask, seed_thresh, intensity_tol):
 
 
 def segment_adaptive_psoct(topdir, tissue_path, mask_path, seed_thresh, intensity_tol, min_size,
-                           out_name='output_segmented.nii'):
+                           out_name='epvs_region_grow.nii'):
     tissue_img = nib.load(tissue_path)
     tissue_data = tissue_img.get_fdata()
     mask_img = nib.load(mask_path)
@@ -64,12 +64,13 @@ def segment_adaptive_psoct(topdir, tissue_path, mask_path, seed_thresh, intensit
     print(f"  Region growing complete. Voxels segmented: {np.sum(rg_mask)}")
 
     # Connected component labeling
-    labeled_array, num_features = label(rg_mask)
-    output = np.zeros_like(labeled_array, dtype=np.uint8)
-    for n in range(1, num_features + 1):
-        component = (labeled_array == n)
-        if np.sum(component) >= min_size:
-            output[component] = 1
+    # labeled_array, num_features = label(rg_mask)
+    # output = np.zeros_like(labeled_array, dtype=np.uint8)
+    # for n in range(1, num_features + 1):
+    #     component = (labeled_array == n)
+    #     if np.sum(component) >= min_size:
+    #         output[component] = 1
+    output = rg_mask
 
     out_path = os.path.join(os.path.dirname(topdir), out_name)
     out_img = nib.Nifti1Image(output, tissue_img.affine, tissue_img.header)

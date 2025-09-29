@@ -6,6 +6,21 @@
 dpath = ['/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/' ...
             'optical_properties'];
 
+%{
+TODO:
+- dilate / erode vessel segmentation
+- import/update EPVS for all
+- convert all EPVS to logical
+- update CAA 26 frontal mask
+- apply masks to EPVS as well
+
+After:
+Transfer .MAT to SCC
+Run donuts on SCC
+Run EPVS heatmaps on SCC
+
+%}
+
 %% Load all structures
 
 %%% Load subject structs
@@ -34,6 +49,18 @@ fprintf('Loading CAA26\n')
 caa26 = load(fullfile(dpath,'/caa26/caa26.mat'));
 caa26 = caa26.caa26;
 fprintf('Finished Loading CAA26\n')
+
+%% TODO: Dilate/Erode vessel segmentation
+
+
+%% TODO: Update EPVS for all subjects
+% CAA 22 front
+tmp = ['/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/' ...
+    'optical_properties/caa22/front/epvs_manual_latest.nii'];
+epvs = MRIread(tmp,0,0);
+epvs = epvs.vol;
+caa22.front.epvs = epvs;
+fprintf('Updated caa22 front\n')
 
 %% Load updated white matter structs
 %%% CAA 6 Frontal
@@ -179,16 +206,6 @@ seg = caa26.occip.seg;
 % Create WM mask and apply to vasculature
 caa26.occip.seg_wm = seg .* mask_wm;
 caa26.occip.mask_wm = mask_wm;
-
-
-%% Update EPVS
-% CAA 22 front
-tmp = ['/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/' ...
-    'optical_properties/caa22/front/epvs_manual_latest.nii'];
-epvs = MRIread(tmp,0,0);
-epvs = epvs.vol;
-caa22.front.epvs = epvs;
-fprintf('Updated caa22 front\n')
 
 %% Save .MAT
 
