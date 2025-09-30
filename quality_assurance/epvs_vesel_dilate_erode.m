@@ -27,27 +27,48 @@ fnames = {'epvs.nii','epvs_uchar.nii.gz',...
     'epvs_updated_MH.mgz','epvs.nii',...
     'epvs.nii','epvs.nii'};
 
-%% Iterate volumes
+ves_fin = 'seg.nii';
+
+% Dilation/erosion and filenames
+ves_r = 4;
+ves_fout = 'seg_dilate_erode_4_4.nii.gz';
+epvs_r = 4;
+epvs_fout = 'epvs_dilate_erode_4_4.nii.gz';
+
+%% Vessel Iterate volumes
+for ii = 1:length(subdirs)
+    % Retrieve directory and filename
+    ffull = fullfile(topdir,subdirs{ii},ves_fin);
+    % Import Volume
+    ves = MRIread(ffull,0,0);
+    vol = logical(ves.vol);
+    % Dilate and erode
+    vol = dilerode(vol,ves_r);
+    % Write back to NIFTI
+    ves.vol = logical(vol);
+    fout = fullfile(topdir,subdirs{ii},ves_fout);
+    MRIwrite(ves,fout,'uchar',0);
+end
+
+%% EPVS Iterate volumes
 for ii = 1:length(subdirs)
     % Retrieve directory and filename
     ffull = fullfile(topdir,subdirs{ii},fnames{ii});
     % Import Volume
     epvs = MRIread(ffull,0,0);
-    vol = epvs.vol;
+    vol = logical(epvs.vol);
     % Dilate and erode
-    vol = dilerode(vol);
+    vol = dilerode(vol,epvs_r);
     % Write back to NIFTI
-    epvs.vol = vol;
-    fout = 'epvs_dilate_erode_4_4.nii.gz';
-    fout = fullfile(topdir,subdirs{ii},fout);
+    epvs.vol = logical(vol);
+    fout = fullfile(topdir,subdirs{ii},epvs_fout);
     MRIwrite(epvs,fout,'uchar',0);
 end
 
-
 %% Function to dilate and erode
-function vol = dilerode(vol)
+function vol = dilerode(vol,r)
 % Create structuring element
-se = strel('sphere',4);
+se = strel('sphere',r);
 % Dilate
 vol = imdilate(vol,se);
 % Erode
