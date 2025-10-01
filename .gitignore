@@ -1,3 +1,4 @@
 # Ignore object files with "*/[#]"
 *.o\[#\]
 *.o\[#\].?
+*.o*
