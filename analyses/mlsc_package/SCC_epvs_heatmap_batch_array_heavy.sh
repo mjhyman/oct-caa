@@ -10,10 +10,10 @@
 #$ -l h_rt=120:00:00
 
 # Name of job
-#$ -N p1_caa22f
+#$ -N swp_p2
 
 # set the task ID
-#$ -t 2
+#$ -t 1-9
 
 # Run this for CAA22 front (dense EPVS)
 #$ -pe omp 28

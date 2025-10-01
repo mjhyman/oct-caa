@@ -1,13 +1,10 @@
 %% Measure the size-weighted proximity (SWP)
 % Batch script that runs on individual subjects
-clear; clc; close all;
 
 % Input from bash
 sid = str2double(getenv('SGE_TASK_ID'));
 if isnan(sid)
-    sid=1;
-    fprintf('The SGE_TASK_ID was not passed to Matlab\n')
-    fprintf('Setting SGE_TASK_ID to %s\n',string(sid))
+    sid=3;
 end
 
 % Exponent for denominator in SWP
@@ -40,7 +37,7 @@ subjects(8).subject_name = 'caa26';
 subjects(8).region = 'front';
 subjects(8).p = p;
 subjects(9).subject_name = 'caa26';
-subjects(9).region = 'occip';
+subjects(9).region = 'front';
 subjects(9).p = p;
 
 % Set local subject_name and region
@@ -85,11 +82,8 @@ end
 
 % Load the subject data
 file_path = fullfile(data_dir, subject_files.(subject_name));
-if ~isfile(file_path)
-    error('File does not exist\n%s',file_path)
-else
-    fprintf('Loading subject %s\n', subject_name)
-end
+
+fprintf('Loading subject %s\n', subject_name)
 tmp = load(file_path);
 subject_data = tmp.(subject_name);
 fprintf('Finished loading %s\n', subject_name)
