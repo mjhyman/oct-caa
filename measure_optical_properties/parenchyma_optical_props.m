@@ -15,12 +15,12 @@ function [mus_outer, ret_outer, ori_outer,...
 %                                   dilated vessels (outer)
 %       ret_outer (single array): average ret for parenchyma from XOR of
 %                                   dilated vessels (outer)
-%       ori_std_outer (single array): std. dev. of orientation (outer)
+%       ori_outer (single array): std. dev. of orientation (outer)
 %       mus_inner (single array): average mus for parenchyma from XOR of
 %                                   original and dilated vessels (inner)
 %       ret_inner (single array): average ret for parenchyma from XOR of
 %                                   original and dilated vessels (inner)
-%       ori_std_inner (single array): std. dev. of orientation (inner)
+%       ori_inner (single array): std. dev. of orientation (inner)
 %   OUTLINE:
 %       - Dilate vessels with se1
 %           - Take XOR of of dilated and undilated vessels (inner)

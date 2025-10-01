@@ -7,6 +7,12 @@
 sid = str2double(getenv('SGE_TASK_ID'));
 % Array of subject ID and regions
 subjects = struct();
+subjects(1).subject_name = 'caa6';
+subjects(1).region = 'front';
+subjects(1).p = 1;
+subjects(2).subject_name = 'caa6';
+subjects(2).region = 'occip';
+subjects(2).p = 1;
 subjects(1).subject_name = 'caa17';
 subjects(1).region = 'occip';
 subjects(1).p = 1;

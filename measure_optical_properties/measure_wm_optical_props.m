@@ -24,21 +24,26 @@ Outline:
 %% Prepare environment
 clc; close all;
 % Add top-level directory + subdirectories
-addpath(genpath(fullfile(pwd, '..')))
-% Directory for loading seg, mus, ret, mask, epvs
-data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
-    'oct_caa_analyses/optical_properties'];
-% WM mask directory (from Taylor)
-wm_dir = ['/autofs/space/turtle_001/users/xz875/projects/' ...
-          'Multi-resolution_Unets_Semi_OCT/prediction'];
+parentDir = fileparts(pwd);
+fsDir = fullfile(parentDir, 'freesurfer');
+cstatDir = fullfile(parentDir, 'CircStat2012a');
+addpath(fsDir);
+addpath(cstatDir);
+addpath(parentDir);
+
 % Voxel dimensions (microns) for all runs
 res = [20,20,20]; % resolution in microns
 
 %%% Flag for loading .MAT struct and creating WM masks
 % flag for reloading the .MAT struct for each subject
-flag_load_caa_structs = false;
-% flag for importing updated wm masks
-flag_import_wm_mask = false;
+flag_load_caa_structs = true;
+
+%%% Directories on Martinos Center w/ Matlab struct
+% data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
+%     'oct_caa_analyses/optical_properties'];
+
+%%% Directories on SCC w/ Matlab struct
+data_dir = '/projectnb/npbssmic/ns/CAA/';
 
 %% Load each subject's .MAT struct and create WM mask
 
@@ -69,152 +74,6 @@ if flag_load_caa_structs
     caa26 = load(fullfile(data_dir,'/caa26/caa26.mat'));
     caa26 = caa26.caa26;
     fprintf('Finished Loading CAA26\n')
-end
-
-if flag_import_wm_mask
-    %%% CAA 6 Frontal
-    fprintf('Importing caa6 frontal\n')
-    % import wm mask
-    mask_wm = fullfile(data_dir,'caa6/front/wm_mask_revised.nii');
-    mask_wm = MRIread(mask_wm,0,0);
-    % Keep just WM (wm = 1)
-    mask_wm = mask_wm.vol;
-    mask_wm = logical(mask_wm==1);
-    % Flip about the horizontal to align with scattering
-    mask_wm = flip(mask_wm,1);
-    % import local variables
-    seg = caa6.front.seg;
-    % Apply WM mask to vasculature
-    caa6.front.seg_wm = seg .* mask_wm;
-    caa6.front.mask_wm = mask_wm;
-    
-    %%% CAA 6 Occip
-    fprintf('Importing caa6 occip\n')
-    % import wm mask
-    mask_wm = fullfile(data_dir,'caa6/occip/wm_mask_revised.nii');
-    mask_wm = MRIread(mask_wm,0,0);
-    % Keep just WM (wm = 1)
-    mask_wm = mask_wm.vol;
-    mask_wm = logical(mask_wm==1);
-    % Flip about the horizontal to align with scattering
-    mask_wm = flip(mask_wm,1);
-    % import local variables
-    seg = caa6.occip.seg;
-    % Create WM mask and apply to vasculature
-    caa6.occip.seg_wm = seg .* mask_wm;
-    caa6.occip.mask_wm = mask_wm;
-    
-    %%% CAA 17 Occip
-    fprintf('Importing caa17 occip\n')
-    % import wm mask
-    mask_wm = fullfile(data_dir,'caa17/occip/wm_mask_revised.nii');
-    mask_wm = MRIread(mask_wm,0,0);
-    % Keep just WM (wm = 1)
-    mask_wm = mask_wm.vol;
-    mask_wm = logical(mask_wm==1);
-    % Flip about the horizontal to align with scattering
-    mask_wm = flip(mask_wm,1);
-    % import local variables
-    seg = caa17.occip.seg;
-    % Apply WM mask tp vasculature
-    caa17.occip.seg_wm = seg .* mask_wm;
-    caa17.occip.mask_wm = mask_wm;
-    
-    %%% CAA 22 Frontal
-    fprintf('Importing caa22 frontal\n')
-    % import wm mask
-    mask_wm = fullfile(data_dir,'caa22/front/wm_mask_revised.nii');
-    mask_wm = MRIread(mask_wm,0,0);
-    % Keep just WM (wm = 1)
-    mask_wm = mask_wm.vol;
-    mask_wm = logical(mask_wm==1);
-    % Flip about the horizontal to align with scattering
-    mask_wm = flip(mask_wm,1);
-    % import local variables
-    seg = caa22.front.seg;
-    % Create WM mask and apply to vasculature
-    caa22.front.seg_wm = seg .* mask_wm;
-    caa22.front.mask_wm = mask_wm;
-    
-    %%% CAA 22 Occip
-    fprintf('Importing caa6 occip\n')
-    % import wm mask
-    mask_wm = fullfile(data_dir,'caa22/occip/wm_mask_revised.nii');
-    mask_wm = MRIread(mask_wm,0,0);
-    % Keep just WM (wm = 1)
-    mask_wm = mask_wm.vol;
-    mask_wm = logical(mask_wm==1);
-    % Flip about the horizontal to align with scattering
-    mask_wm = flip(mask_wm,1);
-    % import local variables
-    seg = caa22.occip.seg;
-    % Create WM mask and apply to vasculature
-    caa22.occip.seg_wm = seg .* mask_wm;
-    caa22.occip.mask_wm = mask_wm;
-    
-    %%% CAA 25 Frontal
-    fprintf('Importing caa25 frontal\n')
-    % import wm mask
-    mask_wm = fullfile(data_dir,'caa25/front/wm_mask_revised.nii');
-    mask_wm = MRIread(mask_wm,0,0);
-    % Keep just WM (wm = 1)
-    mask_wm = mask_wm.vol;
-    mask_wm = logical(mask_wm==1);
-    % Flip about the horizontal to align with scattering
-    mask_wm = flip(mask_wm,1);
-    % import local variables
-    seg = caa25.front.seg;
-    % Create WM mask and apply to vasculature
-    caa25.front.seg_wm = seg .* mask_wm;
-    caa25.front.mask_wm = mask_wm;
-    
-    %%% CAA 25 Occip
-    fprintf('Importing caa25 occip\n')
-    % import wm mask
-    mask_wm = fullfile(data_dir,'caa25/occip/wm_mask_revised.nii');
-    mask_wm = MRIread(mask_wm,0,0);
-    % Keep just WM (wm = 1)
-    mask_wm = mask_wm.vol;
-    mask_wm = logical(mask_wm==1);
-    % Flip about the horizontal to align with scattering
-    mask_wm = flip(mask_wm,1);
-    % import local variables
-    seg = caa25.occip.seg;
-    % Create WM mask and apply to vasculature
-    caa25.occip.seg_wm = seg .* mask_wm;
-    caa25.occip.mask_wm = mask_wm;
-    
-    %%% CAA 26 Frontal
-    fprintf('Importing caa26 frontal\n')
-    % import wm mask
-    mask_wm = fullfile(data_dir,'caa26/front/wm_mask_revised.nii');
-    mask_wm = MRIread(mask_wm,0,0);
-    % Keep just WM (wm = 1)
-    mask_wm = mask_wm.vol;
-    mask_wm = logical(mask_wm==1);
-    % Flip about the horizontal to align with scattering
-    mask_wm = flip(mask_wm,1);
-    % import local variables
-    seg = caa26.front.seg;
-    % Create WM mask and apply to vasculature
-    caa26.front.seg_wm = seg .* mask_wm;
-    caa26.front.mask_wm = mask_wm;
-    
-    %%% CAA 26 Occip
-    fprintf('Importing caa26 occip\n')
-    % import wm mask
-    mask_wm = fullfile(data_dir,'caa26/occip/wm_mask_revised.nii');
-    mask_wm = MRIread(mask_wm,0,0);
-    % Keep just WM (wm = 1)
-    mask_wm = mask_wm.vol;
-    mask_wm = logical(mask_wm==1);
-    % Flip about the horizontal to align with scattering
-    mask_wm = flip(mask_wm,1);
-    % import local variables
-    seg = caa26.occip.seg;
-    % Create WM mask and apply to vasculature
-    caa26.occip.seg_wm = seg .* mask_wm;
-    caa26.occip.mask_wm = mask_wm;
 end
 
 %%% Combine all subjects into single struct for ease
@@ -250,8 +109,11 @@ n_min = 50;
 parench = parse_caa_measure_parenchyma(subjects,radii,radii_include,...
                                        th,data_dir,res,n_min);
 % Backup struct
-fout = fullfile(data_dir,'parenchyma_optical_properties_40um_thick_26Jun2025.mat');
+fout = fullfile(data_dir,'parenchyma_optical_properties_40um_thick_30Sep2025.mat');
+fprintf('\nFinished measuring parenchyma\n')
+fprintf('\nStarting to Save .MAT to\n%s',fout)
 save(fout,"parench",'-v7.3');
+fprintf('\nFinished saving .MAT')
 
 %% Function to load data
 function [parench] = parse_caa_measure_parenchyma( ...
@@ -307,7 +169,7 @@ for i = 1:length(subs)
         seg = keep_large(seg, n_min);
         epvs = keep_large(epvs, n_min);
 
-        % Exclude vessels from mus and retardance. This is to ensure the
+        % Exclude ves + EPVS from mus and retardance to ensure
         % parenchyma measurements are only of parenchyma
         mus(seg) = NaN;
         ret(seg) = NaN;
@@ -318,14 +180,14 @@ for i = 1:length(subs)
             ori(epvs) = NaN;
         end
 
-        % Exclude vessels overlapping with EPVS if epvs exists
+        %%% Exclude vessels overlapping with EPVS if epvs exists
         if ~isempty(epvs)
             [seg_wm_no_epvs] = exclude_epvs_ves(seg_wm, epvs);
         else
             seg_wm_no_epvs = seg_wm;
         end
         
-        % Loop over the radii
+        %%% Loop over the radii
         for k = 1:length(radii)
             fprintf('  --starting radius %d of %d\n', k, length(radii));
             %%% Create the structuring elements for two dilations
@@ -370,10 +232,20 @@ for i = 1:length(subs)
                 save_mri(pout,fname,res./1000,'uchar',0);
             end
             
-            % If EPVS exists, process EPVS parenchyma as well
+            %%% If EPVS exists, process EPVS parenchyma as well
             if ~isempty(epvs)
+                %%% Remove vessel segmentation (ensure independence)
+                mus_tmp = mus;
+                ret_tmp = ret;
+                ori_tmp = ori;
+                mus_tmp(pout) = NaN;
+                ret_tmp(pout) = NaN;
+                ori_tmp(pout) = NaN;
+
+                % Measure optical properties
                 [mus_out,ret_out,ori_out,mus_in,ret_in,ori_in,pout,pin] = ...
-                    parenchyma_optical_props(epvs,mus,ret,ori,se1,se2);
+                    parenchyma_optical_props(epvs,mus_tmp,ret_tmp,ori_tmp,...
+                                             se1,se2);
                 % add the inner cylinder to struct
                 parench.(sub).(loc).(rad_str).inner.epvs.pmus = mus_in;
                 parench.(sub).(loc).(rad_str).inner.epvs.pret = ret_in;
