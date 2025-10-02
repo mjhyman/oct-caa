@@ -7,16 +7,17 @@
 #$ -m ea
 
 # Time limit for job
-#$ -l h_rt=120:00:00
+#$ -l h_rt=48:00:00
 
 # Name of job
-#$ -N epvs_heat
+#$ -N swp_p2
 
-# Set task ID
-#$ -t 3-6
+# set the task ID
+#$ -t 4
 
-# Run this for others
-#$ -pe omp 18
+# Run this for CAA22 front (dense EPVS)
+#$ -pe omp 36
+# -l mem_per_core=18G
 
 # Keep track of information related to the current job
 echo "=========================================================="

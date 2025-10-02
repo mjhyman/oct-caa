@@ -16,7 +16,7 @@ function scatter_op_vs_dist(x, ves_op, ~, epvs_op, ~,...
 %   - fname (str): output filename
 
     % Init figure
-    figure('Position', [100, 100, 900, 900],'Resize', 'off');
+    fig = figure('Position', [100, 100, 900, 900],'Resize', 'off');
     
     % Scatterplot with error bars
     scatter(x,ves_op,100,'k','filled');
@@ -29,7 +29,7 @@ function scatter_op_vs_dist(x, ves_op, ~, epvs_op, ~,...
     % legend({'Vessels','EPVS'});
     
     % Font and fontsize
-    fontname("SansSerif")
+    fontname(fig, "Helvetica")
     set(gca,'fontsize',24);
     
     % Save output

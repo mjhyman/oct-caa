@@ -5,7 +5,7 @@ clear; clc; close all;
 % Input from bash
 sid = str2double(getenv('SGE_TASK_ID'));
 if isnan(sid)
-    sid=1;
+    sid=4;
     fprintf('The SGE_TASK_ID was not passed to Matlab\n')
     fprintf('Setting SGE_TASK_ID to %s\n',string(sid))
 end
@@ -109,7 +109,7 @@ else
     return
 end
 
-% Calculate EPVS density
+%% Calculate EPVS density
 [subsampled_volume, interpolated_volume] = ...
     epvs_density_variable_p(epvs, mask, radius, p);
 

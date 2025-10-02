@@ -62,73 +62,78 @@ for ii = 1:length(radii)
     occip_epvs_mus = [];
     occip_epvs_ret = [];
     occip_epvs_ori = [];
-       
-    % Retrieve vessel measurements (mus, ret, ori)
-    ves = parench.(sub).(reg).(rname).outter.ves;
-    
-    %%% Add data to combined vectors
-    % Take average of mus, ret, ori
-    comb_ves_mus = [comb_ves_mus, omit_outlier(ves.pmus)];
-    comb_ves_ret = [comb_ves_ret, omit_outlier(ves.pret)];
-    comb_ves_ori = [comb_ves_ori, omit_outlier(ves.pori)];
-    %%% Add to frontal or occipital
-    if strcmp(reg,'front')
-        front_ves_mus = [front_ves_mus, omit_outlier(ves.pmus)];
-        front_ves_ret = [front_ves_ret, omit_outlier(ves.pret)];
-        front_ves_ori = [front_ves_ori, omit_outlier(ves.pori)];
-    elseif strcmp(reg,'occip')
-        occip_ves_mus = [occip_ves_mus, omit_outlier(ves.pmus)];
-        occip_ves_ret = [occip_ves_ret, omit_outlier(ves.pret)];
-        occip_ves_ori = [occip_ves_ori, omit_outlier(ves.pori)];
-    end
 
-    %%% retrieve EPVS measurements (if exist)
-    if isfield(parench.(sub).(reg).(rname).outter, 'epvs')
-        % Create local
-        epvs = parench.(sub).(reg).(rname).outter.epvs;
-        %%% Add to combined
-        comb_epvs_mus = [comb_epvs_mus, omit_outlier(epvs.pmus)];
-        comb_epvs_ret = [comb_epvs_ret, omit_outlier(epvs.pret)];
-        comb_epvs_ori = [comb_epvs_ori, omit_outlier(epvs.pori)];
-        %%% Add to Frontl or occipital
+    %%% Iterate over the regions
+    regs = fields(parench.(sub));
+    for k = 1:length(regs)
+        % Retrieve vessel measurements (mus, ret, ori)
+        reg = regs{k};
+        ves = parench.(sub).(reg).(rname).outter.ves;
+        
+        %%% Add data to combined vectors
+        % Take average of mus, ret, ori
+        comb_ves_mus = [comb_ves_mus, omit_outlier(ves.pmus)];
+        comb_ves_ret = [comb_ves_ret, omit_outlier(ves.pret)];
+        comb_ves_ori = [comb_ves_ori, omit_outlier(ves.pori)];
+        %%% Add to frontal or occipital
         if strcmp(reg,'front')
-            front_epvs_mus = [front_epvs_mus, omit_outlier(epvs.pmus)];
-            front_epvs_ret = [front_epvs_ret, omit_outlier(epvs.pret)];
-            front_epvs_ori = [front_epvs_ori, omit_outlier(epvs.pori)];
+            front_ves_mus = [front_ves_mus, omit_outlier(ves.pmus)];
+            front_ves_ret = [front_ves_ret, omit_outlier(ves.pret)];
+            front_ves_ori = [front_ves_ori, omit_outlier(ves.pori)];
         elseif strcmp(reg,'occip')
-            occip_epvs_mus = [occip_epvs_mus, omit_outlier(epvs.pmus)];
-            occip_epvs_ret = [occip_epvs_ret, omit_outlier(epvs.pret)];
-            occip_epvs_ori = [occip_epvs_ori, omit_outlier(epvs.pori)];
+            occip_ves_mus = [occip_ves_mus, omit_outlier(ves.pmus)];
+            occip_ves_ret = [occip_ves_ret, omit_outlier(ves.pret)];
+            occip_ves_ori = [occip_ves_ori, omit_outlier(ves.pori)];
+        end
+    
+        %%% retrieve EPVS measurements (if exist)
+        if isfield(parench.(sub).(reg).(rname).outter, 'epvs')
+            % Create local
+            epvs = parench.(sub).(reg).(rname).outter.epvs;
+            %%% Add to combined
+            comb_epvs_mus = [comb_epvs_mus, omit_outlier(epvs.pmus)];
+            comb_epvs_ret = [comb_epvs_ret, omit_outlier(epvs.pret)];
+            comb_epvs_ori = [comb_epvs_ori, omit_outlier(epvs.pori)];
+            %%% Add to Frontl or occipital
+            if strcmp(reg,'front')
+                front_epvs_mus = [front_epvs_mus, omit_outlier(epvs.pmus)];
+                front_epvs_ret = [front_epvs_ret, omit_outlier(epvs.pret)];
+                front_epvs_ori = [front_epvs_ori, omit_outlier(epvs.pori)];
+            elseif strcmp(reg,'occip')
+                occip_epvs_mus = [occip_epvs_mus, omit_outlier(epvs.pmus)];
+                occip_epvs_ret = [occip_epvs_ret, omit_outlier(epvs.pret)];
+                occip_epvs_ori = [occip_epvs_ori, omit_outlier(epvs.pori)];
+            end
         end
     end
 
     %% Take average across subjects at distance
     %%% Combined - take average across subjects
     % Add average optical property to main array
-    comb_mean_ves_mus(ii) = mean(comb_ves_mus);
-    comb_mean_ves_ret(ii) = mean(comb_ves_ret);
-    comb_mean_ves_ori(ii) = real(mean(comb_ves_ori));
-    comb_mean_epvs_mus(ii) = mean(comb_epvs_mus);
-    comb_mean_epvs_ret(ii) = mean(comb_epvs_ret);
-    comb_mean_epvs_ori(ii) = real(mean(comb_epvs_ori));
+    comb_mean_ves_mus(ii) = mean(comb_ves_mus,'omitnan');
+    comb_mean_ves_ret(ii) = mean(comb_ves_ret,'omitnan');
+    comb_mean_ves_ori(ii) = real(mean(comb_ves_ori,'omitnan'));
+    comb_mean_epvs_mus(ii) = mean(comb_epvs_mus,'omitnan');
+    comb_mean_epvs_ret(ii) = mean(comb_epvs_ret,'omitnan');
+    comb_mean_epvs_ori(ii) = real(mean(comb_epvs_ori,'omitnan'));
 
     %%% Front - take average across subjects
     % Add average optical property to main array
-    front_mean_ves_mus(ii) = mean(front_ves_mus);
-    front_mean_ves_ret(ii) = mean(front_ves_ret);
-    front_mean_ves_ori(ii) = real(mean(front_ves_ori));
-    front_mean_epvs_mus(ii) = mean(front_epvs_mus);
-    front_mean_epvs_ret(ii) = mean(front_epvs_ret);
-    front_mean_epvs_ori(ii) = real(mean(front_epvs_ori));
+    front_mean_ves_mus(ii) = mean(front_ves_mus,'omitnan');
+    front_mean_ves_ret(ii) = mean(front_ves_ret,'omitnan');
+    front_mean_ves_ori(ii) = real(mean(front_ves_ori,'omitnan'));
+    front_mean_epvs_mus(ii) = mean(front_epvs_mus,'omitnan');
+    front_mean_epvs_ret(ii) = mean(front_epvs_ret,'omitnan');
+    front_mean_epvs_ori(ii) = real(mean(front_epvs_ori,'omitnan'));
 
     %%% Occip - take average across subjects
     % Add average optical property to main array
-    occip_mean_ves_mus(ii) = mean(occip_ves_mus);
-    occip_mean_ves_ret(ii) = mean(occip_ves_ret);
-    occip_mean_ves_ori(ii) = real(mean(occip_ves_ori));
-    occip_mean_epvs_mus(ii) = mean(occip_epvs_mus);
-    occip_mean_epvs_ret(ii) = mean(occip_epvs_ret);
-    occip_mean_epvs_ori(ii) = real(mean(occip_epvs_ori));
+    occip_mean_ves_mus(ii) = mean(occip_ves_mus,'omitnan');
+    occip_mean_ves_ret(ii) = mean(occip_ves_ret,'omitnan');
+    occip_mean_ves_ori(ii) = real(mean(occip_ves_ori,'omitnan'));
+    occip_mean_epvs_mus(ii) = mean(occip_epvs_mus,'omitnan');
+    occip_mean_epvs_ret(ii) = mean(occip_epvs_ret,'omitnan');
+    occip_mean_epvs_ori(ii) = real(mean(occip_epvs_ori,'omitnan'));
 end
 
 %% Scatterplots

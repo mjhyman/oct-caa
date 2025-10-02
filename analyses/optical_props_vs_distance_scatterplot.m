@@ -13,6 +13,10 @@ Outline:
 - IMPORT struct containing measurements at various distances
 - Create scatterplot (property vs. distance)
 - Create box/whisker plot
+
+TODO:
+- revise limits for least / most severe subject
+
 %}
 
 %% Prepare environment
@@ -20,19 +24,26 @@ clc; close all;
 % Add top-level directory
 current_dir = pwd;
 addpath(fullfile(current_dir));
-% Directory for loading seg, mus, ret, mask, epvs
+
+%%% Input directory (Martinos or SCC)
+% Martinos directory for loading seg, mus, ret, mask, epvs
 data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
     'oct_caa_analyses/optical_properties'];
+% SCC
+data_dir = '/projectnb/npbssmic/ns/CAA/';
+
+%%% Generate output directories
 scat_out = fullfile(data_dir,'/scatter_plots');
 bw_out = fullfile(data_dir,'/bw_plots');
+
 % Load parenchyam struct
-load(fullfile(data_dir,"parenchyma_optical_properties_40um_thick_26Jun2025.mat"));
+load(fullfile(data_dir,"parenchyma_optical_properties_40um_thick_30Sep2025.mat"));
 % Scatter plot dot size
 scat_size = 100;
 % Isotropic voxel size (microns)
 vox = 20;
 % Filename substring
-substr = '_40um_donut_26Jun2025';
+substr = '_40um_donut_30Sep2025';
 
 %% Scatterplot of optical property vs. distance (most & least severe)
 % ONLY most severe (CAA22 occip) + least severe (CAA26 occip) EPVS cases
@@ -54,9 +65,9 @@ x = x.*vox;
 
 %%% Most severe subject
 % Scatterplot limits for each optical property
-mus_yl = [12.5, 13.5];
-ret_yl = [19, 21.1];
-ori_yl = [0.1, 0.8];
+mus_yl = [10, 13.5];
+ret_yl = [19, 30];
+ori_yl = [0, 1.5];
 % set subject ID and region
 sub = 'caa22';
 reg = 'front';
@@ -66,14 +77,10 @@ fout = fullfile(scat_out,'/most_severe_epvs/');
 subject_scatter_op_vs_dist(x, parench, sub, reg,...
                         mus_yl, ret_yl, ori_yl, fout)
 
-%% Least severe subject
-% Scatterplot limits for each optical property
-mus_yl = [11, 13];
-ret_yl = [30.5, 32.5];
-ori_yl = [0.3, 0.9];
+%%% Least severe subject
 % set subject ID and region
-sub = 'caa26';
-reg = 'occip';
+sub = 'caa6';
+reg = 'front';
 % subfolder for most severe subject
 fout = fullfile(scat_out,'/least_severe_epvs/');
 % Call scatterplot function
