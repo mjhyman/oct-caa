@@ -28,6 +28,7 @@ subjects(9).region = 'occip';
 fcom = '_radius_200_exp_2_interpolated_heatmap.mat';
 fout = '_radius_200_exp_2_interpolated_heatmap_log10.tif';
 favi = '_radius_200_exp_2_interpolated_heatmap_log10.avi';
+matout = '_radius_200_exp_2_interpolated_heatmap_log10.mat';
 
 %% Take logarithm & measure min/max
 
@@ -55,6 +56,10 @@ for ii = 1:length(subjects)
     subjects(ii).swp = swp;
     % Measure the median (exclude zero values)
     subjects(ii).score = median(swp(:),'omitnan');
+    % Create .MAT of the log(SWP)
+    fname = strcat(sub, '_', reg, matout);
+    matsave = fullfile(fpath,fname);
+    save(matsave,'swp','-v7.3');
 end
 
 %% Export video of 3D stack

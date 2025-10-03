@@ -4,7 +4,7 @@
 % Measure correlation between SVP vs. optical properties
 
 %% Add top-level directory of code repository to path
-clear; clc; close all;
+% clear; clc; close all;
 % Print current working directory
 mydir  = pwd;
 % Find indices of slashes separating directories
@@ -27,58 +27,86 @@ mat_dir = '/projectnb/npbssmic/ns/CAA/';
 % Heatmap directory
 swp_dir = '/projectnb/npbssmic/ns/CAA/swp';
 
-%% Load heat maps
-%%% Fully interpolated EPVS heat maps
+%% Load EPVS SWP
+
+% Struct for storing SWP
+swp = struct();
+
 % CAA 6 Frontal
-caa6f = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/front/' ...
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/front/' ...
             'caa6_front_radius_200_exp_2_interpolated_heatmap.mat']);
-caa6f = caa6f.interpolated_volume;
+swp.raw.caa6f = tmp.interpolated_volume;
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/front/' ...
+            'caa6_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+swp.log10.caa6f = tmp.swp;
 
 % CAA 6 Occipital
-caa6o = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/occip/' ...
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/occip/' ...
             'caa6_occip_radius_200_exp_2_interpolated_heatmap.mat']);
-caa6o = caa6o.interpolated_volume;
+swp.raw.caa6o = tmp.interpolated_volume;
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/occip/' ...
+            'caa6_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+swp.log10.caa6o = tmp.swp;
 
 % CAA 17 Occipital
-caa17o = load(['/projectnb/npbssmic/ns/CAA/swp/caa17/occip/' ...
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa17/occip/' ...
             'caa17_occip_radius_200_exp_2_interpolated_heatmap.mat']);
-caa17o = caa17o.interpolated_volume;
+swp.raw.caa17o = tmp.interpolated_volume;
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa17/occip/' ...
+            'caa17_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+swp.log10.caa17o = tmp.swp;
 
 % CAA 22 front
-% caa22f = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/front/'...
+% tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/front/'...
 %             'caa22_front_radius_200_exp_2_interpolated_heatmap.mat']);
-% caa22f = caa22f.interpolated_volume;
+% swp.raw.caa22f = tmp.interpolated_volume;
+% tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22f/front/' ...
+%             'caa22_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+% swp.log10.caa22f = tmp.swp;
 
 % CAA 22 Occip
-caa22o = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/occip/' ...
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/occip/' ...
             'caa22_occip_radius_200_exp_2_interpolated_heatmap.mat']);
-caa22o = caa22o.interpolated_volume;
+swp.raw.caa22o = tmp.interpolated_volume;
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/occip/' ...
+            'caa22_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+swp.log10.caa22o = tmp.swp;
 
 % CAA 25 Front
-caa25f = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/front/' ...
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/front/' ...
             'caa25_front_radius_200_exp_2_interpolated_heatmap.mat']);
-caa25f = caa25f.interpolated_volume;
+swp.raw.caa25f = tmp.interpolated_volume;
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/front/' ...
+            'caa25_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+swp.log10.caa25f = tmp.swp;
 
 % CAA 25 Occip
-caa25o = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/occip/' ...
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/occip/' ...
             'caa25_occip_radius_200_exp_2_interpolated_heatmap.mat']);
-caa25o = caa25o.interpolated_volume;
+swp.raw.caa25o = tmp.interpolated_volume;
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/occip/' ...
+            'caa25_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+swp.log10.caa25o = tmp.swp;
 
 % CAA 26 Front
-caa26f = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/front/' ...
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/front/' ...
             'caa26_front_radius_200_exp_2_interpolated_heatmap.mat']);
-caa26f = caa26f.interpolated_volume;
+swp.raw.caa26f = tmp.interpolated_volume;
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/front/' ...
+            'caa26_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+swp.log10.caa26f = tmp.swp;
 
 % CAA 26 Occip
-caa26o = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/occip/' ...
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/occip/' ...
             'caa26_occip_radius_200_exp_2_interpolated_heatmap.mat']);
-caa26o = caa26o.interpolated_volume;
+swp.raw.caa26o = tmp.interpolated_volume;
+tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/occip/' ...
+            'caa26_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+swp.log10.caa26o = tmp.swp;
 
-% Output filename
-stats_out = fullfile(['/projectnb/npbssmic/ns/CAA/swp' ...
-                    'interpolated_epvs_swp_stats.mat']);
 
 %% Load matlab structs
+%{
 fprintf('Loading CAA6\n')
 caa6 = load(fullfile(mat_dir,"/caa6/caa6.mat"));
 fprintf('Finished loading CAA17\n')
@@ -105,6 +133,7 @@ caa17 = caa17.caa17;
 caa22 = caa22.caa22;
 caa25 = caa25.caa25;
 caa26 = caa26.caa26;
+%}
 
 %% Create 2D arrays of optical property vs. EPVS density
 % 2xN Matrix for each optical property:
@@ -125,37 +154,60 @@ subjects.caa22 = caa22;
 subjects.caa25 = caa25;
 subjects.caa26 = caa26;
 
-% subject names
+%%% add EPVS swp to struct
 subs = fields(subjects);
-% add EPVS swp to struct
-subjects.caa6.front.swp = caa6f;
-subjects.caa6.occip.swp = caa6o;
-subjects.caa17.occip.swp = caa17o;
-% subjects.caa22.front.swp = caa22f;
-subjects.caa22.occip.swp = caa22o;
-subjects.caa25.front.swp = caa25f;
-subjects.caa25.occip.swp = caa25o;
-subjects.caa26.front.swp = caa26f;
-subjects.caa26.occip.swp = caa26o;
+subjects.caa6.front.swp.raw = swp.raw.caa6f;
+subjects.caa6.occip.swp.raw = swp.raw.caa6o;
+subjects.caa17.occip.swp.raw = swp.raw.caa17o;
+% subjects.caa22.front.swp.raw = swp.raw.caa22f;
+subjects.caa22.occip.swp.raw = swp.raw.caa22o;
+subjects.caa25.front.swp.raw = swp.raw.caa25f;
+subjects.caa25.occip.swp.raw = swp.raw.caa25o;
+subjects.caa26.front.swp.raw = swp.raw.caa26f;
+subjects.caa26.occip.swp.raw = swp.raw.caa26o;
 
-for ii = 1:length(subs)
+%%% add EPVS log(swp) to struct
+subjects.caa6.front.swp.log10 = swp.log10.caa6f;
+subjects.caa6.occip.swp.log10 = swp.log10.caa6o;
+subjects.caa17.occip.swp.log10 = swp.log10.caa17o;
+% subjects.caa22.front.swp.log10 = swp.log10.caa22f;
+subjects.caa22.occip.swp.log10 = swp.log10.caa22o;
+subjects.caa25.front.swp.log10 = swp.log10.caa25f;
+subjects.caa25.occip.swp.log10 = swp.log10.caa25o;
+subjects.caa26.front.swp.log10 = swp.log10.caa26f;
+subjects.caa26.occip.swp.log10 = swp.log10.caa26o;
+
+for ii = 1:length(fields(subjects))
     sub = subs{ii};
     regions = fields(subjects.(subs{ii}));
     for j = 1:length(regions)
         % retrieve local properties
         reg = regions{j};
         if isfield(subjects.(sub).(reg), 'swp')
-            epvs = subjects.(sub).(reg).swp;
+            sprintf('Starting %s %s\n', sub, reg)
+            %%% Import raw SWP and log(swp)
+            swp = subjects.(sub).(reg).swp.raw;
+            swplg = subjects.(sub).(reg).swp.log10;
+            %%% Import mus and ret
             mus = subjects.(sub).(reg).mus;
             ret = subjects.(sub).(reg).ret_full;
-            % Remove vessels from the epvs heatmap
+            
+            %%% Remove vessels from the epvs heatmap
             ves = subjects.(sub).(reg).seg;
-            epvs(ves) = NaN;
-            % call function to create pairs
-            [mus_pair, ret_pair] = create_pair(epvs,mus,ret);
+            swp(ves) = NaN;
+            swplg(ves) = NaN;
+
+            %%% Create pairs for raw SWP
+            [mus_pair, ret_pair] = create_pair(swp,mus,ret);
             % add pairs to heatmap struct
-            heat_pairs.(sub).(reg).mus_pair = mus_pair;
-            heat_pairs.(sub).(reg).ret_pair = ret_pair;
+            heat_pairs.(sub).(reg).raw.mus_pair = mus_pair;
+            heat_pairs.(sub).(reg).raw.ret_pair = ret_pair;
+
+            %%% Create pairs for log(SWP)
+            [mus_pair, ret_pair] = create_pair(swplg,mus,ret);
+            % add pairs to heatmap struct
+            heat_pairs.(sub).(reg).log10.mus_pair = mus_pair;
+            heat_pairs.(sub).(reg).log10.ret_pair = ret_pair;
         else
             continue
         end
@@ -165,21 +217,34 @@ end
 %% Separate/combine heat_pairs across subject and region
 
 fprintf('Separating heatmap pairs by subject and region\n')
+% Create struct for storing combined, front, occip
 
-%%% combine across occip + frontal
-[mus_combined,ret_combined]=combine_subjects_regions(heat_pairs);
 
-%%% Combine subjects, split regions
+% combine across occip + frontal
+[comb_raw_mus, comb_raw_ret, comb_log_mus, comb_log_ret] =...
+    combine_subjects_regions(heat_pairs);
+
+% Combine subjects, split regions
 region_data = combine_subjects(heat_pairs);
+
+%% Raw regions (front + occip)
 % Frontal pairs
-front_mus = region_data.front.mus;
-front_ret = region_data.front.ret;
+front_raw_mus = region_data.front.raw.mus;
+front_raw_ret = region_data.front.raw.ret;
 % Occip pairs
-occip_mus = region_data.occip.mus;
-occip_ret = region_data.occip.ret;
+occip_raw_mus = region_data.occip.raw.mus;
+occip_raw_ret = region_data.occip.raw.ret;
+
+%%% log10 regions (front + occip)
+% Frontal pairs
+front_log_mus = region_data.front.log10.mus;
+front_log_ret = region_data.front.log10.ret;
+% Occip pairs
+occip_log_mus = region_data.occip.log10.mus;
+occip_log_ret = region_data.occip.log10.ret;
 
 
-%% Plot optical property vs. EPVS density
+%% Plot optical property vs. SWP (raw, entire range)
 
 % Minimum threshold for EPVS density 
 th = 5*10^5;
@@ -191,34 +256,74 @@ d = 1e7;
 xlab = 'EPVS SWP';
 ylab = '\mu_s (cm^-^1)';
 tit = 'Combined (full) -- \mu_s vs. EPVS SWP';
-scatter_subset(mus_combined, xlab, ylab, tit, th, d)
+scatter_subset(comb_raw_mus, xlab, ylab, tit, th, d)
 % retardance
 ylab = 'retardance (degrees)';
 tit = 'Combined (full) -- Retardance vs. EPVS SWP';
-scatter_subset(ret_combined, xlab, ylab, tit, th,d)
+scatter_subset(comb_raw_ret, xlab, ylab, tit, th,d)
 
 %%% Frontal
 % Scattering
 ylab = '\mu_s (cm^-^1)';
-tit = 'Frontal (full) -- \mu_s vs. EPVS SWP';
-scatter_subset(front_mus, xlab, ylab, tit, th, d)
+tit = {'Frontal','\mu_s vs. EPVS SWP'};
+scatter_subset(front_raw_mus, xlab, ylab, tit, th, 1e6)
 % Retardance
 ylab = 'retardance (degrees)';
-tit = 'Frontal (full) -- Retardance vs. EPVS SWP';
-scatter_subset(front_ret, xlab, ylab, tit, th, d)
+tit = {'Frontal','Retardance vs. EPVS SWP'};
+scatter_subset(front_raw_ret, xlab, ylab, tit, th, 1e6)
 
 %%% Occipital
 % Scattering
 ylab = '\mu_s (cm^-^1)';
-tit = 'Occipital (full) -- \mu_s vs. EPVS SWP';
-scatter_subset(occip_mus, xlab, ylab, tit, th, d)
+tit = {'Occip','\mu_s vs. EPVS SWP'};
+scatter_subset(occip_raw_mus, xlab, ylab, tit, th, d)
 % Retardance
 ylab = 'retardance (degrees)';
-tit = 'Occipital (full) -- Retardance vs. EPVS SWP';
-scatter_subset(occip_ret, xlab, ylab, tit, th, d)
+tit = {'Occip','Retardance vs. EPVS SWP'};
+scatter_subset(occip_raw_ret, xlab, ylab, tit, th, d)
 
-%%% Plot lower range of EPVS
+%% Plot optical property vs. log(SWP) (entire range)
 
+% x-axis label
+xlab = 'EPVS log(SWP)';
+% Minimum threshold for EPVS density 
+th = 0;
+% Window size
+d = 0.25;
+
+%%% combined subjects and regions
+% scattering coefficient
+ylab = '\mu_s (cm^-^1)';
+tit = {'Front + Occip', '\mu_s vs. EPVS log(SWP)'};
+scatter_subset(comb_log_mus, xlab, ylab, tit, th, d)
+% retardance
+ylab = 'retardance (degrees)';
+tit = {'Front + Occip', 'Retardance vs. EPVS log(SWP)'};
+scatter_subset(comb_log_ret, xlab, ylab, tit, th,d)
+
+%%% Frontal
+% Scattering
+ylab = '\mu_s (cm^-^1)';
+tit = {'Frontal','\mu_s vs. EPVS log(SWP)'};
+scatter_subset(front_log_mus, xlab, ylab, tit, th, d)
+% Retardance
+ylab = 'retardance (degrees)';
+tit = {'Frontal','Retardance vs. EPVS log(SWP)'};
+scatter_subset(front_log_ret, xlab, ylab, tit, th, d)
+
+%%% Occipital
+% Scattering
+ylab = '\mu_s (cm^-^1)';
+tit = {'Occip','\mu_s vs. EPVS log(SWP)'};
+scatter_subset(occip_log_mus, xlab, ylab, tit, th, d)
+% Retardance
+ylab = 'retardance (degrees)';
+tit = {'Occip','Retardance vs. EPVS log(SWP)'};
+scatter_subset(occip_log_ret, xlab, ylab, tit, th, d)
+
+
+%% Plot lower range of EPVS
+%{
 %%% Truncate the data at lower bound
 % Combined
 mus_comb_low = mus_combined(mus_combined(:,1) <= 5e6,:);
@@ -260,12 +365,11 @@ scatter_subset(occip_mus, xlab, ylab, tit, th, d)
 ylab = 'retardance (degrees)';
 tit = 'Occipital (low) -- Retardance vs. SWP';
 scatter_subset(occip_ret, xlab, ylab, tit, th, d)
+%}
 
-
-%%% Plot upper range of epvs
-
+%% Plot upper range of epvs
+%{
 upper_cutoff = 2e9;
-
 %%% Truncate the data below UPPER bound
 % Combined
 mus_comb_high = mus_combined(mus_combined(:,1) >= upper_cutoff,:);
@@ -307,8 +411,258 @@ scatter_subset(occip_mus, xlab, ylab, tit, th, d)
 ylab = 'retardance (degrees)';
 tit = 'Occipital (high) -- Retardance vs. SWP';
 scatter_subset(occip_ret, xlab, ylab, tit, th, d)
+%}
+
+%% Plot median optical property vs. median SWP
+
+% Create arrays for storing pairs (raw)
+raw_mus_med = zeros(9:2);
+raw_ret_med = zeros(9:2);
+% Create arrays for storing pairs (log)
+log_mus_med = zeros(9:2);
+log_ret_med = zeros(9:2);
+
+% Iterate subject names
+subs = fields(subjects);
+cnt = 1;
+for ii = 1:length(subs)
+    sub = subs{ii};
+    regions = fields(subjects.(sub));
+    for j=1:length(regions)
+        reg = regions{j};
+
+        % Check if the SWP field exists
+        if isfield(subjects.(sub).(reg), 'swp')
+            %%% Create mask for measuring optical properties
+            % Extract WM mask, seg, epvs
+            wm = subjects.(sub).(reg).mask_wm;
+            ves = subjects.(sub).(reg).seg;
+            epvs = subjects.(sub).(reg).epvs;
+            % Remove ves, epvs from WM mask
+            wm = wm - ves - epvs;
+            wm(wm<0) = 0;
+            wm = logical(wm);
+            
+            %%% Median optical properties
+            % Extract median mus
+            mus = subjects.(sub).(reg).mus;
+            mus = mus(wm);
+            mus = median(mus,'omitnan');
+            % Extract median ret
+            ret = subjects.(sub).(reg).ret_full;
+            ret = ret(wm);
+            ret = median(ret,'omitnan');
+            % Calculate median swp
+            swp_raw = subjects.(sub).(reg).swp.raw;
+            swp_raw = swp_raw(wm);
+            swp_raw = median(swp_raw,'omitnan');
+            % Calculate median log(swp)
+            swp_log = subjects.(sub).(reg).swp.log10;
+            swp_log = swp_log(wm);
+            swp_log = median(swp_log,'omitnan');
+    
+            %%% Add to pairs
+            raw_mus_med(cnt,:) = [swp_raw; mus];
+            raw_ret_med(cnt,:) = [swp_raw; ret];
+            log_mus_med(cnt,:) = [swp_log; mus];
+            log_ret_med(cnt,:) = [swp_log; ret];
+            % Iterate counter
+            cnt = cnt+1;
+        end
+    end
+end
+
+%% Plot medians
+
+%%% Raw SWP
+% mus
+figure; scatter(raw_mus_med(:,1),raw_mus_med(:,2),200,'b','filled');
+title('Median \mu_s vs. Median SWP')
+xlabel('SWP'); ylabel('\mu_s'); set(gca,'fontsize',25)
+% ret
+figure; scatter(raw_ret_med(:,1),raw_ret_med(:,2),200,'b','filled');
+title('Median Ret vs. Median SWP')
+xlabel('SWP'); ylabel('Ret');set(gca,'fontsize',25)
+
+%%% Raw SWP
+% mus
+figure; scatter(log_mus_med(:,1),log_mus_med(:,2),200,'b','filled');
+title('Median \mu_s vs. Median log(swp)')
+xlabel('SWP'); ylabel('\mu_s');set(gca,'fontsize',25)
+% ret
+figure; scatter(log_ret_med(:,1),log_ret_med(:,2),200,'b','filled');
+title('Median Ret vs. Median log(swp)')
+xlabel('SWP'); ylabel('Ret');set(gca,'fontsize',25)
+
+%% Combine across all sujects/regions
+
+function [raw_mus,raw_ret,log_mus,log_ret]=...
+    combine_subjects_regions(heat_pairs)
+% Combine mus_pair across all subjects and all regions
+% Output: all_mus_pairs is a 2xN matrix
+
+% ----------- Pass 1: Count total columns ------------
+raw_samples = 0;
+log_samples = 0;
+subjects = fieldnames(heat_pairs);
+
+for i = 1:numel(subjects)
+    subj = subjects{i};
+    regions = fieldnames(heat_pairs.(subj));
+    for j = 1:numel(regions)
+        region = regions{j};
+        % Raw
+        mus = heat_pairs.(subj).(region).raw.mus_pair;
+        raw_samples = raw_samples + size(mus, 1);
+        % log
+        mus = heat_pairs.(subj).(region).log10.mus_pair;
+        log_samples = log_samples + size(mus, 1);
+    end
+end
+
+% ----------- Preallocate ----------------------------
+% Raw SWP
+raw_mus = zeros(raw_samples,2);
+raw_ret = zeros(raw_samples,2);
+% log(swp)
+log_mus = zeros(log_samples,2);
+log_ret = zeros(log_samples,2);
+
+% ----------- Pass 2: Fill data ----------------------
+% heat_pairs.(sub).(reg).log10.mus_pair = mus_pair;
+raw_idx = 1;
+log_idx = 1;
+for i = 1:numel(subjects)
+    subj = subjects{i};
+    regions = fieldnames(heat_pairs.(subj));
+    for j = 1:numel(regions)
+        region = regions{j};
+        %%% Raw pairs
+        mus = heat_pairs.(subj).(region).raw.mus_pair;
+        ret = heat_pairs.(subj).(region).raw.ret_pair;
+        n = size(mus, 1);
+        raw_mus(raw_idx:raw_idx+n-1,:) = mus;
+        raw_ret(raw_idx:raw_idx+n-1,:) = ret;
+        % Iterate column index
+        raw_idx = raw_idx + n;
+        
+        %%% log pairs
+        mus = heat_pairs.(subj).(region).log10.mus_pair;
+        ret = heat_pairs.(subj).(region).log10.ret_pair;
+        n = size(mus, 1);
+        log_mus(log_idx:log_idx+n-1,:) = mus;
+        log_ret(log_idx:log_idx+n-1,:) = ret;
+        % Iterate column index
+        log_idx = log_idx + n;
+    end
+end
+end
 
 
-%% Remove outliers and replot
-outlier_rm = struct();
+%% Combine across all sujects. Separate by regions
+function region_data = combine_subjects(heat_pairs)
+% Combine mus_pair and ret_pair across all subjects, separated by region
+% Output: region_data.(region).mus and region_data.(region).ret are 2xN matrices
 
+region_data = struct();
+dtype = {'raw','log10'};
+
+subjects = fieldnames(heat_pairs);
+for i = 1:numel(subjects)
+    subj = subjects{i};
+    regions = fieldnames(heat_pairs.(subj));
+    for j = 1:numel(regions)
+        for k = 1:length(dtype)
+            region = regions{j};
+            % Extract mus_pair and ret_pair
+            mus = heat_pairs.(subj).(region).(dtype{k}).mus_pair;
+            ret = heat_pairs.(subj).(region).(dtype{k}).ret_pair;
+            % Initialize or append
+            if isfield(region_data, (region))
+                if isfield(region_data.(region),dtype{k})
+                    region_data.(region).(dtype{k}).mus =...
+                        [region_data.(region).(dtype{k}).mus; mus];
+                    region_data.(region).(dtype{k}).ret =...
+                        [region_data.(region).(dtype{k}).ret; ret];
+                else
+                    region_data.(region).(dtype{k}).mus = mus;
+                    region_data.(region).(dtype{k}).ret = ret;
+                end
+            else
+                region_data.(region).(dtype{k}).mus = mus;
+                region_data.(region).(dtype{k}).ret = ret;
+            end
+    
+    %         %%% Iterate over log10
+    %         % Extract mus_pair and ret_pair
+    %         mus = heat_pairs.(subj).(region).log10.mus_pair;
+    %         ret = heat_pairs.(subj).(region).log10.ret_pair;
+    %         % Initialize or append
+    %         if isfield(region_data, (region))
+    %             if isfield(region_data.(region),'log10')
+    %                 region_data.(region).log10.mus =...
+    %                     [region_data.(region).log10.mus; mus];
+    %                 region_data.(region).log10.ret =...
+    %                     [region_data.(region).log10.ret; ret];
+    %             else
+    %                 region_data.(region).log10.mus = mus;
+    %                 region_data.(region).log10.ret = ret;
+    %             end
+    %         end
+        end
+    end
+end
+end
+
+%% Scatter plot of combined vectors
+function scatter_op(pair, xlab, ylab, tit, th)
+% Scatter plot of the optical properts vs. EPVS density
+% INPUTS:
+%   pair (Nx2 matrix): [EPVS density, optical property]
+%   xlab (string): x-axis label
+%   ylab (string): y-axis label
+%   tit (string): title of figure
+%   th (double): minimum threshold for EPVS density
+
+% Remove pairs where EPVS density < threshold (th)
+keep_idx = pair(:,1) >= th;
+pairf = pair(keep_idx,:);
+
+% scatter plot
+figure; scatter(pairf(:,1),pairf(:,2),20,'k','filled');
+% Plot features
+xlabel(xlab)
+ylabel(ylab)
+title(tit);
+set(gca,'fontsize',20)
+end
+
+%% Errorbar plot of windowed averages
+function sliding_errorbar_plot(x,y,err, xlab, ylab, tit)
+% Scatter plot of the optical properts vs. EPVS density
+% INPUTS:
+%   pair (Nx2 matrix): [EPVS density, optical property]
+%   err (vector): standard error at each window
+%   xlab (string): x-axis label
+%   ylab (string): y-axis label
+%   tit (string): title of figure
+
+% scatter plot
+figure
+errorbar(x,y,err,'o-')
+% Plot features
+xlabel(xlab)
+ylabel(ylab)
+title(tit);
+set(gca,'fontsize',20)
+
+end
+
+%% Apply minimum threshold
+function [pairf] = threshold_epvs(pair, th)
+
+% Remove pairs where EPVS density < threshold (th)
+keep_idx = pair(:,1) >= th;
+pairf = pair(keep_idx,:);
+
+end
