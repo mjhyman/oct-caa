@@ -1,7 +1,7 @@
-%% Analyze the EPVS density heatmap
-% Import the EPVS density heatmaps
+%% Analyze the EPVS SWP heatmap
+% Import the EPVS SWP heatmaps
 % Import the .MAT of the optical properties
-% Measure correlation between EPVS density and optical properties
+% Measure correlation between SVP vs. optical properties
 
 %% Add top-level directory of code repository to path
 clear; clc; close all;
@@ -23,52 +23,84 @@ maxNumCompThreads(ncores);
 % Flag for loading CAA structs (false if already in environment)
 flag_load_caa_structs = false;
 % Directory containing seg, mus, ret, mask, epvs structs
-mat_dir = '/projectnb/npbssmic/s/mhyman/CAA_data/matlab_structs';
+mat_dir = '/projectnb/npbssmic/ns/CAA/';
 % Heatmap directory
-heat_dir = '/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps';
+swp_dir = '/projectnb/npbssmic/ns/CAA/swp';
 
 %% Load heat maps
 %%% Fully interpolated EPVS heat maps
-caa17o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa17/occip/caa17_occip_interpolated_heatmap.mat']);
+% CAA 6 Frontal
+caa6f = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/front/' ...
+            'caa6_front_radius_200_exp_2_interpolated_heatmap.mat']);
+caa6f = caa6f.interpolated_volume;
+
+% CAA 6 Occipital
+caa6o = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/occip/' ...
+            'caa6_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+caa6o = caa6o.interpolated_volume;
+
+% CAA 17 Occipital
+caa17o = load(['/projectnb/npbssmic/ns/CAA/swp/caa17/occip/' ...
+            'caa17_occip_radius_200_exp_2_interpolated_heatmap.mat']);
 caa17o = caa17o.interpolated_volume;
-caa22f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa22/front/caa22_front_interpolated_heatmap.mat']);
-caa22f = caa22f.interpolated_volume;
-caa22o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa22/occip/caa22_occip_interpolated_heatmap.mat']);
+
+% CAA 22 front
+% caa22f = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/front/'...
+%             'caa22_front_radius_200_exp_2_interpolated_heatmap.mat']);
+% caa22f = caa22f.interpolated_volume;
+
+% CAA 22 Occip
+caa22o = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/occip/' ...
+            'caa22_occip_radius_200_exp_2_interpolated_heatmap.mat']);
 caa22o = caa22o.interpolated_volume;
-caa25f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa25/front/caa25_front_interpolated_heatmap.mat']);
+
+% CAA 25 Front
+caa25f = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/front/' ...
+            'caa25_front_radius_200_exp_2_interpolated_heatmap.mat']);
 caa25f = caa25f.interpolated_volume;
-caa25o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa25/occip/caa25_occip_interpolated_heatmap.mat']);
+
+% CAA 25 Occip
+caa25o = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/occip/' ...
+            'caa25_occip_radius_200_exp_2_interpolated_heatmap.mat']);
 caa25o = caa25o.interpolated_volume;
-caa26o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa26/occip/caa26_occip_interpolated_heatmap.mat']);
+
+% CAA 26 Front
+caa26f = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/front/' ...
+            'caa26_front_radius_200_exp_2_interpolated_heatmap.mat']);
+caa26f = caa26f.interpolated_volume;
+
+% CAA 26 Occip
+caa26o = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/occip/' ...
+            'caa26_occip_radius_200_exp_2_interpolated_heatmap.mat']);
 caa26o = caa26o.interpolated_volume;
+
 % Output filename
-stats_out = fullfile(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'interpolated_epvs_heatmap_stats.mat']);
+stats_out = fullfile(['/projectnb/npbssmic/ns/CAA/swp' ...
+                    'interpolated_epvs_swp_stats.mat']);
 
 %% Load matlab structs
+fprintf('Loading CAA6\n')
+caa6 = load(fullfile(mat_dir,"/caa6/caa6.mat"));
+fprintf('Finished loading CAA17\n')
+
 fprintf('Loading CAA17\n')
-caa17 = load(fullfile(mat_dir,"caa17.mat"));
+caa17 = load(fullfile(mat_dir,"/caa17/occip/caa17.mat"));
 fprintf('Finished loading CAA17\n')
 
 fprintf('Loading CAA22\n')
-caa22 = load(fullfile(mat_dir,"caa22.mat"));
+caa22 = load(fullfile(mat_dir,"/caa22/caa22.mat"));
 fprintf('Finished loading CAA22\n')
 
 fprintf('Loading CAA25\n')
-caa25 = load(fullfile(mat_dir,"caa25.mat"));
+caa25 = load(fullfile(mat_dir,"/caa25/caa25.mat"));
 fprintf('Finished loading CAA25\n')
 
 fprintf('Loading CAA26\n')
-caa26 = load(fullfile(mat_dir,"caa26.mat"));
+caa26 = load(fullfile(mat_dir,"/caa26/caa26.mat"));
 fprintf('Finished loading CAA26\n')
 
 % Remove top-level struct
+caa6 = caa6.caa6;
 caa17 = caa17.caa17;
 caa22 = caa22.caa22;
 caa25 = caa25.caa25;
@@ -87,6 +119,7 @@ heat_pairs = struct();
 
 % struct for iterating over subjects
 subjects = struct();
+subjects.caa6 = caa6;
 subjects.caa17 = caa17;
 subjects.caa22 = caa22;
 subjects.caa25 = caa25;
@@ -94,22 +127,25 @@ subjects.caa26 = caa26;
 
 % subject names
 subs = fields(subjects);
-% add EPVS heatmaps to struct
-subjects.caa17.occip.epvs_heat = caa17o;
-subjects.caa22.front.epvs_heat = caa22f;
-subjects.caa22.occip.epvs_heat = caa22o;
-subjects.caa25.front.epvs_heat = caa25f;
-subjects.caa25.occip.epvs_heat = caa25o;
-subjects.caa26.occip.epvs_heat = caa26o;
+% add EPVS swp to struct
+subjects.caa6.front.swp = caa6f;
+subjects.caa6.occip.swp = caa6o;
+subjects.caa17.occip.swp = caa17o;
+% subjects.caa22.front.swp = caa22f;
+subjects.caa22.occip.swp = caa22o;
+subjects.caa25.front.swp = caa25f;
+subjects.caa25.occip.swp = caa25o;
+subjects.caa26.front.swp = caa26f;
+subjects.caa26.occip.swp = caa26o;
 
-for ii = 1:length(fields(subjects))
+for ii = 1:length(subs)
     sub = subs{ii};
     regions = fields(subjects.(subs{ii}));
     for j = 1:length(regions)
         % retrieve local properties
         reg = regions{j};
-        if isfield(subjects.(sub).(reg), 'epvs_heat')
-            epvs = subjects.(sub).(reg).epvs_heat;
+        if isfield(subjects.(sub).(reg), 'swp')
+            epvs = subjects.(sub).(reg).swp;
             mus = subjects.(sub).(reg).mus;
             ret = subjects.(sub).(reg).ret_full;
             % Remove vessels from the epvs heatmap

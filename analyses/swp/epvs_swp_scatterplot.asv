@@ -1,7 +1,7 @@
-%% Analyze the EPVS density heatmap
-% Import the EPVS density heatmaps
+%% Analyze the EPVS SWP heatmap
+% Import the EPVS SWP heatmaps
 % Import the .MAT of the optical properties
-% Measure correlation between EPVS density and optical properties
+% Measure correlation between SVP vs. optical properties
 
 %% Add top-level directory of code repository to path
 clear; clc; close all;
@@ -23,52 +23,80 @@ maxNumCompThreads(ncores);
 % Flag for loading CAA structs (false if already in environment)
 flag_load_caa_structs = false;
 % Directory containing seg, mus, ret, mask, epvs structs
-mat_dir = '/projectnb/npbssmic/s/mhyman/CAA_data/matlab_structs';
+mat_dir = '/projectnb/npbssmic/ns/CAA/';
 % Heatmap directory
-heat_dir = '/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps';
+swp_dir = '/projectnb/npbssmic/ns/CAA/swp';
 
 %% Load heat maps
 %%% Fully interpolated EPVS heat maps
-caa17o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa17/occip/caa17_occip_interpolated_heatmap.mat']);
+% CAA 6 Frontal
+caa6f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/swp/caa6/front/' ...
+            'caa6_front_radius_200_exp_2_interpolated_heatmap.mat']);
+caa6f = caa6f.interpolated_volume;
+
+% CAA 6 Occipital
+caa6o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/swp/caa6/occip/' ...
+            'caa6_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+caa6o = caa6o.interpolated_volume;
+
+% CAA 17 Occipital
+caa17o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/swp/caa17/occip/' ...
+            'caa17_occip_radius_200_exp_2_interpolated_heatmap.mat']);
 caa17o = caa17o.interpolated_volume;
-caa22f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa22/front/caa22_front_interpolated_heatmap.mat']);
-caa22f = caa22f.interpolated_volume;
-caa22o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa22/occip/caa22_occip_interpolated_heatmap.mat']);
+
+% CAA 22 front
+% caa22f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/swp/caa22/front/'...
+%             'caa22_front_radius_200_exp_2_interpolated_heatmap.mat']);
+% caa22f = caa22f.interpolated_volume;
+
+% CAA 22 Occip
+caa22o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/swp/caa22/occip/' ...
+            'caa22_occip_radius_200_exp_2_interpolated_heatmap.mat']);
 caa22o = caa22o.interpolated_volume;
-caa25f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa25/front/caa25_front_interpolated_heatmap.mat']);
+
+% CAA 25 Front
+caa25f = load(['/projectnb/npbssmic/s/mhyman/CAA_data/swp/caa25/front/' ...
+            'caa25_front_radius_200_exp_2_interpolated_heatmap.mat']);
 caa25f = caa25f.interpolated_volume;
-caa25o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
-    'caa25/occip/caa25_occip_interpolated_heatmap.mat']);
+
+% CAA 25 Occip
+caa25o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/swp/caa25/occip/' ...
+            'caa17_occip_radius_200_exp_2_interpolated_heatmap.mat']);
 caa25o = caa25o.interpolated_volume;
-caa26o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+
+% CAA 26 Front
+
+% CAA 26 Occip
+caa26o = load(['/projectnb/npbssmic/s/mhyman/CAA_data/swp/' ...
     'caa26/occip/caa26_occip_interpolated_heatmap.mat']);
 caa26o = caa26o.interpolated_volume;
 % Output filename
-stats_out = fullfile(['/projectnb/npbssmic/s/mhyman/CAA_data/heatmaps/' ...
+stats_out = fullfile(['/projectnb/npbssmic/s/mhyman/CAA_data/swp/' ...
     'interpolated_epvs_heatmap_stats.mat']);
 
 %% Load matlab structs
+fprintf('Loading CAA6\n')
+caa6 = load(fullfile(mat_dir,"/caa6/caa6.mat"));
+fprintf('Finished loading CAA17\n')
+
 fprintf('Loading CAA17\n')
-caa17 = load(fullfile(mat_dir,"caa17.mat"));
+caa17 = load(fullfile(mat_dir,"/caa17/caa17.mat"));
 fprintf('Finished loading CAA17\n')
 
 fprintf('Loading CAA22\n')
-caa22 = load(fullfile(mat_dir,"caa22.mat"));
+caa22 = load(fullfile(mat_dir,"/caa22/caa22.mat"));
 fprintf('Finished loading CAA22\n')
 
 fprintf('Loading CAA25\n')
-caa25 = load(fullfile(mat_dir,"caa25.mat"));
+caa25 = load(fullfile(mat_dir,"/caa25/caa25.mat"));
 fprintf('Finished loading CAA25\n')
 
 fprintf('Loading CAA26\n')
-caa26 = load(fullfile(mat_dir,"caa26.mat"));
+caa26 = load(fullfile(mat_dir,"/caa26/caa26.mat"));
 fprintf('Finished loading CAA26\n')
 
 % Remove top-level struct
+caa6 = caa6.caa6;
 caa17 = caa17.caa17;
 caa22 = caa22.caa22;
 caa25 = caa25.caa25;
@@ -181,7 +209,7 @@ ylab = 'retardance (degrees)';
 tit = 'Occipital (full) -- Retardance vs. EPVS SWP';
 scatter_subset(occip_ret, xlab, ylab, tit, th, d)
 
-%% Plot lower range of EPVS
+%%% Plot lower range of EPVS
 
 %%% Truncate the data at lower bound
 % Combined
@@ -245,31 +273,31 @@ ret_occip_high = occip_ret(occip_ret(:,1) >= upper_cutoff,:);
 % scattering coefficient
 xlab = 'EPVS SWP';
 ylab = '\mu_s (cm^-^1)';
-tit = 'Combined (low) -- \mu_s vs. SWP';
+tit = 'Combined (high) -- \mu_s vs. SWP';
 scatter_subset(mus_combined, xlab, ylab, tit, th, d)
 % retardance
 ylab = 'retardance (degrees)';
-tit = 'Combined -- Retardance vs. SWP';
+tit = 'Combined (high) -- Retardance vs. SWP';
 scatter_subset(ret_combined, xlab, ylab, tit, th,d)
 
 %%% Frontal
 % Scattering
 ylab = '\mu_s (cm^-^1)';
-tit = 'Frontal -- \mu_s vs. SWP';
+tit = 'Frontal (high) -- \mu_s vs. SWP';
 scatter_subset(front_mus, xlab, ylab, tit, th, d)
 % Retardance
 ylab = 'retardance (degrees)';
-tit = 'Frontal -- Retardance vs. SWP';
+tit = 'Frontal (high) -- Retardance vs. SWP';
 scatter_subset(front_ret, xlab, ylab, tit, th, d)
 
 %%% Occipital
 % Scattering
 ylab = '\mu_s (cm^-^1)';
-tit = 'Occipital -- \mu_s vs. SWP';
+tit = 'Occipital (high) -- \mu_s vs. SWP';
 scatter_subset(occip_mus, xlab, ylab, tit, th, d)
 % Retardance
 ylab = 'retardance (degrees)';
-tit = 'Occipital -- Retardance vs. SWP';
+tit = 'Occipital (high) -- Retardance vs. SWP';
 scatter_subset(occip_ret, xlab, ylab, tit, th, d)
 
 
