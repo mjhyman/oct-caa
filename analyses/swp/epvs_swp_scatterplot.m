@@ -14,7 +14,6 @@ elseif isunix
     idcs = strfind(mydir,'/');
 end
 % Remove the two sub folders to reach parent
-% (psoct_human_brain\vasculature\vesSegment)
 topdir = mydir(1:idcs(end));
 addpath(genpath(topdir));
 % Set maximum number of threads equal to number of threads for script
