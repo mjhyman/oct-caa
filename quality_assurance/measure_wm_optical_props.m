@@ -29,13 +29,18 @@ addpath(genpath(fullfile(pwd, '..')))
 % Directory for loading seg, mus, ret, mask, epvs
 data_dir = '/projectnb/npbssmic/ns/CAA/';
 % Output figure directory
-fig_out = '/projectnb/npbssmic/ns/CAA/metrics/';
+fig_out = '/projectnb/npbssmic/ns/CAA/bw_plots/';
+% Stats output directory
+stats_out = '/projectnb/npbssmic/ns/CAA/metrics/';
 % Voxel dimensions (microns) for all runs
 res = [20,20,20]; % resolution in microns
 
 %%% Flag for loading .MAT struct and creating WM masks
 % flag for reloading the .MAT struct for each subject
 flag_load_caa_structs = true;
+
+% down sampling factor for the boxplot arrays
+ds = 4;
 
 %% Load each subject's .MAT struct and create WM mask
 %%% Load the .MAT structs
@@ -100,14 +105,54 @@ for ii = 1:length(subs)
         mus(epvs) = NaN;
         ret(epvs) = NaN;
         % Measure WM values
-        op.(subs{ii}).(reg{j}).wm.mus = mus(wm);
-        op.(subs{ii}).(reg{j}).wm.ret = ret(wm);
+        op.(subs{ii}).(reg{j}).wm.mus = single(mus(wm));
+        op.(subs{ii}).(reg{j}).wm.ret = single(ret(wm));
         % Measure GM values
         gm = logical(mask .* ~wm);
-        op.(subs{ii}).(reg{j}).gm.mus = mus(gm);
-        op.(subs{ii}).(reg{j}).gm.ret = ret(gm);
+        op.(subs{ii}).(reg{j}).gm.mus = single(mus(gm));
+        op.(subs{ii}).(reg{j}).gm.ret = single(ret(gm));
     end
 end
+
+%% Create Table of mean values
+
+rows = {}; % for collecting subject/region rows
+
+subs = fields(op);
+for i = 1:length(subs)
+    sub = subs{i};
+    regs = fields(op.(sub));
+    for j = 1:length(regs)
+        reg = regs{j};
+        % Default values as NaN (in case fields missing)
+        entry = {sub, reg, NaN, NaN, NaN, NaN}; % Subject, Region, ret_wm, ret_gm, mus_wm, mus_gm
+        % ret_wm
+        if isfield(op.(sub).(reg), 'wm') && isfield(op.(sub).(reg).wm, 'ret')
+            entry{3} = mean(op.(sub).(reg).wm.ret, 'omitnan');
+        end
+        % ret_gm
+        if isfield(op.(sub).(reg), 'gm') && isfield(op.(sub).(reg).gm, 'ret')
+            entry{4} = mean(op.(sub).(reg).gm.ret, 'omitnan');
+        end
+        % mus_wm
+        if isfield(op.(sub).(reg), 'wm') && isfield(op.(sub).(reg).wm, 'mus')
+            entry{5} = mean(op.(sub).(reg).wm.mus, 'omitnan');
+        end
+        % mus_gm
+        if isfield(op.(sub).(reg), 'gm') && isfield(op.(sub).(reg).gm, 'mus')
+            entry{6} = mean(op.(sub).(reg).gm.mus, 'omitnan');
+        end
+
+        rows = [rows; entry];
+    end
+end
+
+% Convert to table and write to CSV
+T = cell2table(rows, 'VariableNames', {'Subject','Region','ret_wm','ret_gm','mus_wm','mus_gm'});
+tout = fullfile(stats_out,'mean_op.csv');
+writetable(T, tout);
+disp('Export complete: all_op_measurements_columns.csv');
+
 
 %% B/W White Matter
 
@@ -136,11 +181,10 @@ vec(9).ret = op.caa22.occip.wm.ret;
 
 %%% Create box-whisker vectors for mus and retardance
 fprintf('Creating Vectors for WM\n')
-[mus_x, mus_y, ret_x, ret_y] = create_vectors(vec);
+[mus_x, mus_y, ret_x, ret_y] = create_vectors(vec,ds);
 fprintf('Finished creating Vectors for WM\n')
 
 %%% WM box/whisker plots
-
 % x-axis label
 xlab = {'CAA 26 Front', 'CAA 26 Occip', 'CAA 6 Front','CAA 6 Occip',...
         'CAA 17 Occip', 'CAA 25 Front', 'CAA 25 Occip',...
@@ -148,21 +192,23 @@ xlab = {'CAA 26 Front', 'CAA 26 Occip', 'CAA 6 Front','CAA 6 Occip',...
 
 % mus - WM
 figure('units','normalized','outerposition',[0 0 1 1])
-h = boxplot(mus_y,mus_x,'Notch','on','Labels',xlab);
-title('Scattering Coefficient')
+h = boxchart(single(mus_x),mus_y);
+xticks(1:9); xticklabels(xlab);
+title('White Matter \mu_s')
 xlabel('Subject / Region'); ylabel('cm^-^1');
 set(h,{'linew'},{2}); set(gca,'FontSize',20)
 fout = fullfile(fig_out,'box_whisker_mus_wm.png');
-saveas(gcf,fout);
+saveas(gcf,fout); pause(0.5); close;
 
 % ret - WM
 figure('units','normalized','outerposition',[0 0 1 1])
-h = boxplot(ret_y,ret_x,'Notch','on','Labels',xlab);
-title('Retardance')
+h = boxchart(single(ret_x),ret_y);
+xticks(1:9); xticklabels(xlab);
+title('White Matter Retardance')
 xlabel('Subject / Region'); ylabel('Degrees');
 set(h,{'linew'},{2}); set(gca,'FontSize',20)
 fout = fullfile(fig_out,'box_whisker_ret_wm.png');
-saveas(gcf,fout);
+saveas(gcf,fout); pause(0.5); close;
 
 %% B/W Gray Matter
 
@@ -191,11 +237,10 @@ vec(9).ret = op.caa22.occip.gm.ret;
 
 %%% Create box-whisker vectors for mus and retardance
 fprintf('Creating Vectors for GM\n')
-[mus_x, mus_y, ret_x, ret_y] = create_vectors(vec);
+[mus_x, mus_y, ret_x, ret_y] = create_vectors(vec,ds);
 fprintf('Finished creating Vectors for GM\n')
 
 %%% WM box/whisker plots
-
 % x-axis label
 xlab = {'CAA 26 Front', 'CAA 26 Occip', 'CAA 6 Front','CAA 6 Occip',...
         'CAA 17 Occip', 'CAA 25 Front', 'CAA 25 Occip',...
@@ -203,26 +248,29 @@ xlab = {'CAA 26 Front', 'CAA 26 Occip', 'CAA 6 Front','CAA 6 Occip',...
 
 % mus - WM
 figure('units','normalized','outerposition',[0 0 1 1])
-h = boxplot(mus_y,mus_x,'Notch','on','Labels',xlab);
-title('Scattering Coefficient')
+h = boxchart(single(mus_x),mus_y);
+xticks(1:9); xticklabels(xlab);
+title('Gray Matter \mu_s')
 xlabel('Subject / Region'); ylabel('cm^-^1');
 set(h,{'linew'},{2}); set(gca,'FontSize',20)
 fout = fullfile(fig_out,'box_whisker_mus_gm.png');
-saveas(gcf,fout);
+saveas(gcf,fout); pause(0.5); close;
 
 % ret - WM
 figure('units','normalized','outerposition',[0 0 1 1])
-h = boxplot(ret_y,ret_x,'Notch','on','Labels',xlab);
-title('Retardance')
+h = boxchart(single(ret_x),ret_y);
+xticks(1:9); xticklabels(xlab);
+title('Gray Matter Retardance')
 xlabel('Subject / Region'); ylabel('Degrees');
 set(h,{'linew'},{2}); set(gca,'FontSize',20)
 fout = fullfile(fig_out,'box_whisker_ret_gm.png');
-saveas(gcf,fout);
+saveas(gcf,fout); pause(0.5); close;
 
 %% B/W Gray matter
-function [mus_x,mus_y,ret_x,ret_y] = create_vectors(vec)
+function [mus_x,mus_y,ret_x,ret_y] = create_vectors(vec, ds)
 % INPUTS
 %   vec (struct): optical properties
+%   ds (int): down sampling factor
 % OUTPUTS:
 %   mus_x (vector): mus x-axis vectors
 %   mus_y (vector): mus y-axis vectors
@@ -240,16 +288,38 @@ for ii = 1:length(vec)
     %%% mus
     n = length(vec(ii).mus);
     % Indexing for b/w plots
-    mus_x = [mus_x, ones(1,n).*ii];
+    mus_x = [mus_x, uint8(ones(1,n).*ii)];
     % Vector of values
-    mus_y = [mus_y, vec(ii).mus];
+    mus_y = [mus_y, [vec(ii).mus]'];
     
     %%% retardance
     n = length(vec(ii).ret);
     % Indexing for b/w plots
-    ret_x = [ret_x, ones(1,n).*ii];
+    ret_x = [ret_x, uint8(ones(1,n).*ii)];
     % Vector of values
-    ret_y = [ret_y, vec(ii).ret];
+    ret_y = [ret_y, [vec(ii).ret]'];
 end
+
+mus_x = uint8(mus_x);
+ret_x = uint8(ret_x);
+mus_y = single(mus_y);
+ret_y = single(ret_y);
+
+% Downsample each vector for speed
+mus_x = mus_x(1:ds:end);
+mus_y = mus_y(1:ds:end);
+ret_x = ret_x(1:ds:end);
+ret_y = ret_y(1:ds:end);
+
+%%% Remove outliers for efficiency
+% mus
+out_idx = isoutlier(mus_y);
+mus_y = mus_y(~out_idx);
+mus_x = mus_x(~out_idx);
+% ret
+out_idx = isoutlier(ret_y);
+ret_y = ret_y(~out_idx);
+ret_x = ret_x(~out_idx);
+
 
 end

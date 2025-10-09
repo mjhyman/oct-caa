@@ -5,7 +5,7 @@
 
 # Request a whole node with 16 cores and at least 256 GB of RAM.
 # Specify number of cores
-#$ -pe omp 28
+#$ -pe omp 16
 # Specify memory per core
 #$ -l mem_per_core=16G
 
@@ -16,10 +16,10 @@
 #$ -l h_rt=48:00:00
 
 # Name of job
-#$ -N donuts
+#$ -N qa_mean_op
 
 # Combine output/error files into single file
 #$ -j y
 
 module load matlab/2022b
-matlab -nodisplay -r "measure_donuts; exit"
+matlab -nodisplay -r "measure_wm_optical_props; exit"

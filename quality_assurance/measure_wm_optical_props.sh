@@ -16,10 +16,10 @@
 #$ -l h_rt=48:00:00
 
 # Name of job
-#$ -N donuts
+#$ -N qa_mean_op
 
 # Combine output/error files into single file
 #$ -j y
 
 module load matlab/2022b
-matlab -nodisplay -r "measure_donuts; exit"
+matlab -nodisplay -r "measure_wm_optical_props; exit"
