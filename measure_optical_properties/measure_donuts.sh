@@ -22,4 +22,4 @@
 #$ -j y
 
 module load matlab/2022b
-matlab -nodisplay -r "measure_wm_optical_props; exit"
+matlab -nodisplay -r "measure_donuts; exit"
