@@ -13,11 +13,11 @@
 #$ -N swp_p2
 
 # set the task ID
-#$ -t 1-9
+#$ -t 8-9
 
 # Run this for CAA22 front (dense EPVS)
 #$ -pe omp 28
-#$ -l mem_per_core=13G
+#$ -l mem_per_core=18G
 
 # Keep track of information related to the current job
 echo "=========================================================="

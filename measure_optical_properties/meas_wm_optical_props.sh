@@ -5,7 +5,7 @@
 
 # Request a whole node with 16 cores and at least 256 GB of RAM.
 # Specify number of cores
-#$ -pe omp 4
+#$ -pe omp 16
 # Specify memory per core
 #$ -l mem_per_core=16G
 
@@ -13,10 +13,10 @@
 #$ -m ea
 
 # Time limit for job
-#$ -l h_rt=12:00:00
+#$ -l h_rt=48:00:00
 
 # Name of job
-#$ -N meas_wm_optical_props
+#$ -N donuts
 
 # Combine output/error files into single file
 #$ -j y

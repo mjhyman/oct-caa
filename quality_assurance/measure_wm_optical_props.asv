@@ -135,11 +135,11 @@ vec(8).ret = op.caa22.front.wm.ret;
 vec(9).ret = op.caa22.occip.wm.ret;
 
 %%% Create box-whisker vectors for mus and retardance
-fprintf('Creating Vectors for WM\n')
+fprintf('Creating Vectors\n')
 [mus_x, mus_y, ret_x, ret_y] = create_vectors(vec);
-fprintf('Finished creating Vectors for WM\n')
+fprintf('Finished creating Vectors\n')
 
-%%% WM box/whisker plots
+%% Create box/whisker plots
 
 % x-axis label
 xlab = {'CAA 26 Front', 'CAA 26 Occip', 'CAA 6 Front','CAA 6 Occip',...
@@ -157,66 +157,11 @@ saveas(gcf,fout);
 
 % ret - WM
 figure('units','normalized','outerposition',[0 0 1 1])
-h = boxplot(ret_y,ret_x,'Notch','on','Labels',xlab);
+h = boxplot(mus_y,mus_x,'Notch','on','Labels',xlab);
 title('Retardance')
 xlabel('Subject / Region'); ylabel('Degrees');
 set(h,{'linew'},{2}); set(gca,'FontSize',20)
 fout = fullfile(fig_out,'box_whisker_ret_wm.png');
-saveas(gcf,fout);
-
-%% B/W Gray Matter
-
-%%% Mus 
-vec = struct();
-vec(1).mus = op.caa26.front.gm.mus;
-vec(2).mus = op.caa26.occip.gm.mus;
-vec(3).mus = op.caa6.front.gm.mus;
-vec(4).mus = op.caa6.occip.gm.mus;
-vec(5).mus = op.caa17.occip.gm.mus;
-vec(6).mus = op.caa25.front.gm.mus;
-vec(7).mus = op.caa25.occip.gm.mus;
-vec(8).mus = op.caa22.front.gm.mus;
-vec(9).mus = op.caa22.occip.gm.mus;
-
-%%% Retardance
-vec(1).ret = op.caa26.front.gm.ret;
-vec(2).ret = op.caa26.occip.gm.ret;
-vec(3).ret = op.caa6.front.gm.ret;
-vec(4).ret = op.caa6.occip.gm.ret;
-vec(5).ret = op.caa17.occip.gm.ret;
-vec(6).ret = op.caa25.front.gm.ret;
-vec(7).ret = op.caa25.occip.gm.ret;
-vec(8).ret = op.caa22.front.gm.ret;
-vec(9).ret = op.caa22.occip.gm.ret;
-
-%%% Create box-whisker vectors for mus and retardance
-fprintf('Creating Vectors for GM\n')
-[mus_x, mus_y, ret_x, ret_y] = create_vectors(vec);
-fprintf('Finished creating Vectors for GM\n')
-
-%%% WM box/whisker plots
-
-% x-axis label
-xlab = {'CAA 26 Front', 'CAA 26 Occip', 'CAA 6 Front','CAA 6 Occip',...
-        'CAA 17 Occip', 'CAA 25 Front', 'CAA 25 Occip',...
-        'CAA 22 Front', 'CAA 22 Occip'};
-
-% mus - WM
-figure('units','normalized','outerposition',[0 0 1 1])
-h = boxplot(mus_y,mus_x,'Notch','on','Labels',xlab);
-title('Scattering Coefficient')
-xlabel('Subject / Region'); ylabel('cm^-^1');
-set(h,{'linew'},{2}); set(gca,'FontSize',20)
-fout = fullfile(fig_out,'box_whisker_mus_gm.png');
-saveas(gcf,fout);
-
-% ret - WM
-figure('units','normalized','outerposition',[0 0 1 1])
-h = boxplot(ret_y,ret_x,'Notch','on','Labels',xlab);
-title('Retardance')
-xlabel('Subject / Region'); ylabel('Degrees');
-set(h,{'linew'},{2}); set(gca,'FontSize',20)
-fout = fullfile(fig_out,'box_whisker_ret_gm.png');
 saveas(gcf,fout);
 
 %% B/W Gray matter
@@ -230,10 +175,8 @@ function [mus_x,mus_y,ret_x,ret_y] = create_vectors(vec)
 %   ret_y (vector): ret y-axis vectors
 
 % Initialize x-axis offset and values
-mus_x = [];
-mus_y = [];
-ret_x = [];
-ret_y = [];
+grp = [];
+y = [];
 
 % Iterate over vectors
 for ii = 1:length(vec)
@@ -247,7 +190,7 @@ for ii = 1:length(vec)
     %%% retardance
     n = length(vec(ii).ret);
     % Indexing for b/w plots
-    ret_x = [ret_x, ones(1,n).*ii];
+    ret_x = [ret_x, ones(1,n)).*ii];
     % Vector of values
     ret_y = [ret_y, vec(ii).ret];
 end

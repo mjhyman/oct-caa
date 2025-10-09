@@ -31,19 +31,26 @@ Deconvolved:
 %}
 
 %% Top-level settings
-clear; clc; close all;
+% clear; clc; close all;
 
-%%% Directories
+%%% Directories (Martinos)
+% % Input directory
+% hdir='/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/histology';
+% % Directory to save output figures
+% figdir = ['/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/' ...
+%             'figures/Histology/ret_gallyas'];
+
+%%% Directories (SCC)
 % Input directory
-hdir='/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/histology';
-% Directory to save output
-stat_sheet = fullfile(hdir, 'histo_stats_04Sep2025.xlsx');
+hdir='/projectnb/npbssmic/ns/CAA/histology/';
 % Directory to save output figures
-figdir = ['/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/' ...
-            'figures/Histology/ret_gallyas'];
+figdir = '/projectnb/npbssmic/ns/CAA/histology/';
+
+%%% Output directory to save output
+stat_sheet = fullfile(hdir, 'histo_stats_03Oct2025.xlsx');
 
 %%% measurement radius (units = pixels)
-mrad = 25;
+mrad = 30; % 30 pix = 39.2 um
 
 %%% Flags
 % histogram matching
@@ -70,7 +77,15 @@ mask_suffix = '_mask.tif';
 %% LHE EPVS + Vessel measurements
 fout = ['/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/' ...
         'figures/Histology/ret_LHE_myelin'];
-lhe = measure_epvs_and_vessel_constant(lhe,mrad,fout,hflag,pflag);
+%%% Measure the histology at a variable distance
+% Initialize radii and thickness
+radii = mrad : mrad : mrad*12;
+
+% Call function to measure
+lhe = measure_epvs_and_vessel_variable(lhe,radii,mrad,hflag,pflag);
+
+% Measure at a constant distance
+% lhe = measure_epvs_and_vessel_constant(lhe,mrad,fout,hflag,pflag);
 
 %% LHE Statistics
 % One-sided Wilcoxon signed-rank test

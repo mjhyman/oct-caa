@@ -1,6 +1,7 @@
 %% Take log of size-weighted proximity (SWP) + export TIF
 % The purpose of this is to ensure all TIFs can be visualized on the same
 % colorbar scale
+clear; clc; close all;
 
 %% Import SWP .mats
 ddir = '/projectnb/npbssmic/ns/CAA/swp/';
