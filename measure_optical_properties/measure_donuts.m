@@ -109,7 +109,7 @@ n_min = 50;
 parench = parse_caa_measure_parenchyma(subjects,radii,radii_include,...
                                        th,data_dir,res,n_min);
 % Backup struct
-fout = fullfile(data_dir,'parenchyma_optical_properties_40um_thick_30Sep2025.mat');
+fout = fullfile(data_dir,'parenchyma_optical_properties_40um_thick_09Oct2025.mat');
 fprintf('\nFinished measuring parenchyma\n')
 fprintf('\nStarting to Save .MAT to\n%s',fout)
 save(fout,"parench",'-v7.3');

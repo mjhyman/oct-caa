@@ -1,12 +1,12 @@
 function hist = measure_epvs_and_vessel_variable(hist,...
-                    radii, th, histmatch_flag, plot_flag)
+                    radii, rad, pix)
 %HISTOLOGY_MEASURE_DONUT Measure controls + parenchyma around EPVS.
 %   INPUTS:
 %       - hist (struct): contains image, epvs mask, tissue border mask
 %       - mrad (uint): measurement radius (units = pixels)
 %       - dpath (str): output path
-%       - radii (array): radii of dilation (pixels)
-%       - th (double): thickness of segmentation ring (pixels)
+%       - radii (array): vector of radii of dilation (pixels)
+%       - rad (double): radius of segmentation ring (just the ring) (pixels)
 %       - histmatch_flag (bool): histogram matching
 %       - plot_flag (bool): create figures for debugging
 %   OUTPUTS:
@@ -21,13 +21,12 @@ function hist = measure_epvs_and_vessel_variable(hist,...
 % this one.
 ref_im = im2single(hist(1).image);
 ref_mask = logical(hist(1).mask);
-zmin = 0;
-zmax = 1;
 
 %% Iterate over the subjects in the hist struct
 
 % Iterate subjects
 for ii = 1:length(hist)
+    fprintf('Subject %d of %d\n', ii, length(hist));
     %%% Retrieve local variables
     stain = im2single(hist(ii).image);
     epvs = logical(hist(ii).epvs);
@@ -35,9 +34,10 @@ for ii = 1:length(hist)
     mask = logical(hist(ii).mask);
     
     %%% Match histogram of current image to reference image
-    if ~histmatch_flag
-        stain_matched = stain;
-    elseif ii ~= 1
+    % First iteration, use this as reference image
+    if ii == 1
+        stain_matched = ref_im;
+    else
         % Apply histogram match to pixels within mask
         stain_pixels = stain(mask);
         ref_pixels = ref_im(ref_mask);
@@ -45,8 +45,6 @@ for ii = 1:length(hist)
         % Convert pixels back to image
         stain_matched = stain;
         stain_matched(mask) = pixels_matched;
-    else
-        stain_matched = ref_im;
     end
     
     %%% Perform z-score normalization
@@ -61,30 +59,29 @@ for ii = 1:length(hist)
     hist(ii).stain_matched = stain_matched;
     hist(ii).z_stain = z_stain;
 
-    %%% Find the z_stain limits
-    if plot_flag
-        zmin = min([zmin, min(z_stain(mask))]);
-        zmax = max([zmax, max(z_stain(mask))]);
-    end
-
     %%% Iterate over segmentation radii
     for j = 1:length(radii)
-        fprintf('  --starting radius %d of %d\n', j, length(radii));
+        fprintf('\t--radius %d of %d\n', j, length(radii));
         %%% Create structuring elements for dilation
         % se1 is the inner dilation
         se1 = strel('disk',radii(j));
         % se2 = "th" voxels greater than > inner dilation
-        se2 = strel('disk',radii(j)+th);
+        se2 = strel('disk',radii(j)+rad);
     
         %%% Dilate masks for EPVS, Vessel & measure parenchyma
         [stain_epvs,stain_ves] = dilate_meas_exclude_overlap(z_stain,mask,...
                                         epvs,ves,se1,se2);
         
         %%% Add experimental + control to structure
-        hist(ii).rad(j).exp = stain_epvs;
-        hist(ii).rad(j).ctl = stain_ves;
-        hist(ii).rad(j).exp_mean = mean(stain_epvs,'omitnan');
-        hist(ii).rad(j).ctl_mean = mean(stain_ves,'omitnan');        
+        % Create string name for segmentation ring size
+        rad_name = strcat('rad',num2str(floor(pix.*rad)));
+        % Create subfield name for specific radius
+        rad_str = strcat('rad',num2str(floor(pix.*radii(j))));
+        % Add to struct
+        hist(ii).(rad_name).(rad_str).exp = stain_epvs;
+        hist(ii).(rad_name).(rad_str).ctl = stain_ves;
+        hist(ii).(rad_name).(rad_str).exp_mean = mean(stain_epvs,'omitnan');
+        hist(ii).(rad_name).(rad_str).ctl_mean = mean(stain_ves,'omitnan');        
     end
 end
 end

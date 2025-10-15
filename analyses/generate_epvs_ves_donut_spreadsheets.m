@@ -16,14 +16,13 @@ clear; clc; close all;
 current_dir = pwd;
 addpath(fullfile(current_dir));
 % Directory for loading seg, mus, ret, mask, epvs
-data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
-    'oct_caa_analyses/optical_properties'];
-fig_out = ['/autofs/cluster/octdata3/users/mjhyman/' ...
-    'oct_caa_analyses/figures/statistics'];
+% data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
+%     'oct_caa_analyses/optical_properties'];
+data_dir = '/projectnb/npbssmic/ns/CAA/';
 %%% 40 um donut
 % load the parenchymal optical properties
 load(fullfile(data_dir, ...
-    'parenchyma_optical_properties_40um_thick_26Jun2025.mat'));
+    'parenchyma_optical_properties_40um_thick_09Oct2025.mat'));
 
 %% Count number of control and experimental values
 
