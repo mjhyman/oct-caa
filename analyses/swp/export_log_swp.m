@@ -61,6 +61,8 @@ for ii = 1:length(subjects)
     fname = strcat(sub, '_', reg, matout);
     matsave = fullfile(fpath,fname);
     save(matsave,'swp','-v7.3');
+    % Add to spreadsheet
+    
 end
 
 %% Export video of 3D stack

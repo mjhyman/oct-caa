@@ -37,7 +37,7 @@ scat_out = fullfile(data_dir,'/scatter_plots');
 bw_out = fullfile(data_dir,'/bw_plots');
 
 % Load parenchyam struct
-load(fullfile(data_dir,"parenchyma_optical_properties_40um_thick_30Sep2025.mat"));
+load(fullfile(data_dir,"parenchyma_optical_properties_40um_thick_09Oct2025.mat"));
 % Scatter plot dot size
 scat_size = 100;
 % Isotropic voxel size (microns)

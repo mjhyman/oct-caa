@@ -1,39 +1,52 @@
-function scatter_subset(pair, xlab, ylab, tit, th, d)
-% Efficient scatter plot: averages all points in disjoint x-windows of width d above threshold th
-%
+function xy_out = scatter_subset(pair, N, xlab, ylab, tit, plt_flag)
+% Efficient scatter plot: averages all points in disjoint x-windows, returning at most N points
 % INPUTS:
-%   pair (Nx2 matrix): [EPVS density, optical property]
+%   pair (Nx2 matrix): [x, y]
+%   N (integer): max number of plotted points (bins)
 %   xlab (string): x-axis label
 %   ylab (string): y-axis label
 %   tit (string): title of figure
-%   th (double): minimum threshold for EPVS density
-%   d  (double): window width
+%   plt_flag (bool): boolean for plotting within function
+% OUTPUT:
+%   xy_out (Mx2): matrix of [x_bin_mean, y_bin_mean] pairs
 
-    if nargin < 6
-        error('All six inputs are required.');
+    if nargin < 5
+        error('All five inputs are required.');
     end
+    
+    % Cast to single to reduce memory
+    x = single(pair(:,1));
+    y = single(pair(:,2));
+    clear pair
 
-    % Remove pairs below threshold
-    x = pair(:,1);
-    y = pair(:,2);
-    keep = x >= th;
-    x = x(keep);
-    y = y(keep);
+    % Retrieve maximum of x-axis data
+    xmin = min(x);
+    xmax = max(x);
 
-    if isempty(x)
-        error('No data points remain after thresholding.');
+    % Protect against degenerate data
+    if xmax == xmin
+        error('All x values are identical.');
     end
+    
+    % Calculate edges for binning
+    edges = linspace(xmin, xmax, N+1);
 
-    % Define bin edges
-    x_min = min(x);
-    x_max = max(x);
-    edges = x_min:d:x_max;
-    if edges(end) < x_max
-        edges = [edges x_max];
-    end
-
-    % Bin data using histcounts
+    % Bin data
     [~, ~, bin] = histcounts(x, edges);
+
+    % Change "bin" from double to smaller data type (if applicable)
+    bin_max = max(bin(:));
+    if bin_max <= intmax("uint8")
+        bin = uint8(bin);
+    elseif bin_max <= intmax("uint16")
+        bin = uint16(bin);
+    elseif bin_max <= intmax("uint32")
+        bin = uint32(bin);
+    elseif bin_max <= intmax("uint64")
+        bin = uint64(bin);
+    elseif bin_max <= realmax("single")
+        bin = single(bin);
+    end
 
     % Remove data outside bin range (bin==0)
     valid_pts = bin > 0;
@@ -42,14 +55,21 @@ function scatter_subset(pair, xlab, ylab, tit, th, d)
     y = y(valid_pts);
 
     % Compute mean x and y for each bin using accumarray
-    x_bin_mean = accumarray(bin, x, [], @mean);
-    y_bin_mean = accumarray(bin, y, [], @mean);
+    x_bin_mean = accumarray(bin(:), x(:), [N 1], @mean, single(NaN));
+    y_bin_mean = accumarray(bin(:), y(:), [N 1], @mean, single(NaN));
 
-    % Scatter plot
-    figure;
-    scatter(x_bin_mean, y_bin_mean, 60, 'b', 'filled');
-    xlabel(xlab);
-    ylabel(ylab);
-    title(tit);
-    set(gca, 'fontsize', 20);
+    % Remove bins with no points (NaN means no data in that bin)
+    valid_bins = ~isnan(x_bin_mean) & ~isnan(y_bin_mean);
+
+    xy_out = [x_bin_mean(valid_bins), y_bin_mean(valid_bins)];
+
+    % Plot
+    if plt_flag
+        figure;
+        scatter(xy_out(:,1), xy_out(:,2), 60, 'b', 'filled');
+        xlabel(xlab);
+        ylabel(ylab);
+        title(tit);
+        set(gca, 'fontsize', 20);
+    end
 end
