@@ -1,4 +1,4 @@
-function [subsampled_volume, interpolated_volume] = epvs_density_variable_p(epvs, mask, radius, p)
+function [subsampled_volume, interpolated_volume] = epvs_density_variable_p_mod(epvs, mask, radius, p)
 % Computes EPVS density at every 4th voxel in 3D space and interpolates full map
 %
 % INPUTS:
@@ -12,8 +12,6 @@ function [subsampled_volume, interpolated_volume] = epvs_density_variable_p(epvs
 %   interpolated_volume  - interpolated full-volume EPVS density
 
 %% Parameters
-epsilon = 1e-3;
-
 try
     user_mem = memory;
     chunk_size = min(max(20000, ...
@@ -86,30 +84,31 @@ for chunk_idx = 1:nChunks
     start_idx = chunk_start_indices(chunk_idx);
     stop_idx = min(start_idx + chunk_size - 1, num_valid);
     chunk_inds = start_idx:stop_idx;
-    chunk_coords = double(valid_coords(chunk_inds,:)); 
-
-    [Idx, D] = rangesearch(tree, chunk_coords, radius);
-
-    vals = zeros(numel(chunk_inds), 1, 'single');
+    chunk_coords = double(valid_coords(chunk_inds,:));
     
-    % Parallel loop for density computation
-    parfor i = 1:numel(chunk_inds)
+    % Indices of EPVS within search radius
+    [Idx, D] = rangesearch(tree, chunk_coords, radius);
+    
+    % Initialize vector for storing a value for each EPVS
+    vals = zeros(numel(chunk_inds),1,'single');
+    for i = 1:numel(chunk_inds)
         idx = Idx{i};
         d = D{i};
-        if isempty(idx)
-            vals(i) = 0;
+        mask_d = (d ~= 0);
+        if any(mask_d)
+            vals(i) = single(sum(all_EPVS_weights(idx(mask_d)) ./ ...
+                                (single(d(mask_d)).^p), ...
+                                'all', 'omitnan'));
         else
-            w = all_EPVS_weights(idx);
-            vals(i) = sum(w ./ (single(d) + epsilon).^p, 'omitnan'); % 'omitnan' safe for rare cases
+            vals(i) = 0;
         end
     end
-
     data(chunk_inds) = vals;
-
     clear Idx D;
 
     if nChunks <= 10 || mod(chunk_idx, ceil(nChunks/10)) == 0
-        fprintf('Chunk %d/%d complete (%.1f%%)\n', chunk_idx, nChunks, 100 * chunk_idx / nChunks);
+        fprintf('Chunk %d/%d complete (%.1f%%)\n', chunk_idx, nChunks,...
+                100 * chunk_idx / nChunks);
     end
 end
 

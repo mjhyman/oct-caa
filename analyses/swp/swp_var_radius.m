@@ -1,10 +1,12 @@
-function [subsampled_volume, interpolated_volume] = epvs_density_variable_p(epvs, mask, radius, p)
+function [subsampled_volume, interpolated_volume] =...
+    swp_var_radius(epvs, mask, radius, radius_inc, p)
 % Computes EPVS density at every 4th voxel in 3D space and interpolates full map
 %
 % INPUTS:
 %   epvs   - logical 3D matrix (1 = EPVS voxel)
 %   mask   - logical 3D matrix (1 = include in computation)
 %   radius - search radius (voxels)
+%   radius_inc - constant to increment search radius (voxels)
 %   p      - exponent in the weighting function
 %
 % OUTPUTS:
@@ -12,8 +14,6 @@ function [subsampled_volume, interpolated_volume] = epvs_density_variable_p(epvs
 %   interpolated_volume  - interpolated full-volume EPVS density
 
 %% Parameters
-epsilon = 1e-3;
-
 try
     user_mem = memory;
     chunk_size = min(max(20000, ...
@@ -82,37 +82,30 @@ nChunks = numel(chunk_start_indices);
 fprintf('Computing EPVS density at every 4th voxel (%d sampled)...\n', num_valid);
 tic;
 
+% Find the maximum dimensions of the matrix
+max_radius = norm([dims(1), dims(2), dims(3)]); % upper bound for radius
+
 for chunk_idx = 1:nChunks
     start_idx = chunk_start_indices(chunk_idx);
     stop_idx = min(start_idx + chunk_size - 1, num_valid);
     chunk_inds = start_idx:stop_idx;
     chunk_coords = double(valid_coords(chunk_inds,:)); 
 
-    [Idx, D] = rangesearch(tree, chunk_coords, radius);
-
-    vals = zeros(numel(chunk_inds), 1, 'single');
-    
-    % Parallel loop for density computation
-    parfor i = 1:numel(chunk_inds)
-        idx = Idx{i};
-        d = D{i};
-        if isempty(idx)
-            vals(i) = 0;
-        else
-            w = all_EPVS_weights(idx);
-            vals(i) = sum(w ./ (single(d) + epsilon).^p, 'omitnan'); % 'omitnan' safe for rare cases
-        end
+    % cellfun for density computation with radius expansion
+    vals = zeros(numel(chunk_inds),1,'single');
+    for i = 1:numel(chunk_inds)
+        vals(i) = expand_density(chunk_coords(i,:), tree,...
+                                all_EPVS_weights, radius, p,...
+                                max_radius, radius_inc);
     end
-
-    data(chunk_inds) = vals;
-
-    clear Idx D;
+    % Add values to the "data" matrix
+    data(chunk_inds) = single(vals);
 
     if nChunks <= 10 || mod(chunk_idx, ceil(nChunks/10)) == 0
-        fprintf('Chunk %d/%d complete (%.1f%%)\n', chunk_idx, nChunks, 100 * chunk_idx / nChunks);
+        fprintf('Chunk %d/%d complete (%.1f%%)\n', chunk_idx,...
+                nChunks, 100 * chunk_idx / nChunks);
     end
 end
-
 fprintf('Subsampled computation done in %.2f seconds.\n', toc);
 
 %% Build sparse 1D vector, then convert to full and reshape to 3D
@@ -128,4 +121,31 @@ F = griddedInterpolant(xg, yg, zg, Sgrid, 'linear', 'nearest');
 interpolated_volume = single(F(xq, yq, zq));
 
 fprintf('Interpolation complete.\n');
+
+
+%% Helper Function
+
+function val = expand_density(coord, tree, all_EPVS_weights, radius, p,...
+        max_radius, radius_inc)
+found = false;
+curr_radius = radius;
+val = 0;
+while curr_radius <= max_radius && ~found
+    [Idx, D] = rangesearch(tree, coord, curr_radius);
+    idx = Idx{1};
+    d = D{1};
+    mask_d = (d ~= 0);
+    if any(mask_d)
+        w = all_EPVS_weights(idx)';
+        val = single(sum(w(mask_d) ./...
+                        (single(d(mask_d)).^p),...
+                        'omitnan'));
+        found = true;
+    else
+        curr_radius = curr_radius + radius_inc;
+    end
+end
+end
+
+
 end

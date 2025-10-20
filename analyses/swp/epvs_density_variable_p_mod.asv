@@ -1,4 +1,4 @@
-function [subsampled_volume, interpolated_volume] = epvs_density_variable_p(epvs, mask, radius, p)
+function [subsampled_volume, interpolated_volume] = epvs_density_variable_p_mod(epvs, mask, radius, p)
 % Computes EPVS density at every 4th voxel in 3D space and interpolates full map
 %
 % INPUTS:
@@ -12,8 +12,6 @@ function [subsampled_volume, interpolated_volume] = epvs_density_variable_p(epvs
 %   interpolated_volume  - interpolated full-volume EPVS density
 
 %% Parameters
-epsilon = 1e-3;
-
 try
     user_mem = memory;
     chunk_size = min(max(20000, ...
@@ -93,14 +91,24 @@ for chunk_idx = 1:nChunks
     vals = zeros(numel(chunk_inds), 1, 'single');
     
     % Parallel loop for density computation
-    parfor i = 1:numel(chunk_inds)
+    for i = 1:numel(chunk_inds)
         idx = Idx{i};
         d = D{i};
-        if isempty(idx)
-            vals(i) = 0;
-        else
-            w = all_EPVS_weights(idx);
-            vals(i) = sum(w ./ (single(d) + epsilon).^p, 'omitnan'); % 'omitnan' safe for rare cases
+        w = all_EPVS_weights(idx);
+        % Exclude any points that fall within the EPVS mask
+        mask = (d ~= 0);
+        try
+            if any(mask)
+                vals(i) = single(sum(w(mask) ./...
+                                (single(d(mask)).^p),'all','omitnan');
+            else
+                vals(i) = 0;
+                if any(d)
+                    fprintf('EPVS point skipped \n')
+                end
+            end
+        catch
+            fprintf('error')
         end
     end
 

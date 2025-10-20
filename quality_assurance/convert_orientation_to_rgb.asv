@@ -1,0 +1,123 @@
+%% This script converts the orientation from degrees to an RGB colorwheel
+% The orientation in RGB is used for the figures
+
+%% Add top-level directory of code repository to path
+% clear; clc; close all;
+% Print current working directory
+mydir  = pwd;
+% Find indices of slashes separating directories
+if ispc
+    idcs = strfind(mydir,'\');
+elseif isunix
+    idcs = strfind(mydir,'/');
+end
+% Remove the two sub folders to reach parent
+topdir = mydir(1:idcs(end-1));
+addpath(genpath(topdir));
+% Set maximum number of threads equal to number of threads for script
+ncores = feature('numcores');
+maxNumCompThreads(ncores);
+% Flag for loading CAA structs (false if already in environment)
+flag_load_caa_structs = false;
+% Directory containing seg, mus, ret, mask, epvs structs
+mat_dir = '/projectnb/npbssmic/ns/CAA/';
+
+%% Load matlab structs
+
+if flag_load_caa_structs
+    fprintf('Loading CAA6\n')
+    caa6 = load(fullfile(mat_dir,"/caa6/caa6.mat"));
+    fprintf('Finished loading CAA17\n')
+    
+    fprintf('Loading CAA17\n')
+    caa17 = load(fullfile(mat_dir,"/caa17/occip/caa17.mat"));
+    fprintf('Finished loading CAA17\n')
+    
+    fprintf('Loading CAA22\n')
+    caa22 = load(fullfile(mat_dir,"/caa22/caa22.mat"));
+    fprintf('Finished loading CAA22\n')
+    
+    fprintf('Loading CAA25\n')
+    caa25 = load(fullfile(mat_dir,"/caa25/caa25.mat"));
+    fprintf('Finished loading CAA25\n')
+    
+    fprintf('Loading CAA26\n')
+    caa26 = load(fullfile(mat_dir,"/caa26/caa26.mat"));
+    fprintf('Finished loading CAA26\n')
+    
+    % Remove top-level struct
+    caa6 = caa6.caa6;
+    caa17 = caa17.caa17;
+    caa22 = caa22.caa22;
+    caa25 = caa25.caa25;
+    caa26 = caa26.caa26;
+end
+
+%% Convert to RGB
+
+% Create upper-level struct to store subject structs
+subjects = struct();
+subjects.caa6 = caa6;
+subjects.caa17 = caa17;
+subjects.caa22 = caa22;
+subjects.caa25 = caa25;
+subjects.caa26 = caa26;
+
+% Iterate over subjects
+subs = fields(subjects);
+for ii = 1:length(subs)
+    % Iterate over regions
+    regs = fields(subjects.(subs{ii}));
+    for j = 1:length(regs)
+        % Import the orientation
+        ori = subjects.(subs{ii}).(regs{j}).orient;
+        % Convert to RGB
+        ori_rgb = convert_rgb(ori);
+        % Add to struct
+        subjects.(subs{ii}).(regs{j}).orient_rgb = ori_rgb;
+    end
+end
+
+%% Save back to struct
+
+% Retrieve from subjects struct
+caa6 = subjects.caa6;
+caa17 = subjects.caa17;
+caa22 = subjects.caa22;
+caa25 = subjects.caa25;
+caa26 = subjects.caa26;
+
+% Delete subjects struct to reduce memory
+clear subjects
+
+% Save in appo
+
+%% Function to convert to RGB
+function rgb = convert_rgb(ori)
+% convert from orientation (degrees) to RGB
+% INPUTS:
+%   ori [X Y Z]: orientation in degrees
+% OUTPUTS:
+%   rgb [X Y Z 3]: orientation in RGB colorwheel
+
+% Wrap around the orientation
+ori(ori > 90)  = ori(ori > 90) - 180;
+ori(ori <= -90) = ori(ori <= -90) + 180;
+
+sz = size(ori);
+rgb = zeros([sz 3]);
+
+for ii = 1:sz(3)
+    % Extract depth slice
+    ori_tmp = ori(:,:,ii);
+
+    % Map orientation [-90,90] -> [0,1] for hue
+    hue = mat2gray(ori_tmp, [-90 90]);
+    
+    % Create an HSV slice
+    hsv = cat(3, hue, ones(sz(1), sz(2)), ones(sz(1), sz(2)));
+
+    % Convert to RGB
+    rgb(:,:,ii,:) = hsv2rgb(hsv);
+end
+end
