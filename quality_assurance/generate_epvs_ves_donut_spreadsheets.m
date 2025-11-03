@@ -11,18 +11,18 @@ following cases:
 %}
 
 %% Prepare environment
-clear; clc; close all;
+% clear; clc; close all;
 % Add top-level directory
 current_dir = pwd;
 addpath(fullfile(current_dir));
 % Directory for loading seg, mus, ret, mask, epvs
-% data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
-%     'oct_caa_analyses/optical_properties'];
 data_dir = '/projectnb/npbssmic/ns/CAA/';
 %%% 40 um donut
 % load the parenchymal optical properties
 load(fullfile(data_dir, ...
     'parenchyma_optical_properties_40um_thick_09Oct2025.mat'));
+% Output filename for spreadsheet
+spreadsheet_name = 'caa_all_radii_40um_donut_03Nov2025.xlsx';
 
 %% Count number of control and experimental values
 
@@ -71,7 +71,7 @@ end
 % Call function to vectorize data
 [tbl_mus, tbl_ret, tbl_sori] = vectorize_struct(parench, rad, n_ves, n_epvs);
 % Export the tables to CSV
-fout = fullfile(data_dir,'caa_all_radii_40um_donut.xlsx');
+fout = fullfile(data_dir,spreadsheet_name);
 writetable(tbl_mus,fout,'Sheet','scattering');
 writetable(tbl_ret,fout,'Sheet','retardance');
 writetable(tbl_sori,fout,'Sheet','orientation');
@@ -150,8 +150,7 @@ for ii = 1:length(subs)
                 % retrieve segmentation
                 seg = segmentations{k};
                 [mus,ret,ori,n] = retrieve_op(parench,sub,reg,rad,seg);
-                % Add to vessel or epvs
-                % TODO: manually add radius to ctl_rad or exp_rad
+                %%% Vessel
                 if strcmp(seg,'ves')
                     % copy radius (in microns) to radii vector
                     radius_val = sscanf(rad, 'rad%d');
@@ -163,6 +162,7 @@ for ii = 1:length(subs)
                                         ctl_mus, ctl_ret,...
                                         ctl_ori, ctl_subid,...
                                         ctl_reg, cidx, n, tiss_idx, reg);
+                %%% EPVS
                 elseif strcmp(seg,'epvs')
                     % copy radius (in microns) to radii vector
                     radius_val = sscanf(rad, 'rad%d');
