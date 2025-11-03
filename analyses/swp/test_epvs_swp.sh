@@ -14,7 +14,7 @@
 
 # Run this for CAA22 front (dense EPVS)
 #$ -pe omp 16
-#$ -l mem_per_core=8G
+#$ -l mem_per_core=16G
 
 # Keep track of information related to the current job
 echo "=========================================================="

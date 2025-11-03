@@ -97,16 +97,21 @@ function check_glme_linearity(lme, tbl, nlThresh, tstr)
 
     %% Linear Hypothesis Test
     beta = lme.Coefficients.Estimate;
-    COVB = lme.CoefficientCovariance;
-    H = [0 1]; % Hypothesis matrix
-    c = 0; % Null hypothesis value
-    dfe = lme.DFE; % Degrees of freedom
-    [p, F] = linhyptest(beta, COVB, c, H, dfe);
-    fprintf('\nLinear Hypothesis Test, p = %f', p)
-    fprintf('\nLinear Hypothesis Test, F = %f', F)
+    covb = lme.CoefficientCovariance;
 
-    %% Plot Residuals    
-    figure;
-    plotResiduals(lme, 'fitted');
-    grid on;
+    %% Plot Residuals
+    % Compute p-value for an F-Test
+    
+
+% Linear Hypothesis Test
+h = linearHypothesis(lme, 'H0: fixedEffect1 = fixedEffect2'); % Example hypothesis
+fprintf('Linear Hypothesis Test result: %d\n', h);
+
+% Plot Residuals
+figure;
+histogram(residVals, 'Normalization', 'pdf');
+xlabel('Residuals');
+ylabel('Probability Density');
+title('Histogram of Residuals');
+grid on;
 end

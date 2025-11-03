@@ -1,0 +1,119 @@
+%% Create subfigures for Figure 1 (image analysis workflow)
+%{
+This figure uses CAA 22 frontal:
+    - scattering coefficient (mus)
+    - white matter mask
+    - vessel donuts
+    - EPVS donuts
+
+To Do:
+    - extract depth 3
+    - fig.1a (mus enface)
+    - fig.1b (WM mask enface)
+    - fig.1c masked 
+    - fig.1d zoomed
+    - fig.1e/f EPVS/vessel segmentation
+    - fig.1g/h EPVS/vessel parenchyma donuts segmentation
+%}
+
+%% Prepare environment
+clc; close all;
+% Add top-level directory + subdirectories
+parentDir = fileparts(pwd);
+fsDir = fullfile(parentDir, 'freesurfer');
+cstatDir = fullfile(parentDir, 'CircStat2012a');
+addpath(fsDir);
+addpath(cstatDir);
+addpath(parentDir);
+
+% Voxel dimensions (microns) for all runs
+res = [20,20,20]; % resolution in microns
+
+%%% Flag for loading .MAT struct and creating WM masks
+% flag for reloading the .MAT struct for each subject
+flag_load_caa_structs = true;
+
+%%% Directories on SCC w/ Matlab struct
+data_dir = '/projectnb/npbssmic/ns/CAA/';
+
+%% Load each subject's .MAT struct and create WM mask
+
+%%% Load the .MAT structs
+if flag_load_caa_structs
+    % CAA 22
+    fprintf('Loading CAA22\n')
+    caa22 = load(fullfile(data_dir,'/caa22/caa22.mat'));
+    caa22 = caa22.caa22;
+    fprintf('Finished Loading CAA22\n')
+end
+
+%% Enface of depth 3
+
+% Extract mus, mask, wm mask. Flip around vertical axis to match figures
+mus = flip(caa22.front.mus(:,:,3),2);
+mask = flip(caa22.front.mask(:,:,3),2);
+mask_wm = flip(caa22.front.mask_wm(:,:,3),2);
+
+%% Figure 1.a
+% Apply tissue mask to remove agarose
+mus_masked = single(mus .* mask);
+% Plot
+% figure('position',[500 500 1500 1500]);
+figure;
+imagesc(mus_masked); title('masked')
+% grayscale color map 
+colormap(gray)
+clim([0,24])
+% Add scale bar
+sbar(5000, 10, [20,20,20],mus_masked);
+
+
+
+%%% Figure 1.b
+
+% Figure 
+
+
+
+
+%% Function for plotting mus
+
+% function plot_mus
+
+
+%% scale bar function
+function sbar(sbar_len, sbar_thick, vox, slice)
+% Add scale bar to bottom right corner
+% INPUTS:
+%   - sbar_len (uint): scale bar length (microns)
+%   - sbar_thick (uint): scale bar line width
+%   - vox (vector): voxel size (microns)
+%   - slice (float matrix): single depth of image to display
+
+%%% Define size
+% scalebar length in pixels
+sbar_px = sbar_len / vox;
+% get image size
+[imHeight, imWidth] = size(slice,[1,2]);
+
+%%%% Position: bottom right margin
+% small margin (2% of width)
+x_end = imWidth - round(imWidth*0.02);
+x_start = x_end - sbar_px;          
+% a little above bottom (3% of height)
+y_pos = imHeight - round(imHeight*0.03);
+
+%%% Draw scale bar (white line)
+hold on;
+plot([x_start x_end], [y_pos y_pos], 'w', 'LineWidth', sbar_thick);
+hold off;
+% Disable x,y ticks
+set(gca,'XTick',[]); set(gca,'YTick',[])
+
+end
+
+
+
+
+
+

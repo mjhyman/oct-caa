@@ -23,13 +23,11 @@ fig = figure('Position', [100, 100, 1000, 1000],'Resize', 'off');
 
 % Scatterplot with error bars
 if err_flag
-    errorbar(x,ves_op,ves_sem,'k');
-    hold on;
-    errorbar(x,epvs_op,epvs_sem,'r');
+
 else
-    scatter(x,ves_op,100,'k','filled');
-    hold on;
-    scatter(x,epvs_op,100,'r','filled');
+scatter(x,ves_op,100,'k','filled');
+hold on;
+scatter(x,epvs_op,100,'r','filled');
 end
 
 % y-axis limits, ticks, etc.
@@ -52,5 +50,5 @@ set(gca,'fontsize',27);
 
 % Save output
 fout = fullfile(dir_out,fname);
-pause(1); saveas(gcf,fout); close;
+pause(1); saveas(gcf,fout);
 end

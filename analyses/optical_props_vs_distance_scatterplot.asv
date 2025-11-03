@@ -310,13 +310,13 @@ ret_yt = 26 : 1 : 30;
 ori_yt = 0.2 : 0.1 : 0.7;
 
 %%% Scatterplot limits for each optical property (w/ errorbars)
-mus_yl = [8, 14];
-ret_yl = [20, 32];
+mus_yl = [10, 13];
+ret_yl = [25, 31];
 ori_yl = [0, 1];
 % scatterplot y-axis tick marks
 mus_yt = min(mus_yl) : 0.5 : max(mus_yl);
 ret_yt = min(ret_yl) : 1 : max(ret_yl);
-ori_yt = min(ori_yl) : 0.1 : max(ori_yl);
+ori_yt = min(ori_yl) : 0.1 : 0.7;
 
 % Scatterplot x-axis ticks
 xt = 0:100:500;
