@@ -17,7 +17,7 @@ Outline:
 %}
 
 %% Prepare environment
-clc; close all;
+clear; clc; close all;
 % Add top-level directory
 current_dir = pwd;
 addpath(fullfile(current_dir));
@@ -33,25 +33,27 @@ data_dir = '/projectnb/npbssmic/ns/CAA/';
 scat_out = fullfile(data_dir,'/scatter_plots');
 bw_out = fullfile(data_dir,'/bw_plots');
 
-% Load parenchyam struct
-load(fullfile(data_dir,"parenchyma_optical_properties_40um_thick_09Oct2025.mat"));
+%%% Load parenchyma struct
+load(fullfile(data_dir, ...
+    "parenchyma_optical_properties_40um_thick_09Oct2025.mat"));
+
+%%% Figure parameters
 % Scatter plot dot size
 scat_size = 100;
 % Isotropic voxel size (microns)
 vox = 20;
-% Filename substring
-substr = '_errorbar_40um_donut_30Sep2025';
 % Boolean for errorbar plots
-err_flag = true;
+err_flag = false;
 
-%% Scatterplot of optical property vs. distance (most & least severe)
-% ONLY most severe (CAA22 occip) + least severe (CAA26 occip) EPVS cases
-% y-axis = average optical property  for epvs or vessel
-% x-axis = distance of ring from edge of epvs or vessel
-% Repeat this for all 3 properties (mus, ret, ori)
-% This will only use the "outer" ring, which is disjoint from the annotated
-% vessel/epvs
+%%% Setting flag for removing outliers
+% Flag to remove outliers
+% rm_outlier = false;
+% substr = '_max_removed_40um_donut_03Nov2025';
+% Flag to remove outliers
+rm_outlier = true;
+substr = '_max_removed_OutlierRm_40um_donut_03Nov2025';
 
+%% Figure axes and limits
 
 %%% Extract number of radii
 radii = fieldnames(parench.caa22.occip);
@@ -62,19 +64,79 @@ for ii = 1:length(radii)
 end
 % Convert x-axis to microns
 x = x.*vox;
-
-% Scatterplot limits for each optical property
-mus_yl = [10.2, 12.75];
-ret_yl = [25.5, 30];
-ori_yl = [0.2, 0.72];
-
-% scatterplot y-axis tick marks
-mus_yt = 10.5 : 0.5 : 12.5;
-ret_yt = 26 : 1 : 30;
-ori_yt = 0.2 : 0.1 : 0.7;
-
 % Scatterplot x-axis ticks
 xt = 0:100:500;
+% Scatterplot point size
+psize = 1000;
+
+%%% Upper threshold for keeping mus and retardance values
+mus_max = 25; % 1/cm
+ret_max = 45; % degrees
+
+%%% Scatterplot limits for each optical property (no errorbars)
+mus_yl = [10.2, 12.75];
+ret_yl = [20, 30];
+ori_yl = [0, 1];
+% scatterplot y-axis tick marks
+mus_yt = min(mus_yl) : 0.5 : max(mus_yl);
+ret_yt = min(ret_yl) : 2 : max(ret_yl);
+ori_yt = min(ori_yl) : 0.1 : max(ori_yl);
+
+%%% Scatterplot limits for each optical property (w/ errorbars)
+%{
+mus_yl = [8, 14];
+ret_yl = [20, 32];
+ori_yl = [0, 1];
+% scatterplot y-axis tick marks
+mus_yt = min(mus_yl) : 0.5 : max(mus_yl);
+ret_yt = min(ret_yl) : 1 : max(ret_yl);
+ori_yt = min(ori_yl) : 0.1 : max(ori_yl);
+%}
+
+% place figure properties in a struct for consistency
+fprops = struct();
+fprops.mus_yl = mus_yl;
+fprops.mus_yt = mus_yt;
+fprops.ret_yl = ret_yl;
+fprops.ret_yt = ret_yt;
+fprops.ori_yl = ori_yl;
+fprops.ori_yt = ori_yt;
+fprops.xt = xt;
+fprops.x = x;
+fprops.scat_out = scat_out;
+fprops.subdir = '/all_subjects/';
+fprops.radii = radii;
+fprops.parench = parench;
+fprops.err_flag = err_flag;
+fprops.mus_max = mus_max;
+fprops.ret_max = ret_max;
+fprops.substr = substr;
+fprops.psize = psize;
+fprops.rm_outlier = rm_outlier;
+
+%% Scatterplot of optical property vs. distance (disjoint ring)
+% y-axis = average optical property  for epvs or vessel
+% x-axis = distance of ring from edge of epvs or vessel
+% repeat this for all 3 properties (mus, ret, ori)
+% This will only use the "outer" ring, which is disjoint from the annotated
+% vessel/epvs
+
+% retrieve subject IDs of all subjects
+subjects = fieldnames(parench);
+
+% call function to create scatter plots
+scatter_main(subjects, fprops)
+
+
+%% Scatterplot optical property vs. distance (separate subjects)
+% y-axis = average optical property  for epvs or vessel
+% x-axis = distance of ring from edge of epvs or vessel
+% Create for each subject
+
+% CAA 22
+subjects = {'caa22'};
+fprops.subdir = '/caa22/';
+scatter_main(subjects,fprops);
 
 %{
 %%% Most severe subject
@@ -82,7 +144,7 @@ xt = 0:100:500;
 sub = 'caa22';
 reg = 'front';
 % subfolder for most severe subject
-fout = fullfile(scat_out,'/most_severe_epvs/');
+fout = fullfile(scat_out,'/caa22f/');
 % Call scatterplot function
 subject_scatter_op_vs_dist(x, parench, sub,...
                         mus_yl, ret_yl, ori_yl,...
@@ -101,312 +163,7 @@ subject_scatter_op_vs_dist(x, parench, sub,...
                         mus_yt, ret_yt, ori_yt,...
                         xt, fout)
 %}
-%% Scatterplot of optical property vs. distance (disjoint ring)
-% y-axis = average optical property  for epvs or vessel
-% x-axis = distance of ring from edge of epvs or vessel
-% repeat this for all 3 properties (mus, ret, ori)
-% This will only use the "outer" ring, which is disjoint from the annotated
-% vessel/epvs
 
-%%% Initialization
-% optical properties list
-pnames = {'pmus','pret','pori'};
-% retrieve subject IDs
-subjects = fieldnames(parench);
-% Retrieve radii within struct
-radii = fieldnames(parench.(subjects{1}).front);
-% Alpha for calculating the critical t-value for 95% confidence interval
-alpha = 0.05;
-
-%%% Combined array for pairs of optical proprety vs. distance
-% Mean
-comb_mean_ves_mus = zeros(length(radii),1);
-comb_mean_ves_ret = zeros(length(radii),1);
-comb_mean_ves_ori = zeros(length(radii),1);
-comb_mean_epvs_mus = zeros(length(radii),1);
-comb_mean_epvs_ret = zeros(length(radii),1);
-comb_mean_epvs_ori = zeros(length(radii),1);
-% standard error of measurement (SEM)
-comb_sem_ves_mus = zeros(length(radii),1);
-comb_sem_ves_ret = zeros(length(radii),1);
-comb_sem_ves_ori = zeros(length(radii),1);
-comb_sem_epvs_mus = zeros(length(radii),1);
-comb_sem_epvs_ret = zeros(length(radii),1);
-comb_sem_epvs_ori = zeros(length(radii),1);
-
-%%% Combined array for pairs of optical proprety vs. distance
-% Mean
-front_mean_ves_mus = zeros(length(radii),1);
-front_mean_ves_ret = zeros(length(radii),1);
-front_mean_ves_ori = zeros(length(radii),1);
-front_mean_epvs_mus = zeros(length(radii),1);
-front_mean_epvs_ret = zeros(length(radii),1);
-front_mean_epvs_ori = zeros(length(radii),1);
-% standard error of measurement (SEM)
-front_sem_ves_mus = zeros(length(radii),1);
-front_sem_ves_ret = zeros(length(radii),1);
-front_sem_ves_ori = zeros(length(radii),1);
-front_sem_epvs_mus = zeros(length(radii),1);
-front_sem_epvs_ret = zeros(length(radii),1);
-front_sem_epvs_ori = zeros(length(radii),1);
-
-%%% Combined array for pairs of optical proprety vs. distance
-% Mean
-occip_mean_ves_mus = zeros(length(radii),1);
-occip_mean_ves_ret = zeros(length(radii),1);
-occip_mean_ves_ori = zeros(length(radii),1);
-occip_mean_epvs_mus = zeros(length(radii),1);
-occip_mean_epvs_ret = zeros(length(radii),1);
-occip_mean_epvs_ori = zeros(length(radii),1);
-% standard error of measurement (SEM)
-occip_sem_ves_mus = zeros(length(radii),1);
-occip_sem_ves_ret = zeros(length(radii),1);
-occip_sem_ves_ori = zeros(length(radii),1);
-occip_sem_epvs_mus = zeros(length(radii),1);
-occip_sem_epvs_ret = zeros(length(radii),1);
-occip_sem_epvs_ori = zeros(length(radii),1);
-
-%%% Iterate distance, subjects, optical property
-% iterate distance from edge of epvs/vessel
-for ii = 1:length(radii)
-    % local radii name
-    rname = string(radii(ii));
-    %%% initialize arrays for combined
-    comb_ves_mus = [];
-    comb_ves_ret = [];
-    comb_ves_ori = [];
-    comb_epvs_mus = [];
-    comb_epvs_ret = [];
-    comb_epvs_ori = [];
-    %%% initialize arrays for frontal
-    front_ves_mus = [];
-    front_ves_ret = [];
-    front_ves_ori = [];
-    front_epvs_mus = [];
-    front_epvs_ret = [];
-    front_epvs_ori = [];
-    %%% initialize arrays for occiptial
-    occip_ves_mus = [];
-    occip_ves_ret = [];
-    occip_ves_ori = [];
-    occip_epvs_mus = [];
-    occip_epvs_ret = [];
-    occip_epvs_ori = [];
-
-    %%% iterate subjects
-    for j = 1:length(subjects)
-        % local subject ID
-        sub = subjects{j};
-        % retrieve regions for this subject
-        regions = fieldnames(parench.(sub));
-        % iterate regions
-        for k = 1:length(regions)
-            % region for this iteration
-            reg = regions{k};
-            % Retrieve vessel measurements (mus, ret, ori)
-            ves = parench.(sub).(reg).(rname).outter.ves;
-            
-            %%% Add data to combined vectors
-            % Take average of mus, ret, ori
-            comb_ves_mus = [comb_ves_mus, omit_outlier(ves.pmus)];
-            comb_ves_ret = [comb_ves_ret, omit_outlier(ves.pret)];
-            comb_ves_ori = [comb_ves_ori, omit_outlier(ves.pori)];
-            %%% Add to frontal or occipital
-            if strcmp(reg,'front')
-                front_ves_mus = [front_ves_mus, omit_outlier(ves.pmus)];
-                front_ves_ret = [front_ves_ret, omit_outlier(ves.pret)];
-                front_ves_ori = [front_ves_ori, omit_outlier(ves.pori)];
-            elseif strcmp(reg,'occip')
-                occip_ves_mus = [occip_ves_mus, omit_outlier(ves.pmus)];
-                occip_ves_ret = [occip_ves_ret, omit_outlier(ves.pret)];
-                occip_ves_ori = [occip_ves_ori, omit_outlier(ves.pori)];
-            end
-
-            %%% retrieve EPVS measurements (if exist)
-            if isfield(parench.(sub).(reg).(rname).outter, 'epvs')
-                % Create local
-                epvs = parench.(sub).(reg).(rname).outter.epvs;
-                %%% Add to combined
-                comb_epvs_mus = [comb_epvs_mus, omit_outlier(epvs.pmus)];
-                comb_epvs_ret = [comb_epvs_ret, omit_outlier(epvs.pret)];
-                comb_epvs_ori = [comb_epvs_ori, omit_outlier(epvs.pori)];
-                %%% Add to Frontl or occipital
-                if strcmp(reg,'front')
-                    front_epvs_mus = [front_epvs_mus, omit_outlier(epvs.pmus)];
-                    front_epvs_ret = [front_epvs_ret, omit_outlier(epvs.pret)];
-                    front_epvs_ori = [front_epvs_ori, omit_outlier(epvs.pori)];
-                elseif strcmp(reg,'occip')
-                    occip_epvs_mus = [occip_epvs_mus, omit_outlier(epvs.pmus)];
-                    occip_epvs_ret = [occip_epvs_ret, omit_outlier(epvs.pret)];
-                    occip_epvs_ori = [occip_epvs_ori, omit_outlier(epvs.pori)];
-                end
-            end
-        end
-    end
-
-    %% Take average across subjects at distance
-    % Find numer of vessel and EPVS measurements
-    nves = length(comb_ves_ret);
-    nepvs = length(comb_epvs_ret);
-
-    %%% Combined - take average across subjects
-    % Add average optical property to main array
-    comb_mean_ves_mus(ii) = mean(comb_ves_mus);
-    comb_mean_ves_ret(ii) = mean(comb_ves_ret);
-    comb_mean_ves_ori(ii) = real(mean(comb_ves_ori));
-    comb_mean_epvs_mus(ii) = mean(comb_epvs_mus);
-    comb_mean_epvs_ret(ii) = mean(comb_epvs_ret);
-    comb_mean_epvs_ori(ii) = real(mean(comb_epvs_ori));
-    % Calculate confidence interval
-    comb_sem_ves_mus(ii) = bootstrap_ci(comb_ves_mus,alpha);
-    comb_sem_ves_ret(ii) = bootstrap_ci(comb_ves_ret,alpha);
-    comb_sem_ves_ori(ii) = bootstrap_ci(comb_ves_ori,alpha);
-    comb_sem_epvs_mus(ii) = bootstrap_ci(comb_epvs_mus,alpha);
-    comb_sem_epvs_ret(ii) = bootstrap_ci(comb_epvs_ret,alpha);
-    comb_sem_epvs_ori(ii) = bootstrap_ci(comb_epvs_ori,alpha);
-
-    %%% Front - take average across subjects
-    % Add average optical property to main array
-    front_mean_ves_mus(ii) = mean(front_ves_mus);
-    front_mean_ves_ret(ii) = mean(front_ves_ret);
-    front_mean_ves_ori(ii) = real(mean(front_ves_ori));
-    front_mean_epvs_mus(ii) = mean(front_epvs_mus);
-    front_mean_epvs_ret(ii) = mean(front_epvs_ret);
-    front_mean_epvs_ori(ii) = real(mean(front_epvs_ori));
-    % Calculate confidence interval
-    front_sem_ves_mus(ii) = bootstrap_ci(front_ves_mus,alpha);
-    front_sem_ves_ret(ii) = bootstrap_ci(front_ves_ret,alpha);
-    front_sem_ves_ori(ii) = bootstrap_ci(front_ves_ori,alpha);
-    front_sem_epvs_mus(ii) = bootstrap_ci(front_epvs_mus,alpha);
-    front_sem_epvs_ret(ii) = bootstrap_ci(front_epvs_ret,alpha);
-    front_sem_epvs_ori(ii) = bootstrap_ci(front_epvs_ori,alpha);
-
-    %%% Occip - take average across subjects
-    % Add average optical property to main array
-    occip_mean_ves_mus(ii) = mean(occip_ves_mus);
-    occip_mean_ves_ret(ii) = mean(occip_ves_ret);
-    occip_mean_ves_ori(ii) = real(mean(occip_ves_ori));
-    occip_mean_epvs_mus(ii) = mean(occip_epvs_mus);
-    occip_mean_epvs_ret(ii) = mean(occip_epvs_ret);
-    occip_mean_epvs_ori(ii) = real(mean(occip_epvs_ori));
-    % Calculate confidence interval
-    occip_sem_ves_mus(ii) = bootstrap_ci(occip_ves_mus,alpha);
-    occip_sem_ves_ret(ii) = bootstrap_ci(occip_ves_ret,alpha);
-    occip_sem_ves_ori(ii) = bootstrap_ci(occip_ves_ori,alpha);
-    occip_sem_epvs_mus(ii) = bootstrap_ci(occip_epvs_mus,alpha);
-    occip_sem_epvs_ret(ii) = bootstrap_ci(occip_epvs_ret,alpha);
-    occip_sem_epvs_ori(ii) = bootstrap_ci(occip_epvs_ori,alpha);
-end
-
-%% Scatterplots of each region (and combined) on the same y-axis limits
-
-%%% Scatterplot limits for each optical property (no errorbars)
-mus_yl = [10.2, 12.75];
-ret_yl = [25.5, 30];
-ori_yl = [0.2, 0.72];
-% scatterplot y-axis tick marks
-mus_yt = 10.5 : 0.5 : 12.5;
-ret_yt = 26 : 1 : 30;
-ori_yt = 0.2 : 0.1 : 0.7;
-
-%%% Scatterplot limits for each optical property (w/ errorbars)
-mus_yl = [8, 14];
-ret_yl = [20, 32];
-ori_yl = [0, 1];
-% scatterplot y-axis tick marks
-mus_yt = min(mus_yl) : 0.5 : max(mus_yl);
-ret_yt = min(ret_yl) : 1 : max(ret_yl);
-ori_yt = min(ori_yl) : 0.1 : max(ori_yl);
-
-% Scatterplot x-axis ticks
-xt = 0:100:500;
-
-%%% COMBINED scatterplots (EPVS and ves)
-% Mus
-xlab = 'Distance (\mum)';
-ylab = '\mus (cm^-^1)';
-tit = 'Combined: \mus vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('COMBINED_epvs_ves_mus_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, comb_mean_ves_mus, comb_sem_ves_mus,...
-                    comb_mean_epvs_mus, comb_sem_epvs_mus,err_flag,...
-                    xlab, ylab, mus_yl, xt, mus_yt, tit, dir_out, fname)
-% Retardance
-xlab = 'Distance (\mum)';
-ylab = 'Retardance (degrees)';
-tit = 'Combined: Retardance vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('COMBINED_epvs_ves_ret_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, comb_mean_ves_ret, comb_sem_ves_ret,...
-                    comb_mean_epvs_ret, comb_sem_epvs_ret,err_flag,...
-                    xlab, ylab, ret_yl, xt, ret_yt, tit, dir_out, fname)
-% Orientation
-xlab = 'Distance (\mum)';
-ylab = '\sigma_{orientation} (radians)';
-tit = 'Combined: CSDO vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('COMBINED_epvs_ves_ori_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, comb_mean_ves_ori, comb_sem_ves_ori,...
-                    comb_mean_epvs_ori, comb_sem_epvs_ori,err_flag,...
-                    xlab, ylab, ori_yl, xt, ori_yt, tit, dir_out, fname)
-
-%%% FRONTAL scatterplots (EPVS and ves)
-% Mus
-xlab = 'Distance (\mum)';
-ylab = '\mus (cm^-^1)';
-tit = 'Frontal: \mus vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('FRONT_epvs_ves_mus_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, front_mean_ves_mus, front_sem_ves_mus,...
-                    front_mean_epvs_mus, front_sem_epvs_mus,err_flag,...
-                    xlab, ylab, mus_yl, xt, mus_yt,tit, dir_out, fname)
-% Retardance
-xlab = 'Distance (\mum)';
-ylab = 'Retardance (degrees)';
-tit = 'Frontal: Retardance vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('FRONT_epvs_ves_ret_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, front_mean_ves_ret, front_sem_ves_ret,...
-                    front_mean_epvs_ret, front_sem_epvs_ret,err_flag,...
-                    xlab, ylab, ret_yl,xt, ret_yt,tit, dir_out, fname)
-% Orientation
-xlab = 'Distance (\mum)';
-ylab = '\sigma_{orientation} (radians)';
-tit = 'Frontal: CSDO vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('FRONT_epvs_ves_ori_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, front_mean_ves_ori, front_sem_ves_ori,...
-                    front_mean_epvs_ori, front_sem_epvs_ori,err_flag,...
-                    xlab, ylab, ori_yl,xt, ori_yt,tit, dir_out, fname)
-
-%%% OCCIPITAL scatterplots (EPVS and ves)
-% Mus
-xlab = 'Distance (\mum)';
-ylab = '\mus (cm^-^1)';
-tit = 'Occipital: \mus vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('OCCIP_epvs_ves_mus_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, occip_mean_ves_mus, occip_sem_ves_mus,...
-                    occip_mean_epvs_mus, occip_sem_epvs_mus,err_flag,...
-                    xlab, ylab, mus_yl, xt, mus_yt, tit, dir_out, fname)
-% Retardance
-xlab = 'Distance (\mum)';
-ylab = 'Retardance (degrees)';
-tit = 'Occipital: Retardance vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('OCCIP_epvs_ves_ret_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, occip_mean_ves_ret, occip_sem_ves_ret,...
-                    occip_mean_epvs_ret, occip_sem_epvs_ret,err_flag,...
-                    xlab, ylab, ret_yl,xt, ret_yt,tit,dir_out, fname)
-% Orientation
-xlab = 'Distance (\mum)';
-ylab = '\sigma_{orientation} (radians)';
-tit = 'Occipital: CSDO vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('OCCIP_epvs_ves_ori_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, occip_mean_ves_ori, occip_sem_ves_ori,...
-                    occip_mean_epvs_ori, occip_sem_epvs_ori,err_flag,...
-                    xlab, ylab, ori_yl,xt, ori_yt,tit,dir_out, fname)
 
 %% Box/whisker Plots
 
@@ -657,49 +414,6 @@ ci_half = (ci_upper - ci_lower)/2;
 end
 
 
-
-
-%% Function to scatterplot w/ error bars
-function errorbar_op_vs_dist(x, ves_op, ves_sem, epvs_op, epvs_sem,...
-    xlab, ylab, yl, tit, dir_out, fname)
-% Scatter plot with error bars for optical property vs distance
-% INPUTS:
-%   - x (vector): x-axis positions
-%   - ves_op (vector): optical propery for vessels
-%   - ves_sem (vector): optical propery standard error for vessels
-%   - epvs_op (vector): optical propery for EPVS
-%   - epvs_sem (vector): optical propery standard error for EPVS
-%   - xlab (str): x-axis label
-%   - ylab (str): y-axis label
-%   - yl (vector): y-axis limits
-%   - tit (str): figure title
-%   - dir_out (str): output directory
-%   - fname (str): output filename
-
-    % Init figure
-    figure('Position', [100, 100, 900, 900],'Resize', 'off');
-    
-    % Scatterplot with error bars
-    errorbar(x,ves_op,ves_sem,"-s",'Color','k',...
-        "MarkerFaceColor",'k','MarkerSize',20,'LineWidth',4);
-    hold on;
-    errorbar(x,epvs_op,epvs_sem,"-s",'Color','r',...
-        "MarkerFaceColor",'r','MarkerSize',20,'LineWidth',4);
-    
-    % Limits, Labels, and legend
-    ylim(yl);
-    xlabel(xlab); ylabel(ylab); title(tit);
-    % legend({'Vessels','EPVS'});
-    
-    % Font and fontsize
-    fontname("SansSerif")
-    set(gca,'fontsize',24);
-    
-    % Save output
-    fout = fullfile(dir_out,fname);
-    pause(1); saveas(gcf,fout);
-end
-
 %% Function to measure the mean optical property across a single subject
 function [ves_mus, ves_ret, ves_ori, epvs_mus, epvs_ret, epvs_ori] =...
     meas_sub(parench,sub,reg)
@@ -738,47 +452,4 @@ for ii = 1:length(radii)
         epvs_ori(ii) = real(mean(epvs.pori,'omitnan'));
     end
 end
-end
-
-%% Scatterplot for individual subject
-function subject_scatter(x,ves_mus, ves_ret, ves_ori,...
-    epvs_mus, epvs_ret, epvs_ori,scat_out,sub_tit)
-% SUBJECT_SCATTER scatter plot for an individual subject
-% INPUTS:
-%   x (cell array): x-axis subject labels
-%   ves_mus (vector): vessel scattering coefficient vector
-%   ves_ret (vector): vessel retardance vector
-%   ves_ori (vector): vessel circular std. dev. orientation
-%   epvs_mus (vector): EPVS scattering coefficient vector
-%   epvs_ret (vector): EPVS retardance vector
-%   epvs_ori (vector): EPVS circular std. dev. orientation
-%   scat_out (string): filepath for saving
-%   sub_tit (string): subtitle string
-
-%%% mus
-plot_and_save(x,ves_mus,epvs_mus,'\mus (mm^-^1)',sub_tit,...
-              '\mus vs. Distance',scat_out,...
-              'mus_vs_distance.png')
-%%% retardance
-plot_and_save(x,ves_ret,epvs_ret,'Retardance (degrees)',sub_tit,...
-              'Retardance vs. Distance',scat_out,...
-              'ret_vs_distance.png')
-%%% orientation
-plot_and_save(x,ves_ori,epvs_ori,'\sigma_{orientation} (radians)',sub_tit,...
-              '\sigma_{orientation} vs. Distance',scat_out,...
-              'ori_vs_distance.png')
-
-    function plot_and_save(x,ves,epvs,ylab,tstr1,tstr2,scat_out,fname)
-        figure;
-        set(gcf,'Units','Normalized','OuterPosition',[0, 0.04, 1, 0.96]);
-        scatter(x,ves,100,'filled','k');
-        hold on;
-        scatter(x,epvs,100,'filled','r');
-        xlabel('Distance (\mum)'); ylabel(ylab);
-        title({tstr1,tstr2}); set(gca,'fontsize',24);
-        scat_out = fullfile(scat_out,fname);
-        pause(1); saveas(gcf,scat_out); pause(0.5);
-        close;
-    end
-
 end

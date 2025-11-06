@@ -10,10 +10,22 @@ To Do:
     - extract depth 3
     - fig.1a (mus enface)
     - fig.1b (WM mask enface)
-    - fig.1c masked 
-    - fig.1d zoomed
-    - fig.1e/f EPVS/vessel segmentation
-    - fig.1g/h EPVS/vessel parenchyma donuts segmentation
+    - fig.1c masked w/ yellow box
+    - fig.1d zoomed w/ EPVS and lumen (not highlighted)
+    - fig.1e/f vessel segmentation + donut
+    - fig.1g/h EPVS segmentation + donut
+%}
+
+% TODO:
+
+%{
+- Crop TIF of the zoomed in region (grayscale, 4 masks)
+
+- Transfer files from
+/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/figures/
+Fig1_flowchart
+
+- Write code for overlaying
 %}
 
 %% Prepare environment
@@ -29,72 +41,108 @@ addpath(parentDir);
 % Voxel dimensions (microns) for all runs
 res = [20,20,20]; % resolution in microns
 
-%%% Flag for loading .MAT struct and creating WM masks
-% flag for reloading the .MAT struct for each subject
-flag_load_caa_structs = true;
-
 %%% Directories on SCC w/ Matlab struct
-data_dir = '/projectnb/npbssmic/ns/CAA/';
+ddir = '/projectnb/npbssmic/ns/CAA/figures/image_processing_flowchart/';
 
-%% Load each subject's .MAT struct and create WM mask
+%% Load the TIFs for each figure
+% Grayscale of the first zoomed inset
+t = Tiff(fullfile(ddir,'caa22f_depth0_mus_inset1.tif'),'r');
+inset = read(t);
 
-%%% Load the .MAT structs
-if flag_load_caa_structs
-    % CAA 22
-    fprintf('Loading CAA22\n')
-    caa22 = load(fullfile(data_dir,'/caa22/caa22.mat'));
-    caa22 = caa22.caa22;
-    fprintf('Finished Loading CAA22\n')
-end
+%%% Vessel inset
+% vessel mus inset
+t = Tiff(fullfile(ddir,'caa22f_depth0_mus_ves_inset.tif'),'r');
+ves = read(t);
+% vessel lumen segmentation mask
+t = Tiff(fullfile(ddir,'caa22f_depth0_ves_mask_inset.tif'),'r');
+ves_seg = read(t); ves_seg = ves_seg > 0;
+% vessel parenchyma donut
+t = Tiff(fullfile(ddir,'caa22f_depth0_ves_donut_inset.tif'),'r');
+ves_donut = read(t); ves_donut = ves_donut > 0;
 
-%% Enface of depth 3
+%%% EPVS inset
+% vessel mus inset
+t = Tiff(fullfile(ddir,'caa22f_depth0_mus_epvs_inset.tif'),'r');
+epvs = read(t);
+% vessel lumen segmentation mask
+t = Tiff(fullfile(ddir,'caa22f_depth0_epvs_mask_inset.tif'),'r');
+epvs_seg = read(t); epvs_seg = epvs_seg > 0;
+% vessel parenchyma donut
+t = Tiff(fullfile(ddir,'caa22f_depth0_epvs_donut_inset.tif'),'r');
+epvs_donut = read(t); epvs_donut = epvs_donut > 0;
 
-% Extract mus, mask, wm mask. Flip around vertical axis to match figures
-mus = flip(caa22.front.mus(:,:,3),2);
-mask = flip(caa22.front.mask(:,:,3),2);
-mask_wm = flip(caa22.front.mask_wm(:,:,3),2);
+%% First inset figure
 
-%% Figure 1.a
-% Apply tissue mask to remove agarose
-mus_masked = single(mus .* mask);
-% Plot
-% figure('position',[500 500 1500 1500]);
-figure;
-imagesc(mus_masked); title('masked')
-% grayscale color map 
-colormap(gray)
-clim([0,24])
-% Add scale bar
-sbar(5000, 10, [20,20,20],mus_masked);
+% Scale bar settings
+len = 200; % microns
+% scale bar thickness
+th = 10;
 
+% Vessel segmentation
+f = figure; imshow(inset);
+sbar(len, th, res(1), inset);
+fout = fullfile(ddir, 'inset1.png');
+exportgraphics(f,fout,'Resolution', 600); pause(0.5);
 
+%% Overlays
 
-%%% Figure 1.b
+% Transparency
+alpha = 0.5;
 
-% Figure 
+% COLORBLIND FRIENDLY
+cseg = [240, 228, 66]; % yellow
+cdon = [240, 0, 128];  % Sky blue
 
+% Overlays
+ves_seg_overlay = mask_overlay(ves, ves_seg, cseg, alpha);
+ves_don_overlay = mask_overlay(ves, ves_donut, cdon, alpha);
+epvs_seg_overlay = mask_overlay(epvs, epvs_seg, cseg, alpha);
+epvs_don_overlay = mask_overlay(epvs, epvs_donut, cdon, alpha);
 
+%%% Show figures + add scale bar
+% Scale bar settings
+len = 200; % microns
+% scale bar thickness
+th = 4;
 
+% Vessel segmentation
+f = figure; imshow(ves_seg_overlay);
+sbar(len, th, res(1), ves);
+fout = fullfile(ddir, 'ves_lumen_overlay.png');
+exportgraphics(f,fout,'Resolution', 600); pause(0.5);
 
-%% Function for plotting mus
+% vessel donut
+f = figure; imshow(ves_don_overlay);
+sbar(len, th, res(1), ves);
+fout = fullfile(ddir, 'ves_donut_overlay.png');
+exportgraphics(f,fout,'Resolution', 600); pause(0.5);
 
-% function plot_mus
+% EPVS segmentation
+f = figure; imshow(epvs_seg_overlay);
+sbar(len, th, res(1), ves);
+fout = fullfile(ddir, 'epvs_lumen_overlay.png');
+exportgraphics(f,fout,'Resolution', 600); pause(0.5);
 
+%% EPVS donut
+f = figure; imshow(epvs_don_overlay);
+sbar(len, th, res(1), ves);
+fout = fullfile(ddir, 'epvs_donut_overlay.png');
+exportgraphics(f,fout,'Resolution', 600); pause(0.5);
 
 %% scale bar function
-function sbar(sbar_len, sbar_thick, vox, slice)
+function sbar(sbar_len, sbar_thick, vox, im)
 % Add scale bar to bottom right corner
 % INPUTS:
 %   - sbar_len (uint): scale bar length (microns)
-%   - sbar_thick (uint): scale bar line width
-%   - vox (vector): voxel size (microns)
+%   - sbar_thick (uint): scale bar line width (builtin linewidth)
+%   - vox (vector): isotropic voxel size (microns)
 %   - slice (float matrix): single depth of image to display
 
 %%% Define size
 % scalebar length in pixels
-sbar_px = sbar_len / vox;
+sbar_px = sbar_len ./ vox;
 % get image size
-[imHeight, imWidth] = size(slice,[1,2]);
+[imHeight, imWidth] = size(im,[1,2]);
 
 %%%% Position: bottom right margin
 % small margin (2% of width)
@@ -113,7 +161,25 @@ set(gca,'XTick',[]); set(gca,'YTick',[])
 end
 
 
-
+function rgb_overlay = mask_overlay(grayImg, mask, overlay_color, alpha)
+    % grayImg: 8-bit grayscale image (MxN)
+    % mask: binary mask (MxN)
+    % overlay_color: [R G B] in [0 255]
+    % alpha: transparency (0 = original, 1 = full color)
+    
+    grayImg = uint8(grayImg); % Ensure format
+    mask = mask > 0; % Logical
+    
+    % Start with grayscale converted to RGB
+    rgb_overlay = double(repmat(grayImg,1,1,3));
+    
+    for c = 1:3
+        rgb_overlay(:,:,c) = rgb_overlay(:,:,c) .* (~mask) + ...
+                             (1-alpha) * rgb_overlay(:,:,c) .* mask + ...
+                             alpha * overlay_color(c) * mask;
+    end
+    rgb_overlay = uint8(rgb_overlay);
+end
 
 
 

@@ -221,19 +221,14 @@ ctl_ret_idx = ctl_ret < ret_upper;
 
 %%% Remove outliers from region, subjectID, radii
 % mus
-mus_exp_reg = mus_exp_reg(exp_mus_idx);
-mus_ctl_reg = mus_ctl_reg(ctl_mus_idx);
-mus_exp_sid = mus_exp_sid(exp_mus_idx);
-mus_ctl_sid = mus_ctl_sid(ctl_mus_idx);
-mus_exp_rad = mus_exp_rad(exp_mus_idx);
-mus_ctl_rad = mus_ctl_rad(ctl_mus_idx);
+mus_exp_reg = mus_exp_reg;
+mus_ctl_reg = mus_exp_reg;
+mus_exp_sid = exp_subid;
+mus_ctl_sid = ctl_subid;
+mus_exp_rad = exp_rad;
+mus_ctl_rad = ctl_rad;
 % retardance
-ret_exp_reg = ret_exp_reg(exp_ret_idx);
-ret_ctl_reg = ret_ctl_reg(ctl_ret_idx);
-ret_exp_sid = ret_exp_sid(exp_ret_idx);
-ret_ctl_sid = ret_ctl_sid(ctl_ret_idx);
-ret_exp_rad = ret_exp_rad(exp_ret_idx);
-ret_ctl_rad = ret_ctl_rad(ctl_ret_idx);
+
 
 %%% Remove outliers from mus and retardance
 % Experimental
@@ -243,7 +238,7 @@ exp_ret = exp_ret(exp_ret_idx);
 ctl_mus = ctl_mus(ctl_mus_idx);
 ctl_ret = ctl_ret(ctl_ret_idx);
 
-%%% Optical property (don't change orientation, it doesn't have outliers)
+%%% Optical property
 % Scattering coefficient
 mus = [exp_mus; ctl_mus];
 % Retardance
@@ -265,21 +260,8 @@ g_exp = repmat({'experimental'},[length(exp_ori),1]);
 g_cnrtl = repmat({'control'},[length(ctl_ori),1]);
 ori_labels = vertcat(g_exp, g_cnrtl);
 
-%%% Mus Region, Subject ID, Distance, 
-% Combine the brain region indices into column vector
-mus_region = vertcat(mus_exp_reg, mus_ctl_reg);
-% Combine the subject IDs into column vector
-mus_subids = vertcat(mus_exp_sid, mus_ctl_sid);
-% Distance vector
-mus_radii = [mus_exp_rad; mus_ctl_rad];
+%%% Remove outliers from Region
 
-%%% retardance Region, Subject ID, Distance, 
-% Combine the brain region indices into column vector
-ret_region = vertcat(ret_exp_reg, ret_ctl_reg);
-% Combine the subject IDs into column vector
-ret_subids = vertcat(ret_exp_sid, ret_ctl_sid);
-% Distance vector
-ret_radii = [ret_exp_rad; ret_ctl_rad];
 
 %%% Orientation Region, Subject ID, Distance, 
 % Combine the brain region indices into column vector
@@ -290,9 +272,9 @@ ori_subids = vertcat(exp_subid, ctl_subid);
 ori_radii = [exp_rad;ctl_rad];
 
 %%% Create Table for each optical property
-tbl_mus = table(mus_labels,mus_region,mus_subids,mus_radii,mus,...
+tbl_mus = table(mus_labels,region,subids,radii,mus,...
       'VariableNames',{'Groups','Region','subID','distance','OpticalProperty'});
-tbl_ret = table(ret_labels,ret_region,ret_subids,ret_radii,ret,...
+tbl_ret = table(ret_labels,region,subids,radii,ret,...
       'VariableNames',{'Groups','Region','subID','distance','OpticalProperty'});
 tbl_sori = table(ori_labels,ori_region,ori_subids,ori_radii,ori,...
       'VariableNames',{'Groups','Region','subID','distance','OpticalProperty'});

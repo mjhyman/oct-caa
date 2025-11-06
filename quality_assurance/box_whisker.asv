@@ -215,21 +215,12 @@ fout = fullfile(fig_out,'box_whisker_ret_wm.png');
 saveas(gcf,fout); pause(0.5); close;
 
 %% Front vs. Occipital (all WM)
-% TODO: incorporate create_vectors
 
 % mus
 mus_front = [op.caa26.front.wm.mus, op.caa6.front.wm.mus,...
-            op.caa25.front.wm.mus, op.caa22.front.wm.mus];
-mus_occip = [op.caa26.occip.wm.mus, op.caa6.occip.wm.mus,...
-            op.caa17.occip.wm.mus,...
-            op.caa25.occip.wm.mus, op.caa22.occip.wm.mus];
-% ret
-ret_front = [op.caa26.front.wm.ret, op.caa6.front.wm.ret,...
-            op.caa25.front.wm.ret, op.caa22.front.wm.ret];
-ret_occip = [op.caa26.occip.wm.ret, op.caa6.occip.wm.ret,...
-            op.caa17.occip.wm.ret,...
-            op.caa25.occip.wm.ret, op.caa22.occip.wm.ret];
+    op.caa25.front.wm.mus, op.caa22.front.wm.mus]
 
+% ret
 
 %% B/W Gray Matter
 

@@ -25,7 +25,7 @@ caa25 = load(fullfile(mat_dir,"/caa25/caa25.mat"));
 fprintf('Finished loading CAA25\n')
 
 fprintf('Loading CAA26\n')
-caa26 = load(fullfile(mat_dir,"/caa26/caa26.mat"));
+caa26 = load(fullfile(mat_dir,"/caa26/caa26_archive.mat"));
 fprintf('Finished loading CAA26\n')
 
 % Remove top-level struct
