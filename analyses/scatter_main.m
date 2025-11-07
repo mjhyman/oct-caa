@@ -230,14 +230,14 @@ scatter_op_vs_dist(x, comb_mean_ves_ret, comb_sem_ves_ret,...
                 comb_mean_epvs_ret, comb_sem_epvs_ret,err_flag,...
                 xlab, ylab, ret_yl, xt, ret_yt, tit, dir_out, fname, psize)
 % Orientation
-xlab = 'Distance (\mum)';
-ylab = '\sigma_{orientation} (radians)';
-tit = 'Combined: CSDO vs. Distance';
-dir_out = fullfile(scat_out,subdir);
-fname = strcat('COMBINED_epvs_ves_ori_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, comb_mean_ves_ori, comb_sem_ves_ori,...
-                comb_mean_epvs_ori, comb_sem_epvs_ori,err_flag,...
-                xlab, ylab, ori_yl, xt, ori_yt, tit, dir_out, fname, psize)
+% xlab = 'Distance (\mum)';
+% ylab = '\sigma_{orientation} (radians)';
+% tit = 'Combined: CSDO vs. Distance';
+% dir_out = fullfile(scat_out,subdir);
+% fname = strcat('COMBINED_epvs_ves_ori_vs_distance',substr,'.png');
+% scatter_op_vs_dist(x, comb_mean_ves_ori, comb_sem_ves_ori,...
+%                 comb_mean_epvs_ori, comb_sem_epvs_ori,err_flag,...
+%                 xlab, ylab, ori_yl, xt, ori_yt, tit, dir_out, fname, psize)
 
 %%% FRONTAL scatterplots (EPVS and ves)
 % Mus
@@ -259,14 +259,14 @@ scatter_op_vs_dist(x, front_mean_ves_ret, front_sem_ves_ret,...
                 front_mean_epvs_ret, front_sem_epvs_ret,err_flag,...
                 xlab, ylab, ret_yl,xt, ret_yt,tit, dir_out, fname, psize)
 % Orientation
-xlab = 'Distance (\mum)';
-ylab = '\sigma_{orientation} (radians)';
-tit = 'Frontal: CSDO vs. Distance';
-dir_out = fullfile(scat_out,subdir);
-fname = strcat('FRONT_epvs_ves_ori_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, front_mean_ves_ori, front_sem_ves_ori,...
-                front_mean_epvs_ori, front_sem_epvs_ori,err_flag,...
-                xlab, ylab, ori_yl,xt, ori_yt,tit, dir_out, fname, psize)
+% xlab = 'Distance (\mum)';
+% ylab = '\sigma_{orientation} (radians)';
+% tit = 'Frontal: CSDO vs. Distance';
+% dir_out = fullfile(scat_out,subdir);
+% fname = strcat('FRONT_epvs_ves_ori_vs_distance',substr,'.png');
+% scatter_op_vs_dist(x, front_mean_ves_ori, front_sem_ves_ori,...
+%                 front_mean_epvs_ori, front_sem_epvs_ori,err_flag,...
+%                 xlab, ylab, ori_yl,xt, ori_yt,tit, dir_out, fname, psize)
 
 %%% OCCIPITAL scatterplots (EPVS and ves)
 % Mus
@@ -288,14 +288,35 @@ scatter_op_vs_dist(x, occip_mean_ves_ret, occip_sem_ves_ret,...
                 occip_mean_epvs_ret, occip_sem_epvs_ret,err_flag,...
                 xlab, ylab, ret_yl,xt, ret_yt,tit,dir_out, fname, psize)
 % Orientation
-xlab = 'Distance (\mum)';
-ylab = '\sigma_{orientation} (radians)';
-tit = 'Occipital: CSDO vs. Distance';
-dir_out = fullfile(scat_out,subdir);
-fname = strcat('OCCIP_epvs_ves_ori_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, occip_mean_ves_ori, occip_sem_ves_ori,...
-                occip_mean_epvs_ori, occip_sem_epvs_ori,err_flag,...
-                xlab, ylab, ori_yl,xt, ori_yt,tit,dir_out, fname, psize)
+% xlab = 'Distance (\mum)';
+% ylab = '\sigma_{orientation} (radians)';
+% tit = 'Occipital: CSDO vs. Distance';
+% dir_out = fullfile(scat_out,subdir);
+% fname = strcat('OCCIP_epvs_ves_ori_vs_distance',substr,'.png');
+% scatter_op_vs_dist(x, occip_mean_ves_ori, occip_sem_ves_ori,...
+%                 occip_mean_epvs_ori, occip_sem_epvs_ori,err_flag,...
+%                 xlab, ylab, ori_yl,xt, ori_yt,tit,dir_out, fname, psize)
+
+%% Print min and max to console
+fprintf('\n-----Subject %s-----',subdir)
+fprintf('\nVessel')
+fprintf('\nFront ves mus: min = %f, max = %f',...
+    min(front_mean_ves_mus),max(front_mean_ves_mus))
+fprintf('\nFront ves ret: min = %f, max = %f',...
+    min(front_mean_ves_ret),max(front_mean_ves_ret))
+fprintf('\nOccip ves mus: min = %f, max = %f',...
+    min(occip_mean_ves_mus),max(occip_mean_ves_mus))
+fprintf('\nOccip ves ret: min = %f, max = %f',...
+    min(occip_mean_ves_ret),max(occip_mean_ves_ret))
+fprintf('\nEPVS')
+fprintf('\nFront EPVS mus: min = %f, max = %f',...
+    min(front_mean_epvs_mus),max(front_mean_epvs_mus))
+fprintf('\nFront EPVS ret: min = %f, max = %f',...
+    min(front_mean_epvs_ret),max(front_mean_epvs_ret))
+fprintf('\nOccip EPVS mus: min = %f, max = %f',...
+    min(occip_mean_epvs_mus),max(occip_mean_epvs_mus))
+fprintf('\nOccip EPVS ret: min = %f, max = %f',...
+    min(occip_mean_epvs_ret),max(occip_mean_epvs_ret))
 
 end
 
@@ -355,5 +376,5 @@ set(gca,'fontsize',40);
 
 % Save output
 fout = fullfile(dir_out,fname);
-pause(1); saveas(gcf,fout); close;
+saveas(gcf,fout); close;
 end

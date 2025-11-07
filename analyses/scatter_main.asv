@@ -22,6 +22,7 @@ xt = fprops.xt;
 psize = fprops.psize;
 % output folder & substring for filename
 scat_out = fprops.scat_out;
+subdir = fprops.subdir;
 substr = fprops.substr;
 % parenchyma structure stuff
 parench = fprops.parench;
@@ -31,6 +32,7 @@ err_flag = fprops.err_flag;
 % Upper limit for mus and retardance
 mus_max = fprops.mus_max;
 ret_max = fprops.ret_max;
+rm_outlier = fprops.rm_outlier;
 
 %%
 %%% Combined array for pairs of optical proprety vs. distance
@@ -122,8 +124,13 @@ for ii = 1:length(radii)
             % Retrieve vessel measurements (mus, ret, ori)
             ves = parench.(sub).(reg).(rname).outter.ves;
             % Apply upper limit threshold & 1.5*IQR outlier removal
-            mus = omit_outlier(ves.pmus, mus_max);
-            ret = omit_outlier(ves.pret, ret_max);
+            if rm_outlier
+                mus = omit_outlier(ves.pmus, mus_max);
+                ret = omit_outlier(ves.pret, ret_max);
+            else
+                mus = ves.pmus;
+                ret = ves.pret;
+            end
             ori = ves.pori;
             %%% Add data to combined vectors
             comb_ves_mus = [comb_ves_mus, mus];
@@ -145,8 +152,13 @@ for ii = 1:length(radii)
                 % Create local
                 epvs = parench.(sub).(reg).(rname).outter.epvs;
                 % Apply upper limit threshold & 1.5*IQR outlier removal
-                mus = omit_outlier(epvs.pmus, mus_max);
-                ret = omit_outlier(epvs.pret, ret_max);
+                if rm_outlier
+                    mus = omit_outlier(epvs.pmus, mus_max);
+                    ret = omit_outlier(epvs.pret, ret_max);
+                else
+                    mus = epvs.pmus;
+                    ret = epvs.pret;
+                end
                 ori = epvs.pori;
                 %%% Add to combined
                 comb_epvs_mus = [comb_epvs_mus, mus];
@@ -203,86 +215,156 @@ end
 xlab = 'Distance (\mum)';
 ylab = '\mus (cm^-^1)';
 tit = 'Combined: \mus vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
+dir_out = fullfile(scat_out,subdir);
 fname = strcat('COMBINED_epvs_ves_mus_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, comb_mean_ves_mus, comb_sem_ves_mus,...
                 comb_mean_epvs_mus, comb_sem_epvs_mus,err_flag,...
-                xlab, ylab, mus_yl, xt, mus_yt, tit, dir_out, psize, fname)
+                xlab, ylab, mus_yl, xt, mus_yt, tit, dir_out, fname, psize)
 % Retardance
 xlab = 'Distance (\mum)';
 ylab = 'Retardance (degrees)';
 tit = 'Combined: Retardance vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
+dir_out = fullfile(scat_out,subdir);
 fname = strcat('COMBINED_epvs_ves_ret_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, comb_mean_ves_ret, comb_sem_ves_ret,...
                 comb_mean_epvs_ret, comb_sem_epvs_ret,err_flag,...
-                xlab, ylab, ret_yl, xt, ret_yt, tit, dir_out, psize, fname)
+                xlab, ylab, ret_yl, xt, ret_yt, tit, dir_out, fname, psize)
 % Orientation
-xlab = 'Distance (\mum)';
-ylab = '\sigma_{orientation} (radians)';
-tit = 'Combined: CSDO vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('COMBINED_epvs_ves_ori_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, comb_mean_ves_ori, comb_sem_ves_ori,...
-                comb_mean_epvs_ori, comb_sem_epvs_ori,err_flag,...
-                xlab, ylab, ori_yl, xt, ori_yt, tit, dir_out, psize, fname)
+% xlab = 'Distance (\mum)';
+% ylab = '\sigma_{orientation} (radians)';
+% tit = 'Combined: CSDO vs. Distance';
+% dir_out = fullfile(scat_out,subdir);
+% fname = strcat('COMBINED_epvs_ves_ori_vs_distance',substr,'.png');
+% scatter_op_vs_dist(x, comb_mean_ves_ori, comb_sem_ves_ori,...
+%                 comb_mean_epvs_ori, comb_sem_epvs_ori,err_flag,...
+%                 xlab, ylab, ori_yl, xt, ori_yt, tit, dir_out, fname, psize)
 
 %%% FRONTAL scatterplots (EPVS and ves)
 % Mus
 xlab = 'Distance (\mum)';
 ylab = '\mus (cm^-^1)';
 tit = 'Frontal: \mus vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
+dir_out = fullfile(scat_out,subdir);
 fname = strcat('FRONT_epvs_ves_mus_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, front_mean_ves_mus, front_sem_ves_mus,...
                 front_mean_epvs_mus, front_sem_epvs_mus,err_flag,...
-                xlab, ylab, mus_yl, xt, mus_yt,tit, dir_out, psize, fname)
+                xlab, ylab, mus_yl, xt, mus_yt,tit, dir_out, fname, psize)
 % Retardance
 xlab = 'Distance (\mum)';
 ylab = 'Retardance (degrees)';
 tit = 'Frontal: Retardance vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
+dir_out = fullfile(scat_out,subdir);
 fname = strcat('FRONT_epvs_ves_ret_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, front_mean_ves_ret, front_sem_ves_ret,...
                 front_mean_epvs_ret, front_sem_epvs_ret,err_flag,...
-                xlab, ylab, ret_yl,xt, ret_yt,tit, dir_out, psize, fname)
+                xlab, ylab, ret_yl,xt, ret_yt,tit, dir_out, fname, psize)
 % Orientation
-xlab = 'Distance (\mum)';
-ylab = '\sigma_{orientation} (radians)';
-tit = 'Frontal: CSDO vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('FRONT_epvs_ves_ori_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, front_mean_ves_ori, front_sem_ves_ori,...
-                front_mean_epvs_ori, front_sem_epvs_ori,err_flag,...
-                xlab, ylab, ori_yl,xt, ori_yt,tit, dir_out, psize, fname)
+% xlab = 'Distance (\mum)';
+% ylab = '\sigma_{orientation} (radians)';
+% tit = 'Frontal: CSDO vs. Distance';
+% dir_out = fullfile(scat_out,subdir);
+% fname = strcat('FRONT_epvs_ves_ori_vs_distance',substr,'.png');
+% scatter_op_vs_dist(x, front_mean_ves_ori, front_sem_ves_ori,...
+%                 front_mean_epvs_ori, front_sem_epvs_ori,err_flag,...
+%                 xlab, ylab, ori_yl,xt, ori_yt,tit, dir_out, fname, psize)
 
 %%% OCCIPITAL scatterplots (EPVS and ves)
 % Mus
 xlab = 'Distance (\mum)';
 ylab = '\mus (cm^-^1)';
 tit = 'Occipital: \mus vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
+dir_out = fullfile(scat_out,subdir);
 fname = strcat('OCCIP_epvs_ves_mus_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, occip_mean_ves_mus, occip_sem_ves_mus,...
                 occip_mean_epvs_mus, occip_sem_epvs_mus,err_flag,...
-                xlab, ylab, mus_yl, xt, mus_yt, tit, dir_out, psize, fname)
+                xlab, ylab, mus_yl, xt, mus_yt, tit, dir_out, fname, psize)
 % Retardance
 xlab = 'Distance (\mum)';
 ylab = 'Retardance (degrees)';
 tit = 'Occipital: Retardance vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
+dir_out = fullfile(scat_out,subdir);
 fname = strcat('OCCIP_epvs_ves_ret_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, occip_mean_ves_ret, occip_sem_ves_ret,...
                 occip_mean_epvs_ret, occip_sem_epvs_ret,err_flag,...
-                xlab, ylab, ret_yl,xt, ret_yt,tit,dir_out, psize, fname)
+                xlab, ylab, ret_yl,xt, ret_yt,tit,dir_out, fname, psize)
 % Orientation
-xlab = 'Distance (\mum)';
-ylab = '\sigma_{orientation} (radians)';
-tit = 'Occipital: CSDO vs. Distance';
-dir_out = fullfile(scat_out,'/all_subjects/');
-fname = strcat('OCCIP_epvs_ves_ori_vs_distance',substr,'.png');
-scatter_op_vs_dist(x, occip_mean_ves_ori, occip_sem_ves_ori,...
-                occip_mean_epvs_ori, occip_sem_epvs_ori,err_flag,...
-                xlab, ylab, ori_yl,xt, ori_yt,tit,dir_out, psize, fname)
+% xlab = 'Distance (\mum)';
+% ylab = '\sigma_{orientation} (radians)';
+% tit = 'Occipital: CSDO vs. Distance';
+% dir_out = fullfile(scat_out,subdir);
+% fname = strcat('OCCIP_epvs_ves_ori_vs_distance',substr,'.png');
+% scatter_op_vs_dist(x, occip_mean_ves_ori, occip_sem_ves_ori,...
+%                 occip_mean_epvs_ori, occip_sem_epvs_ori,err_flag,...
+%                 xlab, ylab, ori_yl,xt, ori_yt,tit,dir_out, fname, psize)
 
+%% Print min and max to console
+fprintf('\n-----Subject %s-----',subdir)
+fprintf('\nFront mus: min = %f, max = %f',...
+    min(front_mean_ves_mus),max(front_mean_ves_mus))
+fprintf('\nFront ret: min = %f, max = %f',...
+    min(front_mean_ves_ret),max(front_mean_ves_ret))
+fprintf('\nOccip mus: min = %f, max = %f',...
+    min(occip_mean_ves_mus),max(occip_mean_ves_mus))
+fprintf('Occip ret: min = %f, max = %f',...
+    min(occip_mean_ves_ret),max(occip_mean_ves_ret))
+
+end
+
+%% Scatterplot function w/o error bars
+function scatter_op_vs_dist(x, ves_op, ves_sem, epvs_op, epvs_sem, err_flag,...
+                            xlab, ylab, yl, xt, yt, tit, dir_out, fname,...
+                            psize)
+% Scatter plot with error bars for optical property vs distance
+% INPUTS:
+%   - x (vector): x-axis positions
+%   - ves_op (vector): optical propery for vessels
+%   - ves_sem (vector): optical propery standard error for vessels
+%   - epvs_op (vector): optical propery for EPVS
+%   - epvs_sem (vector): optical propery standard error for EPVS
+%   - err_flag (bool): true = errorbar plotting
+%   - xlab (str): x-axis label
+%   - ylab (str): y-axis label
+%   - yl (vector): y-axis limits
+%   - xt (array): x-axis ticks
+%   - yt (array): y-axis ticks
+%   - tit (str): figure title
+%   - dir_out (str): output directory
+%   - fname (str): output filename
+%   - psize (int): point size
+
+% Init figure
+fig = figure('Position', [100, 100, 1000, 1000],'Resize', 'off');
+
+% Scatterplot with error bars
+if err_flag
+    h1 = errorbar(x,ves_op,ves_sem,'k'); hold on;
+    h2 = errorbar(x,epvs_op,epvs_sem,'r');
+    set(h1,'MarkerSize',psize);
+    set(h2,'MarkerSize',psize);
+else
+    scatter(x,ves_op,psize,'k','filled'); hold on;
+    scatter(x,epvs_op,psize,'r','filled');
+end
+
+% y-axis limits, ticks, etc.
+ylim(yl);
+yticks(yt);
+ytickformat('%.1f');
+ylabel(ylab);
+
+% x-axis label
+xlabel(xlab);
+xticks(xt);
+xtickformat('%.0f');
+
+% plot title
+title(tit);
+
+% Font and fontsize
+fontname(fig, "Helvetica")
+set(gca,'fontsize',40);
+
+% Save output
+fout = fullfile(dir_out,fname);
+saveas(gcf,fout); close;
 end

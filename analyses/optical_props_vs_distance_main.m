@@ -74,11 +74,11 @@ mus_max = 25; % 1/cm
 ret_max = 45; % degrees
 
 %%% Scatterplot limits for each optical property (no errorbars)
-mus_yl = [10.2, 12.75];
-ret_yl = [20, 30];
+mus_yl = [6, 14];
+ret_yl = [19, 33];
 ori_yl = [0, 1];
 % scatterplot y-axis tick marks
-mus_yt = min(mus_yl) : 0.5 : max(mus_yl);
+mus_yt = min(mus_yl) : 2 : max(mus_yl);
 ret_yt = min(ret_yl) : 2 : max(ret_yl);
 ori_yt = min(ori_yl) : 0.1 : max(ori_yl);
 
@@ -133,37 +133,30 @@ scatter_main(subjects, fprops)
 % x-axis = distance of ring from edge of epvs or vessel
 % Create for each subject
 
+% CAA 6
+subjects = {'caa6'};
+fprops.subdir = '/caa6/';
+scatter_main(subjects,fprops);
+
+% CAA 17
+subjects = {'caa17'};
+fprops.subdir = '/caa17/';
+scatter_main(subjects,fprops);
+
 % CAA 22
 subjects = {'caa22'};
 fprops.subdir = '/caa22/';
 scatter_main(subjects,fprops);
 
-%{
-%%% Most severe subject
-% set subject ID and region
-sub = 'caa22';
-reg = 'front';
-% subfolder for most severe subject
-fout = fullfile(scat_out,'/caa22f/');
-% Call scatterplot function
-subject_scatter_op_vs_dist(x, parench, sub,...
-                        mus_yl, ret_yl, ori_yl,...
-                        mus_yt, ret_yt, ori_yt,...
-                        xt,fout)
+% CAA 25
+subjects = {'caa25'};
+fprops.subdir = '/caa25/';
+scatter_main(subjects,fprops);
 
-%%% Least severe subject
-% set subject ID and region
-sub = 'caa6';
-reg = 'front';
-% subfolder for most severe subject
-fout = fullfile(scat_out,'/least_severe_epvs/');
-% Call scatterplot function
-subject_scatter_op_vs_dist(x, parench, sub,...
-                        mus_yl, ret_yl, ori_yl,...
-                        mus_yt, ret_yt, ori_yt,...
-                        xt, fout)
-%}
-
+% CAA 26
+subjects = {'caa26'};
+fprops.subdir = '/caa26/';
+scatter_main(subjects,fprops);
 
 %% Box/whisker Plots
 
