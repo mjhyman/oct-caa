@@ -18,7 +18,7 @@ scatter(xy(:,1), xy(:,2), 60, 'b', 'filled');
 xlabel(xlab);
 ylabel(ylab);
 title(tit);
-set(gca, 'fontsize', 20);
+set(gca, 'fontsize', 30);
 
 % Set axis limits
 xlim(xlims);

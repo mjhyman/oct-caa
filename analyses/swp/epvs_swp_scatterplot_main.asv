@@ -355,7 +355,7 @@ colors.front = {
 % Occipital (with CAA 17)
 labels.occip = {'CAA26 (Control)','CAA6 (Control)','CAA 17 (Moderate)',...
                'CAA 25 (Severe)','CAA 22 (Severe)'};
-colors.occip = {
+colors.front = {
     [0.3010 0.7450 0.9330];   % Cyan
     [0.0000 0.4470 0.7000];   % Blue
     [0.9290 0.6940 0.1250];   % Yellow
