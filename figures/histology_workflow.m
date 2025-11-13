@@ -1,0 +1,55 @@
+%% Import downsampled stains
+%{
+These are the stains that our collaborator performed. The grayscale images
+can be directly used to compute the stain density surrounding the EPVS
+because there is no counterstain. The deconvolved images had a
+counterstain and therefore had to be deconvolved to extract the target
+stain.
+
+The purpose of this script is to create the images for the histology
+workflow
+
+%}
+
+%% Top-level settings
+clear; clc; close all;
+% Get the current folder
+currentFolder = pwd;
+% Move one directory up
+parentFolder = fileparts(currentFolder);
+% Add the parent folder and all its subfolders to the MATLAB search path
+addpath(genpath(parentFolder));
+
+%%% Directories (SCC)
+% Input directory
+hdir='/projectnb/npbssmic/ns/CAA/histology/';
+% Directory to save output figures
+figdir = '/projectnb/npbssmic/ns/CAA/figures/histology_workflow/';
+
+%%% Load the struct with LHE stain and segmentation
+load(fullfile(hdir,'lhe_rings_15-Oct-2025.mat'));
+
+%% Create figure overlaying z-score with donuts
+
+% Create first layer of z-score stain
+zstain = lhe(2).z_stain;
+mask = lhe(2).mask;
+zstain(~mask) = -4;
+figure;
+imagesc(zstain); hold on;
+
+% Overlay with annotation
+epvs = lhe(2).epvs;
+se1 = strel('disk',0);
+se2 = strel('disk',rad_sm);
+inner = imdilate(epvs,se1);
+outter = imdilate(epvs,se2);
+annot = xor(inner, outter);
+overlay = cat(3, ones(size(zstain)), zeros(size(zstain)), zeros(size(zstain)));
+h = imagesc(overlay);
+% set(h,'AlphaData',0);
+set(h,'AlphaData',annot * 0.5);
+hold off
+set(gca,'XTick',[]); set(gca,'YTick',[])
+colorbar
+set(gca,'FontSize',20)
