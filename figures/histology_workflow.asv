@@ -6,27 +6,8 @@ because there is no counterstain. The deconvolved images had a
 counterstain and therefore had to be deconvolved to extract the target
 stain.
 
-Purpose of this script:
-- import stains
-    - convert to uint8 grayscale (if not already)
-- import EPVS annotations
-    - convert to logical
-- import non-EPVS Vessel annotations
-    - convert to logical
-- import tissue border
-    - convert to logical
-- systematic control measurements:
-    - evenly-spaced control measurements (exclude EPVS)
-- create struct of results
-
-Grayscale Images:
-- LHE
-- Gallyas
-
-Deconvolved:
-- CD68
-- Fibrin
-- GFAP
+The purpose of this script is to create the images for the histology
+workflow
 
 %}
 
@@ -43,248 +24,15 @@ addpath(genpath(parentFolder));
 % Input directory
 hdir='/projectnb/npbssmic/ns/CAA/histology/';
 % Directory to save output figures
-figdir = '/projectnb/npbssmic/ns/CAA/histology/';
+figdir = '/projectnb/npbssmic/ns/CAA/figures/histology_workflow/';
 
-%%% Output directory to save output
-stat_sheet = fullfile(hdir, 'histo_stats_03Oct2025.xlsx');
-
-%%% measurement radius (units = pixels)
-pix = 1.3067;               % um/pix
-rad_sm = ceil(40/pix);      % 39.2 um ~= 30 pixels
-rad_lg = ceil(100/pix);     % 39.2 um ~= 30 pixels
-radii_sm = rad_sm : rad_sm : rad_sm*12;
-radii_lg = rad_lg : rad_lg : rad_lg*5;
-
-%%% Flags
-% histogram matching
-hflag = true;
-
-%%% Load the struct with LHE stain and segmentation
-load(fullfile(hdir,'lhe_rings_15-Oct-2025.mat'));
-
-%% LHE
-% Stain directory
-stain_dir = fullfile(hdir,'LHE/');
-% stain suffix
-stain_suffix = '_M_BackgroundMask.tif';
-% EPVS suffix
-epvs_suffix = '_EPVS_Mask.tif';
-% Vessel filename suffix
-ves_suffix = '_VESSEL_Mask.tif';
-% Mask suffix
-mask_suffix = '_mask.tif';
-
-%%% Import LHE stain
-[lhe] = import_stain(stain_dir,stain_suffix,epvs_suffix, ...
-                    ves_suffix,mask_suffix);
-
-%% LHE EPVS + Vessel measurements
-% Measure the small radii
-fprintf('\nStarting small radii\n')
-lhe = measure_epvs_and_vessel_variable(lhe,radii_sm,rad_sm,pix);
-% Measure the large radii
-fprintf('\nStarting large radii\n')
-lhe = measure_epvs_and_vessel_variable(lhe,radii_lg,rad_lg,pix);
-
-
-%% save lhe, cd68, gfap structs with current date
-
-% Retrieve current date
-dt = string(datetime('now','Format','d-MMM-y'));
-% Create filenames
-lhe_fname = strcat('lhe_rings_',dt,'.mat');
-cd68_fname = strcat('cd68_rings_',dt,'.mat');
-gfap_fname = strcat('gfap_rings_',dt,'.mat');
-lhe_fname = fullfile(hdir,lhe_fname);
-cd68_fname = fullfile(hdir,cd68_fname);
-gfap_fname = fullfile(hdir,gfap_fname);
-% Save structs
-save(lhe_fname,'lhe','-v7.3');
-save(cd68_fname,'cd68','-v7.3');
-save(gfap_fname,'gfap','-v7.3');
-
-%% Export all measurements to spreadsheet
-
-%%% Setup output filename
-target_radii = {'rad40','rad100'};
-stains = {'lhe', 'cd68', 'gfap'};
-rings_filename = strcat('donut_measurements_',dt','.xlsx');
-means_filename = strcat('mean_donut_measurements_',dt','.xlsx');
-rings_filename = fullfile(hdir,rings_filename);
-means_filename = fullfile(hdir,means_filename);
-
-% Iterate over stains
-for idx = 1:numel(stains)
-    structName = stains{idx};
-    S = eval(structName); % Get LHE, CD68 or GFAP struct
-    raw = {};
-    means = {};
-    for iEntry = 1:numel(S)
-        baseName = S(iEntry).baseName;
-        % Loop over radius size fields (e.g., rad40, rad100, ...)
-        radiusSizes = fieldnames(S(iEntry));
-        radiusSizes = radiusSizes(contains(radiusSizes,target_radii));
-        for iSize = 1:numel(radiusSizes)
-            radSizeName = radiusSizes{iSize};
-            radiusGroup = S(iEntry).(radSizeName);
-            radiusValues = fieldnames(radiusGroup);
-            for iVal = 1:numel(radiusValues)
-                radValName = radiusValues{iVal};
-                radValStruct = radiusGroup.(radValName);
-                %%% Extract all measurements in vector 
-                for type = {'exp', 'ctl'}
-                    mType = type{1};
-                    values = radValStruct.(mType);
-                    for vi = 1:numel(values)
-                        % Exclude NaN values
-                        if ~isnan(values(vi))
-                            raw(end+1,:) = {baseName, radSizeName,...
-                                            radValName, mType, values(vi)};
-                        end
-                    end
-                end
-                %%% Extract mean of measurements in vector 
-                for type = {'exp_mean', 'ctl_mean'}
-                    % Exclude NaN values
-                    if ~isnan(radValStruct.(type{1}))
-                        means(end+1,:) = {baseName, radSizeName,...
-                                        radValName, type{1},...
-                                        radValStruct.(type{1})};
-                    end
-                end
-            end
-        end
-    end
-    % Create Table for all measurements from stain
-    T = cell2table(raw, 'VariableNames',...
-                   {'baseName','radiusSize','radiusValue',...
-                   'measurementType','measurement'});
-    writetable(T, rings_filename, 'Sheet', structName);
-
-    % Create Table for mean measurements from stain
-    T = cell2table(means, 'VariableNames',...
-                   {'baseName','radiusSize','radiusValue',...
-                   'measurementType','measurement'});
-    writetable(T, means_filename, 'Sheet', structName);
-end
-
-%% Gallyas
-%{
-%%% Top-Level
-% directory to Gallyas stains
-gallyas_dir=['/autofs/cluster/octdata3/users/mjhyman' ...
-    '/oct_caa_analyses/histology/Gallyas/'];
-% Subfolders for each subject
-subdirs = {'CAA6_frontal_61_Gallyas','CAA6_occipital_57_Gallyas',...
-    'CAA25_frontal_65_Gallyas_5x',...
-    'CAA25_occipital_81_Gallyas_5x','CAA26_frontal_48_Gallyas_5x',...
-    'CAA26_occipital_120_Gallyas_5x'};
-% Initialize struct array for storing histology
-gal = struct();
-
-%%% Import
-%%% Set filename suffixes
-% WM mask
-suf_mask = '_5x_ds_mask.tif';
-% stain
-suf_stain = '_5x_ds_gray_reg.tif';
-% EPVS annotations
-suf_epvs = '_5x_ds_EPVS_reg.tif';
-% vessel annotations
-suf_ves = '_5x_ds_VES_reg.tif';
-% OCT (retardance)
-suf_oct = '_RET.tif';
-% string to remove to find basename
-suf_rm = '_5x_ds_mask.tif';
-
-% Iterate over subject/region
-for ii = 1:length(subdirs)
-    % Set the folder for subject/region
-    folder = fullfile(gallyas_dir,subdirs{ii});
-    
-    %%% Extract base filename
-    % List all EPVS mask files
-    mask_fnames = strcat('*',suf_mask);
-    mask_files = dir(fullfile(folder, mask_fnames));
-    % Extract base filename
-    epvs_filename = mask_files.name;
-    base_name = erase(epvs_filename, suf_rm);
-    
-    %%% Import each image
-    % Construct full file paths
-    mask_path = fullfile(folder, [base_name suf_mask]);
-    stain_path = fullfile(folder, [base_name suf_stain]);
-    epvs_path = fullfile(folder, [base_name suf_epvs]);
-    ves_path = fullfile(folder, [base_name suf_ves]);
-    ret_path = fullfile(folder, [base_name suf_oct]);
-    
-    % Load the images (assume both files exist)
-    mask = logical(imread(mask_path));
-    stain = imread(stain_path);
-    epvs = logical(imread(epvs_path));
-    ves = logical(imread(ves_path));
-    ret = imread(ret_path);
-
-    %%% Invert the stain
-    % Darker = more stain, but appears as lower number in Matlab
-    % We want the opposite trend where higher number denotes more stain.
-    stain = 255 - stain;
-
-    %%% Check if the images have 3 channels, if so take first
-    mask = single_ch(mask);
-    epvs = single_ch(epvs);
-    ves = single_ch(ves);
-    ret = single_ch(ret);
-
-    % Store in struct
-    gal(ii).baseName = string(base_name);
-    gal(ii).mask = mask;
-    gal(ii).image = stain;
-    gal(ii).epvs = epvs;
-    gal(ii).ves = ves;
-    gal(ii).ret = ret;
-end
-%}
-
-%% Statistics: histology vs. retardance
-%{
-% Define constant for dilating donut from the inner radius
-r = 2;
-% Define vector of radii (pixels)
-radii = 0:r:20;
-% Measure at each distance and measure correlation
-gal_stat = corr_histo_oct(gal,radii,r);
-% Scatter plot + stats for each subject
-scatter_histo_oct(gal_stat,figdir);
-
-%%% Combine all subjects at each distance
-% Limits for scatter plots
-xl = [-0.2, 0.65];
-yl = [30, 32.2];
-gal_stats_table = corr_region_distance(gal_stat,xl,yl,figdir);
-%}
-
-%% Combine all subjects within each stain (separate EVPS & Vessel)
-%{
-[epvs, ves] = stain_epvs_ves(lhe, 'LHE');
-fprintf('LHE: Median EPVS = %f\n',median(epvs,'omitnan'));
-fprintf('LHE: Median Ves = %f\n',median(ves,'omitnan'));
-fprintf('LHE: Mean EPVS = %f\n',mean(epvs,'omitnan'));
-fprintf('LHE: Mean Ves = %f\n',mean(ves,'omitnan'));
-[epvs, ves] = stain_epvs_ves(cd68, 'CD68');
-fprintf('CD68: Median EPVS = %f\n',median(epvs,'omitnan'));
-fprintf('CD68: Median Ves = %f\n',median(ves,'omitnan'));
-fprintf('CD68: Mean EPVS = %f\n',mean(epvs,'omitnan'));
-fprintf('CD68: Mean Ves = %f\n',mean(ves,'omitnan'));
-[epvs, ves] = stain_epvs_ves(gfap, 'GFAP');
-fprintf('GFAP: Median EPVS = %f\n',median(epvs,'omitnan'));
-fprintf('GFAP: Median Ves = %f\n',median(ves,'omitnan'));
-fprintf('GFAP: Mean EPVS = %f\n',mean(epvs,'omitnan'));
-fprintf('GFAP: Mean Ves = %f\n',mean(ves,'omitnan'));
-%}
+%%% Load the stain and segmentation structs
+lhe = load(fullfile(hdir,'lhe_rings_15-Oct-2025.mat')); lhe = lhe.lhe;
+gfap = load(fullfile(hdir,'gfap_rings_15-Oct-2025.mat')); gfap = gfap.gfap;
+cd68 = load(fullfile(hdir,'cd68_rings_15-Oct-2025.mat')); cd68 = cd68.lhe;
 
 %% Create figure overlaying z-score with donuts
-%{
+
 % Create first layer of z-score stain
 zstain = lhe(2).z_stain;
 mask = lhe(2).mask;
@@ -307,4 +55,5 @@ hold off
 set(gca,'XTick',[]); set(gca,'YTick',[])
 colorbar
 set(gca,'FontSize',20)
-%}
+
+%% Scatterplots of stain z-scores vs. distance

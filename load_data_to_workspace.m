@@ -34,5 +34,3 @@ caa17 = caa17.caa17;
 caa22 = caa22.caa22;
 caa25 = caa25.caa25;
 caa26 = caa26.caa26;
-
-% Print out which subjects have been loaded

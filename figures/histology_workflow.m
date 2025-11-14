@@ -26,8 +26,10 @@ hdir='/projectnb/npbssmic/ns/CAA/histology/';
 % Directory to save output figures
 figdir = '/projectnb/npbssmic/ns/CAA/figures/histology_workflow/';
 
-%%% Load the struct with LHE stain and segmentation
-load(fullfile(hdir,'lhe_rings_15-Oct-2025.mat'));
+%%% Load the stain and segmentation structs
+lhe = load(fullfile(hdir,'lhe_rings_15-Oct-2025.mat')); lhe = lhe.lhe;
+gfap = load(fullfile(hdir,'gfap_rings_15-Oct-2025.mat')); gfap = gfap.gfap;
+cd68 = load(fullfile(hdir,'cd68_rings_15-Oct-2025.mat')); cd68 = cd68.cd68;
 
 %% Create figure overlaying z-score with donuts
 
@@ -53,3 +55,5 @@ hold off
 set(gca,'XTick',[]); set(gca,'YTick',[])
 colorbar
 set(gca,'FontSize',20)
+
+%% Scatterplots of stain z-scores vs. distance
