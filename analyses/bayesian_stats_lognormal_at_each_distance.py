@@ -7,6 +7,7 @@ import seaborn as sns
 import os
 import pickle
 import argparse as ap
+from datetime import datetime
 
 # -----------------------
 # Configuration
@@ -24,16 +25,18 @@ except:
     distance = 40
     print(f"Running model with default distance (40 microns) as debug")
 
-sheet_names = ["scattering", "retardance", "orientation"]
+sheet_names = ["scattering", "retardance"]
 
+# Create output filepath
+date = datetime.now().strftime("%Y_%m_%d")
 output_excel_path = (
     "/projectnb/npbssmic/ns/CAA/beta_stats/posteriors/"
-    f"bayes_posterior_distance_{distance}.xlsx")
+    f"bayes_posterior_distance_{distance}_{date}.xlsx")
 
 posterior_dir = "/projectnb/npbssmic/ns/CAA/beta_stats/posteriors/"
 os.makedirs(posterior_dir, exist_ok=True)
 
-def run_pymc_model(data, sheet, region_str, use_tissue_effect=True, distance=None):
+def run_pymc_model(data: pd.DataFrame, sheet: str, region_str: str, use_tissue_effect=True, distance=None):
     data.columns = data.columns.str.strip().str.lower()
     data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)
 
@@ -171,7 +174,7 @@ def plot_overlay_posteriors(beta_samples_dict, sheet, posterior_dir, distance):
 with pd.ExcelWriter(output_excel_path, engine="openpyxl") as writer:
     for sheet in sheet_names:
         full_data = pd.read_excel(
-            '/projectnb/npbssmic/ns/CAA/caa_all_radii_40um_donut.xlsx',sheet_name=sheet)
+            '/projectnb/npbssmic/ns/CAA/caa_all_radii_40um_donut_03Nov2025.xlsx',sheet_name=sheet)
 
         full_data.columns = full_data.columns.str.strip().str.lower()
         full_data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)

@@ -1,4 +1,4 @@
-function xy_out = scatter_subset(pair, N, xlab, ylab, tit, plt_flag)
+function xy_out = bin_swp(pair, N)
 % Efficient scatter plot: averages all points in disjoint x-windows, returning at most N points
 % INPUTS:
 %   pair (Nx2 matrix): [x, y]
@@ -62,14 +62,4 @@ function xy_out = scatter_subset(pair, N, xlab, ylab, tit, plt_flag)
     valid_bins = ~isnan(x_bin_mean) & ~isnan(y_bin_mean);
 
     xy_out = [x_bin_mean(valid_bins), y_bin_mean(valid_bins)];
-
-    % Plot
-    if plt_flag
-        figure;
-        scatter(xy_out(:,1), xy_out(:,2), 60, 'b', 'filled');
-        xlabel(xlab);
-        ylabel(ylab);
-        title(tit);
-        set(gca, 'fontsize', 20);
-    end
 end

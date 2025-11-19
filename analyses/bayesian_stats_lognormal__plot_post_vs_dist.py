@@ -182,10 +182,10 @@ def plot_overlay_errorbar(df, sheet_name, output_dir, ylims):
 
 
 def main():
-    posterior_dir = "/projectnb/npbssmic/ns/CAA/beta_stats/posteriors/"
-    output_dir = "/projectnb/npbssmic/ns/CAA/beta_stats/figures/"
+    posterior_dir = "/projectnb/npbssmic/ns/CAA/beta_spline/"
+    output_dir = "/projectnb/npbssmic/ns/CAA/beta_spline/figures/"
     os.makedirs(output_dir, exist_ok=True)
-    sheet_names = ["scattering", "retardance", "orientation"]
+    sheet_names = ["scattering", "retardance"]
 
     for sheet_name in sheet_names:
         print(f"Processing sheet: {sheet_name}")

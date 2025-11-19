@@ -6,25 +6,51 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pickle
 import os
+from datetime import datetime
 from patsy import dmatrix
 
 # -----------------------
 # Configuration
 # -----------------------
-sheet_names = ["scattering", "retardance", "orientation"]
+# Optical properties to parse
+sheet_names = ["scattering", "retardance"]
 
-output_excel_path = (
-    "/projectnb/npbssmic/ns/CAA/beta_spline/"
-    "beta_spline_10Aug2025.xlsx")
-
+# Directory for storing the beta spline model
 posterior_dir = "/projectnb/npbssmic/ns/CAA/beta_spline/"
 os.makedirs(posterior_dir, exist_ok=True)
 
-def run_pymc_model(data, sheet, region_str, stats_dir, use_tissue_effect=True):
+# Output file path
+date = datetime.now().strftime("%Y_%m_%d")
+output_excel_path = ("/projectnb/npbssmic/ns/CAA/beta_spline/"
+                     f"beta_spline_{date}.xlsx")
+
+# Outliers for each optical property
+ulimit = {'scattering': 25,
+          'retardance': 45}
+
+# Python Monte-Carlo (pymc) Sampling parameters
+pymc_params = {
+    'draws': 1000,          # typically 1000 - 2000
+    'tune': 1000,           # typically 1000 - 2000
+    'target_accept': 0.8,  # typically 0.9 - 0.99 for hierarchical/difficult parameters
+    'max_treedepth': 15,    # up to 15 for difficult posterios
+    'random_seed': 42,      # any integer for reproducibility
+    'progressbar': False}   # Set to false if running in script
+
+def run_pymc_model(data, sheet, region_str, stats_dir, pymc_params, use_tissue_effect=False):
+    """
+    Define  PYMC model based on data, perform random sampling, generate statistics
+    :param data: Dataframe subset of spreadsheet
+    :param sheet: the optical property
+    :param region_str: the brain region (front or occip)
+    :param stats_dir: directory to output the PYMC model as a pkl file
+    :param pymc_params: dictionary of pymc values
+    :param use_tissue_effect: boolean for combining frontal and occipital
+    :return: Does not return any variables. saves the model to the stats_dir
+    """
     # --- Preprocess ---
     data.columns = data.columns.str.strip().str.lower()
     data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)
-    data = data[(data["y"] > 0) & np.isfinite(data["y"]) & data["y"].notna()]
 
     # Extract Values from dataframes
     y_obs = data["y"].values
@@ -58,31 +84,44 @@ def run_pymc_model(data, sheet, region_str, stats_dir, use_tissue_effect=True):
     X_spline = np.hstack([X_cond0, X_cond1])  # shape: (n_samples, 2 * n_splines)
 
     # --- Priors based on observed data ---
-    mu_inter = np.log(np.median(y_obs))
+    mu_inter = np.mean(np.log(y_obs))
     sigma_inter = np.std(np.log(y_obs))
 
     subject_std = data.groupby(subject_idx)["y"].mean().std(ddof=1)
     residual_std = (y_obs - data.groupby(condition_code)["y"].transform("mean")).std(ddof=1)
 
     with pm.Model() as model:
+        # -----------------------
         # Distribution of priors for intercept, subject, residual
+        # -----------------------
         mu_intercept = pm.Normal("mu_intercept", mu=mu_inter, sigma=sigma_inter)
         sigma_subject = pm.HalfNormal("sigma_subject", sigma=subject_std)
         sigma_residual = pm.HalfNormal("sigma_residual", sigma=residual_std)
 
-        # subject-level effects
+        # -----------------------
+        # subject-level effects (non-centered parameterization)
+        # -----------------------
+        # Random effects of each subject (deviation from group average [units = Group Std. Dev.])
         z_subject = pm.Normal("z_subject", mu=0, sigma=1, shape=n_subjects)
+        # Scale each subject's deviation by the group-level Std. Dev. - more realistic effect sizes
         subject_effect = pm.Deterministic("subject_effect", z_subject * sigma_subject)
 
+        # -----------------------
         # Spline coefficients (2 × n_splines for 2 conditions)
+        # -----------------------
+        # Regression coefficients (n_splines is the degrees of freedom). The first n_splines values are the coefficients
+        #  for EPVS, and the subsequent n_splines values are the coefficients for the vessels.
         beta_spline = pm.Normal("beta_spline", mu=0, sigma=0.5, shape=2 * n_splines)
-
-        # Deterministic: difference of splines (condition 1 - condition 0)
+        # Difference in spline weights [experimental (EPVS, condition 1) - control (vessels, condition 0)]
+        # larger difference b/w weights indicates larger difference b/w groups
         beta_diff = pm.Deterministic("beta_diff", beta_spline[n_splines:] - beta_spline[:n_splines])
-
+        # Non-linear effect for each coefficient (reflects actual value of spline curve on log scale)
         spline_term = pm.math.dot(X_spline, beta_spline)
 
-        # Tissue effect when combining frontal and occipital
+        # -----------------------
+        # Account for combining frontal and occipital
+        # -----------------------
+        # use_tissue_effect is true when combining frontal and occipital into single vector
         if use_tissue_effect:
             tissue_std = data.groupby(tissue_idx)["y"].mean().std(ddof=1)
             sigma_tissue = pm.HalfNormal("sigma_tissue", sigma=tissue_std)
@@ -94,30 +133,35 @@ def run_pymc_model(data, sheet, region_str, stats_dir, use_tissue_effect=True):
             # Linear Predictor
             mu = mu_intercept + spline_term + subject_effect[subject_idx]
 
-        # ---- Likelihood Distribution from log normal (only positive values for each optical property) ----
-        # y = pm.LogNormal("y", mu=mu, sigma=sigma_residual, observed=y_obs)
-
-        # ---- Prior for degrees of freedom of StudentT ----
-        nu = pm.Exponential("nu", 1 / 30)  # mean about 30
+        # -----------------------
+        # Model the likelihood
+        # -----------------------
+        # degrees of freedom (normality) for StudentT distributions
+        nu = pm.Exponential("nu", 1 / mu_inter)
         # Likelihood: StudentT on log-scale
         log_y_obs = np.log(y_obs)
         y = pm.StudentT("y", mu=mu, sigma=sigma_residual, nu=nu, observed=log_y_obs)
 
-        # ---- Sample the distribution "y" ----
+        # -----------------------
+        # Sample the distribution "y" (time-consuming step)
+        # -----------------------
         print(f"\nSampling the MCMC distribution.")
-        trace = pm.sample(draws=4000, tune=2000, target_accept=0.97, max_treedepth=15,
-                          random_seed=42, progressbar=False)
+        trace = pm.sample(draws=pymc_params['draws'], tune=pymc_params['tune'],
+                          target_accept=pymc_params['target_accept'],
+                          max_treedepth=pymc_params['max_treedepth'],
+                          random_seed=pymc_params['random_seed'],
+                          progressbar=pymc_params['progressbar'])
 
-    # ---- Summary ----
+    # ---- Print the summary statistics to console (these are saved in log) ----
     var_names = ["beta_spline", "beta_diff", "mu_intercept", "sigma_subject", "sigma_residual"]
     if use_tissue_effect:
         var_names.append("sigma_tissue")
     # Create printable summary of results
     summary_df = az.summary(trace, var_names=var_names)
-    print(f"\nSummary statistics for sheet '{sheet}' and region '{region_str}':")
+    print(f"\nSummary statistics for '{sheet}' and region '{region_str}':")
     print(summary_df.to_string())
 
-    # ---- Save outputs ----
+    # ---- Save outputs to spreadsheets and pickle objects----
     safe_sheet = sheet.replace(" ", "_").lower()
     safe_region = region_str.replace(" ", "_").lower()
     suffix = f"{safe_sheet}_{safe_region}"
@@ -140,6 +184,7 @@ def run_pymc_model(data, sheet, region_str, stats_dir, use_tissue_effect=True):
         pickle.dump(spline_basis, f)
 
     # ---- Plot the spline fit ----
+    # This can also be called after generating the model from a batch script and using the separate plotting script
     try:
         # Extract posterior means for spline coefficients
         beta_spline_mean = trace.posterior["beta_spline"].mean(dim=["chain", "draw"]).values
@@ -298,46 +343,66 @@ def highlight_significant_intervals(x_vals, sig_mask, color='yellow', alpha=0.3)
 for sheet in sheet_names:
     full_data = pd.read_excel(
         '/projectnb/npbssmic/ns/CAA/'
-        'caa_all_radii_40um_donut.xlsx',sheet_name=sheet)
+        'caa_all_radii_40um_donut_03Nov2025.xlsx',sheet_name=sheet)
 
     full_data.columns = full_data.columns.str.strip().str.lower()
     full_data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)
 
-    if sheet in ["scattering", "retardance"]:
-        Q1 = np.percentile(full_data["y"], 25)
-        Q3 = np.percentile(full_data["y"], 75)
-        IQR = Q3 - Q1
-        lower_bound = Q1 - 1.5 * IQR
-        upper_bound = Q3 + 1.5 * IQR
-        full_data = full_data[(full_data["y"] >= lower_bound) & (full_data["y"] <= upper_bound)]
-        print(f"\nSheet: {sheet} - {len(full_data)} samples after outlier removal.")
-
+    # -----------------------
+    # Remove upper outliers, apply lower threshold, remove NAN ###
+    # -----------------------
+    # Remove upper limit outliers
+    full_data = full_data[full_data["y"] < ulimit[sheet]]
+    # Apply lower limit (0 for both mus and retardance)
     full_data = full_data[full_data["y"] > 0]
+    # Ensure all are finite
     full_data = full_data[np.isfinite(full_data["y"])]
+    # Remove NaNs
     full_data = full_data.dropna(subset=["y"])
     assert len(full_data) > 10, "Too few observations left after cleaning!"
     assert (full_data["y"] > 0).all(), "All values must be > 0 for LogNormal"
 
-    posterior_samples_dict = {}
+    def iqr_outlier_mask(g):
+        """
+        Perform 1.5*IQR outlier removal
+        :param g: the group (region/subject) of data for 1.5*IQR removal
+        :return: g after performing the 1.5*IQR removal
+        """
+        q1 = np.percentile(g['y'], 25)
+        q3 = np.percentile(g['y'], 75)
+        iqr = q3 - q1
+        lower = q1 - 1.5 * iqr
+        upper = q3 + 1.5 * iqr
+        return (g['y'] >= lower) & (g['y'] <= upper)
+
+    # Apply mask for each subject-region combo
+    mask = full_data.groupby(['region', 'subject'], group_keys=False).apply(iqr_outlier_mask)
+    full_data = full_data[mask]
+    print(f"\nSheet: {sheet} - {len(full_data)} samples after subject+region IQR outlier removal.")
+    outlier_counts = full_data.groupby(['region', 'subject'])['y'].count()
+    print(outlier_counts)
 
     # Frontal
     print(f"Running model for sheet '{sheet}' with frontal region only.")
     frontal_data = full_data[full_data["region"].str.lower() == "front"].copy()
     if len(frontal_data) > 10:
         diff_mean_frontal, diff_hpd_frontal, significant_frontal, _ = \
-            run_pymc_model(frontal_data, sheet, 'frontal', posterior_dir, False)
+            run_pymc_model(frontal_data, sheet, 'frontal',
+                           posterior_dir, pymc_params, False)
 
     # Occipital
     print(f"Running model for sheet '{sheet}' with occipital region only.")
     occipital_data = full_data[full_data["region"].str.lower() == "occip"].copy()
     if len(occipital_data) > 10:
         diff_mean_occipital, diff_hpd_occipital, significant_occipital, _ = \
-            run_pymc_model(occipital_data, sheet, 'occipital', posterior_dir,False)
+            run_pymc_model(occipital_data, sheet, 'occipital',
+                           posterior_dir, pymc_params,False)
 
     # All regions combined
     print(f"\nRunning model for sheet '{sheet}' with all regions combined.")
     diff_mean_combined, diff_hpd_combined, significant_combined, distance_grid = \
-        run_pymc_model(full_data.copy(), sheet, 'combined', posterior_dir, True)
+        run_pymc_model(full_data.copy(), sheet, 'combined',
+                       posterior_dir, pymc_params, True)
 
     print(f"\nCreating figure with all regions combined.")
     # ---- Overlay plot ----

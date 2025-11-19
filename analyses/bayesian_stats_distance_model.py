@@ -11,7 +11,7 @@ from patsy import dmatrix
 # -----------------------
 # Configuration
 # -----------------------
-sheet_names = ["scattering", "retardance", "orientation"]
+sheet_names = ["scattering", "retardance"]
 
 output_excel_path = (
     "/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical_properties/statistics/"
@@ -21,8 +21,6 @@ posterior_dir = "/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical
 os.makedirs(posterior_dir, exist_ok=True)
 
 def run_pymc_model(data, sheet, region_str, stats_dir, use_tissue_effect=True):
-    import matplotlib.patches as patches
-
     # --- Preprocess ---
     data.columns = data.columns.str.strip().str.lower()
     data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)
@@ -302,7 +300,7 @@ def highlight_significant_intervals(x_vals, sig_mask, color='yellow', alpha=0.3)
 for sheet in sheet_names:
     full_data = pd.read_excel(
         '/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/optical_properties/'
-        'caa_all_radii_40um_donut.xlsx',sheet_name=sheet)
+        'caa_all_radii_40um_donut_03Nov2025.xlsx',sheet_name=sheet)
 
     full_data.columns = full_data.columns.str.strip().str.lower()
     full_data.rename(columns={"groups": "condition", "subid": "subject", "opticalproperty": "y"}, inplace=True)
