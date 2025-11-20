@@ -39,35 +39,23 @@ radii_lg = [100, 201, 301, 402, 503];
 %% AVERAGE across subjects -- scatterplot of histology vs. distance
 close all;
 % LHE
-[sm, lg] = mean_std_stain(lhe);
+[sm, lg] = mean_std_stain(lhe, radii_sm, radii_lg);
 stain_errorbar(sm, lg, radii_sm, radii_lg, 'LHE', figdir)
 
 % Import GFAP
-[sm, lg] = mean_std_stain(gfap);
+[sm, lg] = mean_std_stain(gfap, radii_sm, radii_lg);
 stain_errorbar(sm, lg, radii_sm, radii_lg, 'GFAP', figdir)
 
 % Import CD68
-[sm, lg] = mean_std_stain(cd68);
+[sm, lg] = mean_std_stain(cd68, radii_sm, radii_lg);
 stain_errorbar(sm, lg, radii_sm, radii_lg, 'CD68', figdir)
 
 %% AVERAGE within subjects -- scatterplot of histology vs. distance
 close all;
-
-%%% LHE
-% Consolidate measurements within each subject
+% LHE
 [lhe_sm] = iterate_subject_radii(lhe, "rad40");
 [lhe_lg] = iterate_subject_radii(lhe, "rad100");
-% Iterate over subjects
-subs = fields(lhe_sm);
-for ii = 1:length(subs)
-    % Extract subject from small and large
-    sm = lhe_sm.(subs{ii});
-    lg = lhe_lg.(subs{ii});
-    % Rename string to include subject ID
-    tstr = strcat('LHE_', subs{ii});
-    % Plot errorbar for subject and save
-    stain_errorbar(sm, lg, radii_sm, radii_lg, tstr, figdir)
-end
+stain_errorbar(sm, lg, radii_sm, radii_lg, 'LHE', figdir)
 
 % Import GFAP
 [sm, lg] = mean_std_stain(gfap, radii_sm, radii_lg);
@@ -226,8 +214,8 @@ for s = 1:length(subs)
         % Take mean & std dev within subject
         mean_epvs(ii) = mean(epvs,'omitnan');
         std_epvs(ii) = std(epvs,'omitnan');
-        mean_ves(ii) = mean(ves,'omitnan');
-        std_ves(ii) = std(ves,'omitnan');
+        mean_ves(ii) = mean(ves);
+        std_ves(ii) = std(ves);
     end
     % Add each subject vector to struct
     stats.(subs{s}).mean_epvs = mean_epvs;

@@ -17,15 +17,12 @@ Outline:
 %}
 
 %% Prepare environment
-clear; clc; close all;
+% clear; clc; close all;
 % Add top-level directory
 current_dir = pwd;
 addpath(fullfile(current_dir));
 
 %%% Input directory (Martinos or SCC)
-% Martinos directory for loading seg, mus, ret, mask, epvs
-% data_dir = ['/autofs/cluster/octdata3/users/mjhyman/' ...
-%     'oct_caa_analyses/optical_properties'];
 % SCC
 data_dir = '/projectnb/npbssmic/ns/CAA/';
 
@@ -34,8 +31,13 @@ scat_out = fullfile(data_dir,'/scatter_plots');
 bw_out = fullfile(data_dir,'/bw_plots');
 
 %%% Load parenchyma struct
+% This file contains the measurements at each radius
 load(fullfile(data_dir, ...
     "parenchyma_optical_properties_40um_thick_09Oct2025.mat"));
+
+%%% Load median white matter value of each subject/region
+% Load median white matter values for each subject
+load(fullfile(data_dir, 'median_white_matter_values_14-Nov-2025.mat'));
 
 %%% Figure parameters
 % Scatter plot dot size
@@ -47,11 +49,25 @@ err_flag = false;
 
 %%% Setting flag for removing outliers
 % Flag to remove outliers
-% rm_outlier = false;
-% substr = '_max_removed_40um_donut_03Nov2025';
-% Flag to remove outliers
 rm_outlier = true;
-substr = '_max_removed_OutlierRm_40um_donut_03Nov2025';
+% Create filename 
+if rm_outlier
+    substr = '_max_removed_OutlierRm_40um_donut_03Nov2025';
+else
+    substr = '_max_removed_40um_donut_03Nov2025';
+end
+
+%%% Setting flag for subtracting baseline median from vectors
+% If this is true, then the following will be achieved:
+%   1) remove values above threshold
+%   2) remove values outside 1.5*IQR
+%   3) subtract the median WM optical property from vector
+subtract_median = true;
+if subtract_median
+    substr = ['_max_removed__outlier_removed__median_subtracted__' ...
+              '40um_donut_14Nov2025'];
+end
+
 
 %% Figure axes and limits
 
@@ -74,12 +90,24 @@ mus_max = 25; % 1/cm
 ret_max = 45; % degrees
 
 %%% Scatterplot limits for each optical property (no errorbars)
-mus_yl = [6, 14];
-ret_yl = [19, 33];
+% Set limits for the case of subtracting offset
+if subtract_median
+    % y-axis limits
+    mus_yl = [-0.1, 0.8];
+    ret_yl = [-3, 0.5];
+    % scatterplot y-axis tick marks
+    mus_yt = min(mus_yl) : 0.2 : max(mus_yl);
+    ret_yt = min(ret_yl) : 0.5 : max(ret_yl);
+else
+    % y-axis limits
+    mus_yl = [6, 14];
+    ret_yl = [19, 33];
+    % scatterplot y-axis tick marks
+    mus_yt = min(mus_yl) : 2 : max(mus_yl);
+    ret_yt = min(ret_yl) : 2 : max(ret_yl);
+end
+% Set limits for orientation (unaffected by offset subtraction)
 ori_yl = [0, 1];
-% scatterplot y-axis tick marks
-mus_yt = min(mus_yl) : 2 : max(mus_yl);
-ret_yt = min(ret_yl) : 2 : max(ret_yl);
 ori_yt = min(ori_yl) : 0.1 : max(ori_yl);
 
 %%% Scatterplot limits for each optical property (w/ errorbars)
@@ -125,7 +153,7 @@ fprops.rm_outlier = rm_outlier;
 subjects = fieldnames(parench);
 
 % call function to create scatter plots
-scatter_main(subjects, fprops)
+scatter_main(subjects, fprops, parench_median)
 
 
 %% Scatterplot optical property vs. distance (separate subjects)
@@ -133,30 +161,53 @@ scatter_main(subjects, fprops)
 % x-axis = distance of ring from edge of epvs or vessel
 % Create for each subject
 
+%%% Rest the scatterplot limits
+% Set limits for the case of subtracting offset
+if subtract_median
+    % y-axis limits
+    mus_yl = [-1, 3];
+    ret_yl = [-5, 2];
+    % scatterplot y-axis tick marks
+    mus_yt = min(mus_yl) : 0.5 : max(mus_yl);
+    ret_yt = min(ret_yl) : 1 : max(ret_yl);
+else
+    % y-axis limits
+    mus_yl = [6, 14];
+    ret_yl = [19, 33];
+    % scatterplot y-axis tick marks
+    mus_yt = min(mus_yl) : 2 : max(mus_yl);
+    ret_yt = min(ret_yl) : 2 : max(ret_yl);
+end
+% Add to struct
+fprops.mus_yl = mus_yl;
+fprops.mus_yt = mus_yt;
+fprops.ret_yl = ret_yl;
+fprops.ret_yt = ret_yt;
+
 % CAA 6
 subjects = {'caa6'};
 fprops.subdir = '/caa6/';
-scatter_main(subjects,fprops);
+scatter_main(subjects,fprops,parench_median);
 
 % CAA 17
 subjects = {'caa17'};
 fprops.subdir = '/caa17/';
-scatter_main(subjects,fprops);
+scatter_main(subjects,fprops,parench_median);
 
 % CAA 22
 subjects = {'caa22'};
 fprops.subdir = '/caa22/';
-scatter_main(subjects,fprops);
+scatter_main(subjects,fprops,parench_median);
 
 % CAA 25
 subjects = {'caa25'};
 fprops.subdir = '/caa25/';
-scatter_main(subjects,fprops);
+scatter_main(subjects,fprops,parench_median);
 
 % CAA 26
 subjects = {'caa26'};
 fprops.subdir = '/caa26/';
-scatter_main(subjects,fprops);
+scatter_main(subjects,fprops,parench_median);
 
 %% Box/whisker Plots
 

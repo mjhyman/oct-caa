@@ -4,7 +4,8 @@
 % Measure correlation between SVP vs. optical properties
 
 %% Add top-level directory of code repository to path
-clear; clc; close all;
+clearvars -except caa6 caa17 caa22 caa25 caa26 swp_struct
+clc; close all;
 % Print current working directory
 mydir  = pwd;
 % Find indices of slashes separating directories
@@ -19,8 +20,6 @@ addpath(genpath(topdir));
 % Set maximum number of threads equal to number of threads for script
 ncores = feature('numcores');
 maxNumCompThreads(ncores);
-% Flag for loading CAA structs (false if already in environment)
-flag_load_caa_structs = true;
 % Directory containing seg, mus, ret, mask, epvs structs
 mat_dir = '/projectnb/npbssmic/ns/CAA/';
 % Heatmap directory
@@ -28,92 +27,99 @@ swp_dir = '/projectnb/npbssmic/ns/CAA/swp';
 % Scatterplot directory
 plt_dir = '/projectnb/npbssmic/ns/CAA/swp/plots';
 
+%%% Flags for importing data
+% Flag for SWP structs
+flag_load_swp_structs = false;
+% Flag for loading CAA structs (false if already in environment)
+flag_load_caa_structs = false;
+
 %% Load EPVS SWP
 
-% Struct for storing SWP
-swp_struct = struct();
-
-% CAA 6 Frontal
-fprintf('Importing SWP for CAA6 Frontal\n')
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/front/' ...
-            'caa6_front_radius_200_exp_2_interpolated_heatmap.mat']);
-swp_struct.raw.caa6f = tmp.interpolated_volume;
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/front/' ...
-            'caa6_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
-swp_struct.log10.caa6f = tmp.swp;
-
-% CAA 6 Occipital
-fprintf('Importing SWP for CAA6 Occip\n')
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/occip/' ...
-            'caa6_occip_radius_200_exp_2_interpolated_heatmap.mat']);
-swp_struct.raw.caa6o = tmp.interpolated_volume;
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/occip/' ...
-            'caa6_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
-swp_struct.log10.caa6o = tmp.swp;
-
-% CAA 17 Occipital
-fprintf('Importing SWP for CAA17 Occip\n')
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa17/occip/' ...
-            'caa17_occip_radius_200_exp_2_interpolated_heatmap.mat']);
-swp_struct.raw.caa17o = tmp.interpolated_volume;
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa17/occip/' ...
-            'caa17_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
-swp_struct.log10.caa17o = tmp.swp;
-
-% CAA 22 front
-fprintf('Importing SWP for CAA22 Front\n')
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/front/'...
-            'caa22_front_radius_200_exp_2_interpolated_heatmap.mat']);
-swp_struct.raw.caa22f = tmp.interpolated_volume;
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/front/' ...
-            'caa22_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
-swp_struct.log10.caa22f = tmp.swp;
-
-% CAA 22 Occip
-fprintf('Importing SWP for CAA22 Occip\n')
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/occip/' ...
-            'caa22_occip_radius_200_exp_2_interpolated_heatmap.mat']);
-swp_struct.raw.caa22o = tmp.interpolated_volume;
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/occip/' ...
-            'caa22_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
-swp_struct.log10.caa22o = tmp.swp;
-
-% CAA 25 Front
-fprintf('Importing SWP for CAA25 Front\n')
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/front/' ...
-            'caa25_front_radius_200_exp_2_interpolated_heatmap.mat']);
-swp_struct.raw.caa25f = tmp.interpolated_volume;
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/front/' ...
-            'caa25_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
-swp_struct.log10.caa25f = tmp.swp;
-
-% CAA 25 Occip
-fprintf('Importing SWP for CAA25 Occip\n')
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/occip/' ...
-            'caa25_occip_radius_200_exp_2_interpolated_heatmap.mat']);
-swp_struct.raw.caa25o = tmp.interpolated_volume;
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/occip/' ...
-            'caa25_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
-swp_struct.log10.caa25o = tmp.swp;
-
-% CAA 26 Front
-fprintf('Importing SWP for CAA26 Front\n')
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/front/' ...
-            'caa26_front_radius_200_exp_2_interpolated_heatmap.mat']);
-swp_struct.raw.caa26f = tmp.interpolated_volume;
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/front/' ...
-            'caa26_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
-swp_struct.log10.caa26f = tmp.swp;
-
-% CAA 26 Occip
-fprintf('Importing SWP for CAA26 Occip\n')
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/occip/' ...
-            'caa26_occip_radius_200_exp_2_interpolated_heatmap.mat']);
-swp_struct.raw.caa26o = tmp.interpolated_volume;
-tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/occip/' ...
-            'caa26_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
-swp_struct.log10.caa26o = tmp.swp;
-
+if flag_load_swp_structs
+    % Struct for storing SWP
+    swp_struct = struct();
+    
+    % CAA 6 Frontal
+    fprintf('Importing SWP for CAA6 Frontal\n')
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/front/' ...
+                'caa6_front_radius_200_exp_2_interpolated_heatmap.mat']);
+    swp_struct.raw.caa6f = tmp.interpolated_volume;
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/front/' ...
+                'caa6_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+    swp_struct.log10.caa6f = tmp.swp;
+    
+    % CAA 6 Occipital
+    fprintf('Importing SWP for CAA6 Occip\n')
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/occip/' ...
+                'caa6_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+    swp_struct.raw.caa6o = tmp.interpolated_volume;
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/occip/' ...
+                'caa6_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+    swp_struct.log10.caa6o = tmp.swp;
+    
+    % CAA 17 Occipital
+    fprintf('Importing SWP for CAA17 Occip\n')
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa17/occip/' ...
+                'caa17_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+    swp_struct.raw.caa17o = tmp.interpolated_volume;
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa17/occip/' ...
+                'caa17_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+    swp_struct.log10.caa17o = tmp.swp;
+    
+    % CAA 22 front
+    fprintf('Importing SWP for CAA22 Front\n')
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/front/'...
+                'caa22_front_radius_200_exp_2_interpolated_heatmap.mat']);
+    swp_struct.raw.caa22f = tmp.interpolated_volume;
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/front/' ...
+                'caa22_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+    swp_struct.log10.caa22f = tmp.swp;
+    
+    % CAA 22 Occip
+    fprintf('Importing SWP for CAA22 Occip\n')
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/occip/' ...
+                'caa22_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+    swp_struct.raw.caa22o = tmp.interpolated_volume;
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/occip/' ...
+                'caa22_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+    swp_struct.log10.caa22o = tmp.swp;
+    
+    % CAA 25 Front
+    fprintf('Importing SWP for CAA25 Front\n')
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/front/' ...
+                'caa25_front_radius_200_exp_2_interpolated_heatmap.mat']);
+    swp_struct.raw.caa25f = tmp.interpolated_volume;
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/front/' ...
+                'caa25_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+    swp_struct.log10.caa25f = tmp.swp;
+    
+    % CAA 25 Occip
+    fprintf('Importing SWP for CAA25 Occip\n')
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/occip/' ...
+                'caa25_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+    swp_struct.raw.caa25o = tmp.interpolated_volume;
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/occip/' ...
+                'caa25_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+    swp_struct.log10.caa25o = tmp.swp;
+    
+    % CAA 26 Front
+    fprintf('Importing SWP for CAA26 Front\n')
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/front/' ...
+                'caa26_front_radius_200_exp_2_interpolated_heatmap.mat']);
+    swp_struct.raw.caa26f = tmp.interpolated_volume;
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/front/' ...
+                'caa26_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+    swp_struct.log10.caa26f = tmp.swp;
+    
+    % CAA 26 Occip
+    fprintf('Importing SWP for CAA26 Occip\n')
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/occip/' ...
+                'caa26_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+    swp_struct.raw.caa26o = tmp.interpolated_volume;
+    tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/occip/' ...
+                'caa26_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
+    swp_struct.log10.caa26o = tmp.swp;
+end
 
 %% Load matlab structs
 
@@ -144,6 +150,13 @@ if flag_load_caa_structs
     caa22 = caa22.caa22;
     caa25 = caa25.caa25;
     caa26 = caa26.caa26;
+end
+
+%% Flag for subtracting subject median offset
+rm_offset = true;
+if rm_offset
+    % Load the parenchyma median offsets
+    load(fullfile(mat_dir, "median_white_matter_values_14-Nov-2025.mat"));
 end
 
 %% Create 2D arrays of optical property vs. EPVS density
@@ -196,12 +209,20 @@ for ii = 1:length(fields(subjects))
         reg = regions{j};
         if isfield(subjects.(sub).(reg), 'swp')
             fprintf('Starting %s %s\n', sub, reg)
-            %%% Import raw SWP and log(swp)
+            
+            %%% Import SWP, mus, ret
+            % Import raw SWP and log(swp)
             swp = subjects.(sub).(reg).swp.raw;
             swplg = subjects.(sub).(reg).swp.log10;
-            %%% Import mus and ret
+            % Import mus and ret
             mus = subjects.(sub).(reg).mus;
             ret = subjects.(sub).(reg).ret_full;
+
+            %%% Subtract median mus,ret offset
+            if rm_offset
+                mus = mus - parench_median.(sub).(reg).med.mus;
+                ret = ret - parench_median.(sub).(reg).med.ret;
+            end
             
             %%% Remove vessels and EPVS from the epvs heatmap
             ves = subjects.(sub).(reg).seg;
@@ -234,7 +255,6 @@ end
 % struct for storing binned vectors
 binned = struct();
 % flag for whether to plot the binned data
-pflag = false;
 nbin = 190;
 xlab = 'EPVS log(SWP)';
 
@@ -253,23 +273,16 @@ for ii = 1:length(subs)
         % scattering coefficient
         ylab = '\mu_s (cm^-^1)';
         tit = string(subs{ii}) + ' ' + string(regs{j});
-        xy = scatter_subset(mus_pair, nbin, xlab, ylab, tit, pflag);
+        xy = bin_swp(mus_pair, nbin);
         binned.(subs{ii}).(regs{j}).mus = xy;
         % retardance
         ylab = 'retardance (degrees)';
         tit = string(subs{ii}) + ' ' + string(regs{j});
-        xy = scatter_subset(ret_pair, nbin, xlab, ylab, tit, pflag);
+        xy = bin_swp(ret_pair, nbin);
         binned.(subs{ii}).(regs{j}).ret = xy;
     end
-end
 
-%% Subject-level Combine the frontal and occipital
-
-% paremeters for scatter_subset function, which performs binning
-npoint = 190;
-pflag = false;
-
-for ii = 1:length(subs)
+    %%% Subject-level Combine the frontal and occipital
     % Print status to console
     fprintf('\nCombining Front + Occip for %s',subs{ii})
     % Initialize struct to ensure only combining individual subject
@@ -281,25 +294,32 @@ for ii = 1:length(subs)
     [~,~,log_mus,log_ret] = combine_subjects_regions(heat_pair_sub);
     
     % Bin the data
-    log_mus = scatter_subset(log_mus, npoint, [], [], [], pflag);
-    log_ret = scatter_subset(log_ret, npoint, [], [], [], pflag);
+    log_mus = bin_swp(log_mus, nbin);
+    log_ret = bin_swp(log_ret, nbin);
 
     % Add to struct
     binned.(subs{ii}).comb.mus = log_mus;
     binned.(subs{ii}).comb.ret = log_ret;
 end
 
-
-
 %% SUBJECT: plot "binned" subset
 
 % Figure porperties
 xlab = 'EPVS log(SWP)'; % x-axis label
-xlims = [1,10];
-mus_ylim = [5,15];
 mus_ylab = '\mu_s (cm^-^1)';
-ret_ylim = [16,35];
 ret_ylab = 'retardance (degrees)';
+xlims = [1,10];
+
+% Set limits if removing offset
+if rm_offset
+    mus_ylim = [-5,5];
+    ret_ylim = [-10,5];
+    substr = '_median_removed_';
+else
+    mus_ylim = [5,15];
+    ret_ylim = [16,35];
+    substr = '';
+end
 
 % Iterate subjects
 for ii = 1:length(subs)
@@ -313,14 +333,15 @@ for ii = 1:length(subs)
         % Set title string for both plots
         tit = string(subs{ii}) + ' ' + string(regs{j});
         % scattering coefficient
-        fout = strcat(subs{ii},'_',regs{j},'_mus_vs_log_swp');
+        fout = strcat(subs{ii},'_',regs{j},substr,'_mus_vs_log_swp');
         swp_scatterplot(mus_pair, xlab, mus_ylab, tit, xlims, mus_ylim,...
                         plt_dir,fout)
         % Retardance
-        fout = strcat(subs{ii},'_',regs{j},'_ret_vs_log_swp');
+        fout = strcat(subs{ii},'_',regs{j},substr,'_ret_vs_log_swp');
         swp_scatterplot(ret_pair, xlab, ret_ylab, tit, xlims, ret_ylim,...
                         plt_dir,fout)
     end
+    
     %%% Plot the combined front + occipital
     % Retrieve the binned data
     mus_pair = binned.(subs{ii}).comb.mus;
@@ -328,18 +349,16 @@ for ii = 1:length(subs)
     % Set title string for both plots
     tit = string(subs{ii}) + ' combined';
     % scattering coefficient
-    fout = strcat(subs{ii},'_comb_mus_vs_log_swp');
+    fout = strcat(subs{ii},substr,'_comb_mus_vs_log_swp');
     swp_scatterplot(mus_pair, xlab, mus_ylab, tit, xlims, mus_ylim,...
                     plt_dir,fout)
     % Retardance
-    fout = strcat(subs{ii},'_comb_ret_vs_log_swp');
+    fout = strcat(subs{ii},substr,'_comb_ret_vs_log_swp');
     swp_scatterplot(ret_pair, xlab, ret_ylab, tit, xlims, ret_ylim,...
                     plt_dir,fout)
-    
 end
 
-%% SUBJECT: overlay all subjects
-
+%%% SUBJECT: overlay all subjects
 %%% Define Labels (legend) and Colors
 labels = struct();
 colors = struct();
@@ -371,7 +390,7 @@ xy4 = binned.caa25.front.mus;
 xy5 = binned.caa22.front.mus;
 xy_cell = {xy1, xy2, xy4, xy5};
 tit = 'Frontal: mus vs. log(SWP)';
-fname = 'overlay_frontal_mus_vs_log_swp';
+fname = strcat('overlay_frontal_mus_vs_log_swp',substr);
 swp_scatterplot_overlay(xy_cell, labels.front, colors.front, xlab,...
                         mus_ylab, tit, xlims, mus_ylim, plt_dir, fname)
 % occipital
@@ -382,7 +401,7 @@ xy4 = binned.caa25.occip.mus;
 xy5 = binned.caa22.occip.mus;
 xy_cell = {xy1, xy2, xy3, xy4, xy5};
 tit = 'Occipital: mus vs. log(SWP)';
-fname = 'overlay_occipital_mus_vs_log_swp';
+fname = strcat('overlay_occipital_mus_vs_log_swp',substr);
 swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
                         mus_ylab, tit, xlims, mus_ylim, plt_dir, fname)
 % Combined
@@ -393,7 +412,7 @@ xy4 = binned.caa25.comb.mus;
 xy5 = binned.caa22.comb.mus;
 xy_cell = {xy1, xy2, xy3, xy4, xy5};
 tit = 'Combined: mus vs. log(SWP)';
-fname = 'overlay_combined_mus_vs_log_swp';
+fname = strcat('overlay_combined_mus_vs_log_swp',substr);
 swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
                         mus_ylab, tit, xlims, mus_ylim, plt_dir, fname)
 
@@ -405,7 +424,7 @@ xy4 = binned.caa25.front.ret;
 xy5 = binned.caa22.front.ret;
 xy_cell = {xy1, xy2, xy4, xy5};
 tit = 'Frontal: ret vs. log(SWP)';
-fname = 'overlay_frontal_ret_vs_log_swp';
+fname = strcat('overlay_frontal_ret_vs_log_swp',substr);
 swp_scatterplot_overlay(xy_cell, labels.front, colors.front, xlab,...
                         ret_ylab, tit, xlims, ret_ylim, plt_dir, fname)
 % occipital
@@ -416,7 +435,7 @@ xy4 = binned.caa25.occip.ret;
 xy5 = binned.caa22.occip.ret;
 xy_cell = {xy1, xy2, xy3, xy4, xy5};
 tit = 'Occipital: ret vs. log(SWP)';
-fname = 'overlay_occipital_ret_vs_log_swp';
+fname = strcat('overlay_occipital_ret_vs_log_swp',substr);
 swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
                         ret_ylab, tit, xlims, ret_ylim, plt_dir, fname)
 % Combined
@@ -427,32 +446,17 @@ xy4 = binned.caa25.comb.ret;
 xy5 = binned.caa22.comb.ret;
 xy_cell = {xy1, xy2, xy3, xy4, xy5};
 tit = 'Combined: ret vs. log(SWP)';
-fname = 'overlay_combined_ret_vs_log_swp';
+fname = strcat('overlay_combined_ret_vs_log_swp',substr);
 swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
                         ret_ylab, tit, xlims, ret_ylim, plt_dir, fname)
 
 %% Separate/combine heat_pairs across subject and region
-
 fprintf('Separating heatmap pairs by subject and region\n')
-% Create struct for storing combined, front, occip
-
-
 % combine across occip + frontal
-[comb_raw_mus, comb_raw_ret, comb_log_mus, comb_log_ret] =...
-    combine_subjects_regions(heat_pairs);
+[~, ~, comb_log_mus, comb_log_ret] = combine_subjects_regions(heat_pairs);
 
 % Combine subjects, split regions
 region_data = combine_subjects(heat_pairs);
-
-%%% Raw regions (front + occip)
-% Frontal pairs
-front_raw_mus = region_data.front.raw.mus;
-front_raw_ret = region_data.front.raw.ret;
-% Occip pairs
-occip_raw_mus = region_data.occip.raw.mus;
-occip_raw_ret = region_data.occip.raw.ret;
-
-%%% log10 regions (front + occip)
 % Frontal pairs
 front_log_mus = region_data.front.log10.mus;
 front_log_ret = region_data.front.log10.ret;
@@ -460,109 +464,58 @@ front_log_ret = region_data.front.log10.ret;
 occip_log_mus = region_data.occip.log10.mus;
 occip_log_ret = region_data.occip.log10.ret;
 
-
-%% Plot optical property vs. SWP (raw, entire range)
-
-%{
-% Minimum threshold for EPVS density 
-th = 5*10^5;
-% Window size
-d = 1e7;
-
-%%% combined subjects and regions
-% scattering coefficient
-xlab = 'EPVS SWP';
-ylab = '\mu_s (cm^-^1)';
-tit = 'Combined (full) -- \mu_s vs. EPVS SWP';
-scatter_subset(comb_raw_mus, xlab, ylab, tit, th, d)
-% retardance
-ylab = 'retardance (degrees)';
-tit = 'Combined (full) -- Retardance vs. EPVS SWP';
-scatter_subset(comb_raw_ret, xlab, ylab, tit, th,d)
-
-%%% Frontal
-% Scattering
-ylab = '\mu_s (cm^-^1)';
-tit = {'Frontal','\mu_s vs. EPVS SWP'};
-scatter_subset(front_raw_mus, xlab, ylab, tit, th, 1e6)
-% Retardance
-ylab = 'retardance (degrees)';
-tit = {'Frontal','Retardance vs. EPVS SWP'};
-scatter_subset(front_raw_ret, xlab, ylab, tit, th, 1e6)
-
-%%% Occipital
-% Scattering
-ylab = '\mu_s (cm^-^1)';
-tit = {'Occip','\mu_s vs. EPVS SWP'};
-scatter_subset(occip_raw_mus, xlab, ylab, tit, th, d)
-% Retardance
-ylab = 'retardance (degrees)';
-tit = {'Occip','Retardance vs. EPVS SWP'};
-scatter_subset(occip_raw_ret, xlab, ylab, tit, th, d)
-%}
-
-
 %% ALL SUBJECTS - Bin and Plot optical property vs. log(SWP)
-% This section will bin data along the x-axis to reduce the dimensionality.
-% In addition, ot will plot for each subset.
-
 % x-axis label
 xlab = 'EPVS log(SWP)';
 % Number of bins in x-axis
 nbin = 190;
-% flag to plot within the binning function
-pflag = false;
 
 %%% combined subjects and regions
 fprintf('Binning for front + occip\n')
 % scattering coefficient
-ylab = '\mu_s (cm^-^1)';
-tit = {'Front + Occip', '\mu_s vs. EPVS log(SWP)'};
-xy = scatter_subset(comb_log_mus, nbin, xlab, ylab, tit, pflag);
+xy = bin_swp(comb_log_mus, nbin);
 binned.comb_mus = xy;
 % retardance
-ylab = 'retardance (degrees)';
-tit = {'Front + Occip', 'Retardance vs. EPVS log(SWP)'};
-xy = scatter_subset(comb_log_ret, nbin, xlab, ylab, tit, pflag);
+xy = bin_swp(comb_log_ret, nbin);
 binned.comb_ret = xy;
 
 %%% Frontal
 fprintf('Binning for front\n')
 % Scattering
-ylab = '\mu_s (cm^-^1)';
-tit = {'Frontal','\mu_s vs. EPVS log(SWP)'};
-xy = scatter_subset(front_log_mus, nbin, xlab, ylab, tit, pflag);
+xy = bin_swp(front_log_mus, nbin);
 binned.front_mus = xy;
 % Retardance
-ylab = 'retardance (degrees)';
-tit = {'Frontal','Retardance vs. EPVS log(SWP)'};
-xy = scatter_subset(front_log_ret, nbin, xlab, ylab, tit, pflag);
+xy = bin_swp(front_log_ret, nbin);
 binned.front_ret = xy;
 
 %%% Occipital
 fprintf('Binning for occip\n')
 % Scattering
-ylab = '\mu_s (cm^-^1)';
-tit = {'Occip','\mu_s vs. EPVS log(SWP)'};
-xy = scatter_subset(occip_log_mus, nbin, xlab, ylab, tit, pflag);
+xy = bin_swp(occip_log_mus, nbin);
 binned.occip_mus = xy;
 % Retardance
-ylab = 'retardance (degrees)';
-tit = {'Occip','Retardance vs. EPVS log(SWP)'};
-xy = scatter_subset(occip_log_ret, nbin, xlab, ylab, tit, pflag);
+xy = bin_swp(occip_log_ret, nbin);
 binned.occip_ret = xy;
 
-%% Plot the binned log(SWP) data
-
-%%% Calculate the min/max values across all binned matrices
-groups = fields(binned);
-nfield = length(fields(binned));
+%% Calculate the min/max values across all binned matrices
+groups = {'comb_mus','comb_ret','front_mus','front_ret',...
+          'occip_mus','occip_ret'};
+nfield = length(groups);
 xmin = 1;
 xmax = 5;
-mus_min = 13;
-mus_max = 13;
-ret_min = 30;
-ret_max = 30;
+% Set starting limits if removing offsets
+if rm_offset
+    mus_min = -1;
+    mus_max = 1;
+    ret_min = -1;
+    ret_max = 1;
+else
+    mus_min = 13;
+    mus_max = 13;
+    ret_min = 30;
+    ret_max = 30;
+end
+
 for ii = 1:nfield
     xy = binned.(groups{ii});
     if contains(groups{ii},'mus')
@@ -586,13 +539,13 @@ ret_lims = [ceil(ret_min), ceil(ret_max)];
 ylab = '\mu_s (cm^-^1)';
 tit = {'Frontal + Occipital', '\mu_s vs. EPVS log(SWP)'};
 xy = binned.comb_mus;
-fname = 'comb_mus_swp.png';
+fname = strcat(substr,'comb_mus_swp.png');
 swp_scatterplot(xy, xlab, ylab, tit, xlims, mus_lims, plt_dir, fname);
 % retardance
 ylab = 'retardance (degrees)';
 tit = {'Frontal + Occipital', 'Retardance vs. EPVS log(SWP)'};
 xy = binned.comb_ret;
-fname = 'comb_ret_swp.png';
+fname = strcat(substr,'comb_ret_swp.png');
 swp_scatterplot(xy, xlab, ylab, tit, xlims, ret_lims, plt_dir, fname);
 
 %%% Plot frontal
@@ -600,13 +553,13 @@ swp_scatterplot(xy, xlab, ylab, tit, xlims, ret_lims, plt_dir, fname);
 ylab = '\mu_s (cm^-^1)';
 tit = {'Frontal', '\mu_s vs. EPVS log(SWP)'};
 xy = binned.front_mus;
-fname = 'front_mus_swp.png';
+fname = strcat(substr,'front_mus_swp.png');
 swp_scatterplot(xy, xlab, ylab, tit, xlims, mus_lims, plt_dir, fname);
 % retardance
 ylab = 'retardance (degrees)';
 tit = {'Frontal', 'Retardance vs. EPVS log(SWP)'};
 xy = binned.front_ret;
-fname = 'front_ret_swp.png';
+fname = strcat(substr,'front_ret_swp.png');
 swp_scatterplot(xy, xlab, ylab, tit, xlims, ret_lims, plt_dir, fname);
 
 %%% Plot occipital
@@ -614,107 +567,125 @@ swp_scatterplot(xy, xlab, ylab, tit, xlims, ret_lims, plt_dir, fname);
 ylab = '\mu_s (cm^-^1)';
 tit = {'Occipital', '\mu_s vs. EPVS log(SWP)'};
 xy = binned.occip_mus;
-fname = 'occip_mus_swp.png';
+fname = strcat(substr,'occip_mus_swp.png');
 swp_scatterplot(xy, xlab, ylab, tit, xlims, mus_lims, plt_dir, fname);
 % retardance
 ylab = 'retardance (degrees)';
 tit = {'Occipital', 'Retardance vs. EPVS log(SWP)'};
 xy = binned.occip_ret;
-fname = 'occip_ret_swp.png';
+fname = strcat(substr,'occip_ret_swp.png');
 swp_scatterplot(xy, xlab, ylab, tit, xlims, ret_lims, plt_dir, fname);
 
 %% Plot median optical property vs. median SWP
 
-% Create arrays for storing pairs (raw)
-raw_mus_med = zeros(9:2);
-raw_ret_med = zeros(9:2);
-% Create arrays for storing pairs (log)
-log_mus_med = zeros(9:2);
-log_ret_med = zeros(9:2);
+%%% Create arrays for storing pairs
+% frontal + occipital
+logswp_mus_med = zeros(9:2);
+logswp_ret_med = zeros(9:2);
+% frontal
+logswp_mus_med_front = zeros(5:2);
+logswp_ret_med_front = zeros(5:2);
+% occip
+logswp_mus_med_occip = zeros(4:2);
+logswp_ret_med_occip = zeros(4:2);
+
+%%% Counters for iterations
+tot_cnt = 1;
+front_cnt = 1;
+occip_cnt = 1;
 
 % Iterate subject names
 subs = fields(subjects);
-cnt = 1;
 for ii = 1:length(subs)
     sub = subs{ii};
     regions = fields(subjects.(sub));
+    % Iterate regions
     for j=1:length(regions)
         reg = regions{j};
-
+        fprintf('Median for %s %s\n',sub,reg)
         % Check if the SWP field exists
         if isfield(subjects.(sub).(reg), 'swp')
-            %%% Create mask for measuring optical properties
-            % Extract WM mask, seg, epvs
-            wm = subjects.(sub).(reg).mask_wm;
-            ves = subjects.(sub).(reg).seg;
-            epvs = subjects.(sub).(reg).epvs;
-            % Remove ves, epvs from WM mask
-            wm = wm - ves - epvs;
-            wm(wm<0) = 0;
-            wm = logical(wm);
-            
-            %%% Median optical properties
-            % Extract median mus
-            mus = subjects.(sub).(reg).mus;
-            mus = mus(wm);
-            mus = median(mus,'omitnan');
-            % Extract median ret
-            ret = subjects.(sub).(reg).ret_full;
-            ret = ret(wm);
-            ret = median(ret,'omitnan');
-            % Calculate median swp
-            swp_raw = subjects.(sub).(reg).swp.raw;
-            swp_raw = swp_raw(wm);
-            swp_raw = median(swp_raw,'omitnan');
+            %%% Median optical properties from parench_median
+            mus = parench_median.(sub).(reg).med.mus;
+            ret = parench_median.(sub).(reg).med.ret;
             % Calculate median log(swp)
+            seg = subjects.(sub).(reg).seg;
+            epvs = subjects.(sub).(reg).epvs;
+            wm = subjects.(sub).(reg).mask_wm;
             swp_log = subjects.(sub).(reg).swp.log10;
-            swp_log = swp_log(wm);
+            swp_log(seg) = NaN;
+            swp_log(epvs) = NaN;
+            swp_log = omit_outlier(swp_log(wm),10);
             swp_log = median(swp_log,'omitnan');
     
             %%% Add to pairs
-            raw_mus_med(cnt,:) = [swp_raw; mus];
-            raw_ret_med(cnt,:) = [swp_raw; ret];
-            log_mus_med(cnt,:) = [swp_log; mus];
-            log_ret_med(cnt,:) = [swp_log; ret];
+            logswp_mus_med(tot_cnt,:) = [swp_log; mus];
+            logswp_ret_med(tot_cnt,:) = [swp_log; ret];
             % Iterate counter
-            cnt = cnt+1;
+            tot_cnt = tot_cnt + 1;
+
+            %%% Frontal
+            if strcmp(reg,'front')
+                logswp_mus_med_front(front_cnt,:) = [swp_log; mus];
+                logswp_ret_med_front(front_cnt,:) = [swp_log; ret];
+                front_cnt = front_cnt + 1;
+            %%% Occipital
+            else
+                logswp_mus_med_occip(occip_cnt,:) = [swp_log; mus];
+                logswp_ret_med_occip(occip_cnt,:) = [swp_log; ret];
+                occip_cnt = occip_cnt + 1;
+            end
         end
     end
 end
 
-%%% Plot medians
-
-%%% Raw SWP
+%%% Combined front + occip
 % mus
 figure('Position', [956  -274   909   844]);
-scatter(raw_mus_med(:,1),raw_mus_med(:,2),200,'b','filled');
-title('Median \mu_s vs. Median SWP')
-xlabel('SWP'); ylabel('\mu_s'); set(gca,'fontsize',25)
-fout = fullfile(plt_dir, 'median_mus_vs_median_swp.png');
-saveas(gcf,fout,'png'); pause(1);
-% ret
-figure('Position', [956  -274   909   844]);
-scatter(raw_ret_med(:,1),raw_ret_med(:,2),200,'b','filled');
-title('Median Ret vs. Median SWP')
-xlabel('SWP'); ylabel('Ret');set(gca,'fontsize',25)
-fout = fullfile(plt_dir, 'median_ret_vs_median_swp.png');
-saveas(gcf,fout,'png'); pause(1);
-
-%%% Raw SWP
-% mus
-figure('Position', [956  -274   909   844]);
-scatter(log_mus_med(:,1),log_mus_med(:,2),200,'b','filled');
-title('Median \mu_s vs. Median log(swp)')
+scatter(logswp_mus_med(:,1),logswp_mus_med(:,2),200,'b','filled');
+title('Median \mu_s vs. Median log(swp) - Combined')
 xlabel('SWP'); ylabel('\mu_s');set(gca,'fontsize',25)
-fout = fullfile(plt_dir, 'median_mus_vs_median_log_swp.png');
-saveas(gcf,fout,'png'); pause(1);
+fout = fullfile(plt_dir, 'median_mus_vs_median_log_swp_combined.png');
+saveas(gcf,fout,'png'); pause(1); close;
 % ret
 figure('Position', [956  -274   909   844]);
-scatter(log_ret_med(:,1),log_ret_med(:,2),200,'b','filled');
-title('Median Ret vs. Median log(swp)')
+scatter(logswp_ret_med(:,1),logswp_ret_med(:,2),200,'b','filled');
+title('Median Ret vs. Median log(swp) - Combined')
 xlabel('SWP'); ylabel('Ret');set(gca,'fontsize',25)
-fout = fullfile(plt_dir, 'median_ret_vs_median_log_swp.png');
-saveas(gcf,fout,'png'); pause(1);
+fout = fullfile(plt_dir, 'median_ret_vs_median_log_swp_combined.png');
+saveas(gcf,fout,'png'); pause(1); close;
+
+%%% Frontal
+% mus
+figure('Position', [956  -274   909   844]);
+scatter(logswp_mus_med_front(:,1),logswp_mus_med_front(:,2),200,'b','filled');
+title('Median \mu_s vs. Median log(swp) - Front')
+xlabel('SWP'); ylabel('\mu_s');set(gca,'fontsize',25)
+fout = fullfile(plt_dir, 'median_mus_vs_median_log_swp_front.png');
+saveas(gcf,fout,'png'); pause(1); close;
+% ret
+figure('Position', [956  -274   909   844]);
+scatter(logswp_ret_med_front(:,1),logswp_ret_med_front(:,2),200,'b','filled');
+title('Median Ret vs. Median log(swp) - Front')
+xlabel('SWP'); ylabel('Ret');set(gca,'fontsize',25)
+fout = fullfile(plt_dir, 'median_ret_vs_median_log_swp_front.png');
+saveas(gcf,fout,'png'); pause(1); close;
+
+%%% Occipital
+% mus
+figure('Position', [956  -274   909   844]);
+scatter(logswp_mus_med_occip(:,1),logswp_mus_med_occip(:,2),200,'b','filled');
+title('Median \mu_s vs. Median log(swp) - Occipital')
+xlabel('SWP'); ylabel('\mu_s');set(gca,'fontsize',25)
+fout = fullfile(plt_dir, 'median_mus_vs_median_log_swp_occip.png');
+saveas(gcf,fout,'png'); pause(1); close;
+% ret
+figure('Position', [956  -274   909   844]);
+scatter(logswp_ret_med_occip(:,1),logswp_ret_med_occip(:,2),200,'b','filled');
+title('Median Ret vs. Median log(swp) - Occipital')
+xlabel('SWP'); ylabel('Ret');set(gca,'fontsize',25)
+fout = fullfile(plt_dir, 'median_ret_vs_median_log_swp_occip.png');
+saveas(gcf,fout,'png'); pause(1); close;
 
 %% Export OP/SWP pairs to spreadsheets
 
@@ -723,7 +694,7 @@ saveas(gcf,fout,'png'); pause(1);
 dt = string(datetime('now','Format','d-MMM-y'));
 % construct filename
 field_names = fields(binned);
-swp_filename = strcat('op_vs_swp_',dt','.xlsx');
+swp_filename = strcat('op_vs_swp_',substr,dt','.xlsx');
 swp_filename = fullfile(swp_dir, swp_filename);
 % Iterate over stains
 for idx = 1:length(fields(binned))
@@ -748,16 +719,16 @@ end
 
 %%% Median OP vs. Median log(SWP)
 dt = string(datetime('now','Format','d-MMM-y'));
-median_swp_filename = strcat('med_op_vs_med_swp_',dt','.xlsx');
+median_swp_filename = strcat('med_op_vs_med_swp_',substr,dt','.xlsx');
 median_swp_filename = fullfile(swp_dir, median_swp_filename);
 % Write the mus sheet
-xy = log_mus_med;
+xy = logswp_mus_med;
 % Create Table for all measurements from stain
 T = array2table(xy, 'VariableNames',...
                {'log(SWP)','mus'});
 writetable(T, median_swp_filename, 'Sheet', 'mus');
 % Write the retardance sheet
-xy = log_ret_med;
+xy = logswp_ret_med;
 % Create Table for all measurements from stain
 T = array2table(xy, 'VariableNames',...
                {'log(SWP)','ret'});

@@ -1,11 +1,15 @@
 %% Scatterplot function for both within and across subjects
-function scatter_main(subjects, fprops)
+function scatter_main(subjects, fprops, offsets)
 % Parse the parench struct, create arrays, scatterplot
 % INPUTS
 %   subjects (cell array): subjects to iterate over. set this to a single
 %                           subject string to plot just one subject
 %   fprops (struct): contains limits, x-axis, x-axis ticks, output folder,
 %               radii to iterate, flag for plotting error bars
+%   offsets (vector): median mus and retardance for each subject and
+%                   region. This will be subtracted from each parenchyma
+%                   measurement, which will make the measurements be the
+%                   relative offset w.r.t. to the baseline for that tissue
 
 %% Extract local variables from struct
 % y-axis limits
@@ -34,7 +38,8 @@ mus_max = fprops.mus_max;
 ret_max = fprops.ret_max;
 rm_outlier = fprops.rm_outlier;
 
-%%
+
+%% Initialize vectors: singel value for each distance
 %%% Combined array for pairs of optical proprety vs. distance
 % Mean
 comb_mean_ves_mus = zeros(length(radii),1);
@@ -83,7 +88,7 @@ occip_sem_epvs_mus = zeros(length(radii),1);
 occip_sem_epvs_ret = zeros(length(radii),1);
 occip_sem_epvs_ori = zeros(length(radii),1);
 
-%%% Iterate distance, subjects, optical property
+%% Iterate radii, subjects, optical property
 % iterate distance from edge of epvs/vessel
 for ii = 1:length(radii)
     % local radii name
@@ -123,7 +128,8 @@ for ii = 1:length(radii)
             reg = regions{k};
             % Retrieve vessel measurements (mus, ret, ori)
             ves = parench.(sub).(reg).(rname).outter.ves;
-            % Apply upper limit threshold & 1.5*IQR outlier removal
+
+            %%% Apply upper limit threshold & 1.5*IQR outlier removal
             if rm_outlier
                 mus = omit_outlier(ves.pmus, mus_max);
                 ret = omit_outlier(ves.pret, ret_max);
@@ -132,6 +138,16 @@ for ii = 1:length(radii)
                 ret = ves.pret;
             end
             ori = ves.pori;
+
+            %%% Subtract median - standardize measurements
+            if ~isempty(offsets)
+                % Subtract the median optical property to standardize
+                med_mus = offsets.(sub).(reg).med.mus;
+                med_ret = offsets.(sub).(reg).med.ret;
+                mus = mus - med_mus;
+                ret = ret - med_ret;
+            end
+
             %%% Add data to combined vectors
             comb_ves_mus = [comb_ves_mus, mus];
             comb_ves_ret = [comb_ves_ret, ret];
@@ -151,7 +167,8 @@ for ii = 1:length(radii)
             if isfield(parench.(sub).(reg).(rname).outter, 'epvs')
                 % Create local
                 epvs = parench.(sub).(reg).(rname).outter.epvs;
-                % Apply upper limit threshold & 1.5*IQR outlier removal
+                
+                %%% Apply upper limit threshold & 1.5*IQR outlier removal
                 if rm_outlier
                     mus = omit_outlier(epvs.pmus, mus_max);
                     ret = omit_outlier(epvs.pret, ret_max);
@@ -160,6 +177,16 @@ for ii = 1:length(radii)
                     ret = epvs.pret;
                 end
                 ori = epvs.pori;
+
+                %%% Subtract median - standardize measurements
+                if ~isempty(offsets)
+                    % Subtract the median optical property to standardize
+                    med_mus = offsets.(sub).(reg).med.mus;
+                    med_ret = offsets.(sub).(reg).med.ret;
+                    mus = mus - med_mus;
+                    ret = ret - med_ret;
+                end
+
                 %%% Add to combined
                 comb_epvs_mus = [comb_epvs_mus, mus];
                 comb_epvs_ret = [comb_epvs_ret, ret];
@@ -298,26 +325,22 @@ scatter_op_vs_dist(x, occip_mean_ves_ret, occip_sem_ves_ret,...
 %                 xlab, ylab, ori_yl,xt, ori_yt,tit,dir_out, fname, psize)
 
 %% Print min and max to console
-fprintf('\n-----Subject %s-----',subdir)
-fprintf('\nVessel')
-fprintf('\nFront ves mus: min = %f, max = %f',...
-    min(front_mean_ves_mus),max(front_mean_ves_mus))
-fprintf('\nFront ves ret: min = %f, max = %f',...
-    min(front_mean_ves_ret),max(front_mean_ves_ret))
-fprintf('\nOccip ves mus: min = %f, max = %f',...
-    min(occip_mean_ves_mus),max(occip_mean_ves_mus))
-fprintf('\nOccip ves ret: min = %f, max = %f',...
-    min(occip_mean_ves_ret),max(occip_mean_ves_ret))
-fprintf('\nEPVS')
-fprintf('\nFront EPVS mus: min = %f, max = %f',...
-    min(front_mean_epvs_mus),max(front_mean_epvs_mus))
-fprintf('\nFront EPVS ret: min = %f, max = %f',...
-    min(front_mean_epvs_ret),max(front_mean_epvs_ret))
-fprintf('\nOccip EPVS mus: min = %f, max = %f',...
-    min(occip_mean_epvs_mus),max(occip_mean_epvs_mus))
-fprintf('\nOccip EPVS ret: min = %f, max = %f',...
-    min(occip_mean_epvs_ret),max(occip_mean_epvs_ret))
 
+% MUS min/max across vessels and EPVS
+mus_min = min([front_mean_ves_mus;occip_mean_ves_mus;...
+               front_mean_epvs_mus;occip_mean_epvs_mus;]);
+mus_max = max([front_mean_ves_mus;occip_mean_ves_mus;...
+               front_mean_epvs_mus;occip_mean_epvs_mus;]);
+
+% RET min/max across vessels and EPVS
+ret_min = min([front_mean_ves_ret;occip_mean_ves_ret;...
+               front_mean_epvs_ret;occip_mean_epvs_ret;]);
+ret_max = max([front_mean_ves_ret;occip_mean_ves_ret;...
+               front_mean_epvs_ret;occip_mean_epvs_ret;]);
+
+% Print to console
+fprintf('\nMUS: min = %f, max = %f',mus_min,mus_max)
+fprintf('\nRET: min = %f, max = %f',ret_min,ret_max)
 end
 
 %% Scatterplot function w/o error bars
@@ -376,5 +399,7 @@ set(gca,'fontsize',40);
 
 % Save output
 fout = fullfile(dir_out,fname);
-saveas(gcf,fout); close;
+saveas(gcf,fout);
+pause(0.5)
+close;
 end
