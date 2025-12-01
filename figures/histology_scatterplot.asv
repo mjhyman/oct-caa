@@ -24,13 +24,18 @@ addpath(genpath(parentFolder));
 %%% Directories (SCC)
 % Input directory
 hdir='/projectnb/npbssmic/ns/CAA/histology/';
-% Directory to save output figures
-figdir = '/projectnb/npbssmic/ns/CAA/figures/histology_scatterplots/';
+% Directory to save output figures of averages across sections
+figdir = ['/projectnb/npbssmic/ns/CAA/figures/' ...
+         'histology_scatterplots/histo_matched/'];
+% Directory to save figures of averages within section
+subdir = fullfile(figdir, )
+['/projectnb/npbssmic/ns/CAA/figures/' ...
+          'histology_scatterplots/histo_matched/subject_level'];
 
 %%% Load the stain and segmentation structs
-lhe = load(fullfile(hdir,'lhe_rings_15-Oct-2025.mat')); lhe = lhe.lhe;
-gfap = load(fullfile(hdir,'gfap_rings_15-Oct-2025.mat')); gfap = gfap.gfap;
-cd68 = load(fullfile(hdir,'cd68_rings_15-Oct-2025.mat')); cd68 = cd68.cd68;
+lhe = load(fullfile(hdir,'lhe_rings_21-Nov-2025.mat')); lhe = lhe.lhe;
+gfap = load(fullfile(hdir,'gfap_rings_21-Nov-2025.mat')); gfap = gfap.gfap;
+cd68 = load(fullfile(hdir,'cd68_rings_21-Nov-2025.mat')); cd68 = cd68.cd68;
 
 %%% measurement outter radii (units = voxels)
 radii_sm = [40, 81, 121, 162, 202, 243, 283, 324, 364, 405, 445, 486];
@@ -38,52 +43,106 @@ radii_lg = [100, 201, 301, 402, 503];
 
 %% AVERAGE across subjects -- scatterplot of histology vs. distance
 close all;
+
 % LHE
-[sm, lg] = mean_std_stain(lhe, radii_sm, radii_lg);
+[sm, lg] = mean_std_stain(lhe);
 stain_errorbar(sm, lg, radii_sm, radii_lg, 'LHE', figdir)
 
 % Import GFAP
-[sm, lg] = mean_std_stain(gfap, radii_sm, radii_lg);
+[sm, lg] = mean_std_stain(gfap);
 stain_errorbar(sm, lg, radii_sm, radii_lg, 'GFAP', figdir)
 
 % Import CD68
-[sm, lg] = mean_std_stain(cd68, radii_sm, radii_lg);
+[sm, lg] = mean_std_stain(cd68);
 stain_errorbar(sm, lg, radii_sm, radii_lg, 'CD68', figdir)
 
 %% AVERAGE within subjects -- scatterplot of histology vs. distance
 close all;
-% LHE
+
+%%% LHE
+% Consolidate measurements within each subject
 [lhe_sm] = iterate_subject_radii(lhe, "rad40");
 [lhe_lg] = iterate_subject_radii(lhe, "rad100");
-stain_errorbar(sm, lg, radii_sm, radii_lg, 'LHE', figdir)
+% Iterate over subjects
+subs = fields(lhe_sm);
+for ii = 1:length(subs)
+    % Extract subject from small and large
+    sm = lhe_sm.(subs{ii});
+    lg = lhe_lg.(subs{ii});
+    % Rename string to include subject ID
+    tstr = strcat('LHE_', subs{ii});
+    % Plot errorbar for subject and save
+    stain_errorbar(sm, lg, radii_sm, radii_lg, tstr, subdir)
+end
 
-% Import GFAP
-[sm, lg] = mean_std_stain(gfap, radii_sm, radii_lg);
-stain_errorbar(sm, lg, radii_sm, radii_lg, 'GFAP', figdir)
+%%% GFAP
+% Consolidate measurements within each subject
+[gfap_sm] = iterate_subject_radii(gfap, "rad40");
+[gfap_lg] = iterate_subject_radii(gfap, "rad100");
+% Iterate over subjects
+subs = fields(gfap_sm);
+for ii = 1:length(subs)
+    % Extract subject from small and large
+    sm = gfap_sm.(subs{ii});
+    lg = gfap_lg.(subs{ii});
+    % Rename string to include subject ID
+    tstr = strcat('GFAP_', subs{ii});
+    % Plot errorbar for subject and save
+    stain_errorbar(sm, lg, radii_sm, radii_lg, tstr, subdir)
+end
 
-% Import CD68
-[sm, lg] = mean_std_stain(cd68, radii_sm, radii_lg);
-stain_errorbar(sm, lg, radii_sm, radii_lg, 'CD68', figdir)
+%%% CD68
+% Consolidate measurements within each subject
+[cd68_sm] = iterate_subject_radii(cd68, "rad40");
+[cd68_lg] = iterate_subject_radii(cd68, "rad100");
+% Iterate over subjects
+subs = fields(cd68_sm);
+for ii = 1:length(subs)
+    % Extract subject from small and large
+    sm = cd68_sm.(subs{ii});
+    lg = cd68_lg.(subs{ii});
+    % Rename string to include subject ID
+    tstr = strcat('CD68_', subs{ii});
+    % Plot errorbar for subject and save
+    stain_errorbar(sm, lg, radii_sm, radii_lg, tstr, subdir)
+end
 
 %% Function to scatterplot w/ errorbars
 function stain_errorbar(sm, lg, radii_sm, radii_lg, tstr, figdir)
+% STAIN_ERRORBAR overlay EPVS + VES errorbar for each radii
+% INPUTS:
+%   sm (struct): small radii structure
+%   lg (struct): large radii structure
+%   radii_sm (vector): small outter radius (micron)
+%   radii_lg (vector): large outter radius (micron)
+%   tstr (string): title string
+%   figdir (string): directory to save figures
+% OUTPUTS:
+%   none
+
+%%% Initialization
 % Offset for EPVS and vessels
 offset = 10;
 % Errorbar line width
 lwidth = 2.5;
+% Copy the title string for saving filename
+fname = tstr;
+% Escape underscores from title
+tstr = strrep(tstr,'_','\_');
 
 %%% SMALL RADII    
 % Prepare figure for scatterplot
-figure; hold on;
+figure('Position',[100, 100, 1500, 1000]);
+hold on;
 xlabel('Distance (\mum)');
 ylabel('Stain Density (z-score)');
 title(strcat(tstr, ' Small Radii (40 \mum)'));
 % EPVS
-errorbar(radii_sm, sm.mean_epvs, sm.std_epvs, 'o','LineWidth',lwidth,...
+errorbar(radii_sm, sm.mean_epvs, sm.std_epvs,'LineWidth',lwidth,...
         'color','red','DisplayName', 'EPVS');
 hold on;
 % Vessels
-errorbar(radii_sm + offset, sm.mean_ves, sm.std_ves, 'o','LineWidth',lwidth,...
+errorbar(radii_sm + offset, sm.mean_ves, sm.std_ves,'LineWidth',lwidth,...
         'color','blue','DisplayName', 'vessel');
 hold off;
 legend show;
@@ -91,18 +150,20 @@ legend show;
 set(gca, 'FontSize', 40);
 set(findobj(gca, 'Type', 'scatter'), 'SizeData', 100);
 xlim([0,550]);
+xticks([0, 100, 200, 300, 400, 500]);
+xticklabels({'0','100','200','300','400','500'});
 % Save output
-fout = fullfile(figdir,strcat(tstr,'_small_radii_scatter'));
-pause(1); saveas(gca,fout,'png')
+fout = fullfile(figdir,strcat(fname,'_small_radii_scatter'));
+pause(1); saveas(gca,fout,'png'); close;
 
 %%% LARGE RADII    
 % Prepare figure for scatterplot
-figure; hold on;
+figure('Position',[100, 100, 1500, 1000]); hold on;
 xlabel('Distance (\mum)');
 ylabel('Stain Density (z-score)');
 title(strcat(tstr, ' Large Radii (100 \mum)'));
 % EPVS
-errorbar(radii_lg, lg.mean_epvs, lg.std_epvs, 'o','LineWidth',lwidth,...
+errorbar(radii_lg, lg.mean_epvs, lg.std_epvs,'LineWidth',lwidth,...
         'color','red','DisplayName', 'EPVS');
 hold on;
 % Vessels
@@ -114,9 +175,11 @@ legend show;
 set(gca, 'FontSize', 40);
 set(findobj(gca, 'Type', 'scatter'), 'SizeData', 100);
 xlim([0,550]);
+xticks([0, 100, 200, 300, 400, 500]);
+xticklabels({'0','100','200','300','400','500'});
 % Save output
-fout = fullfile(figdir,strcat(tstr,'_large_scatter'));
-pause(1); saveas(gca,fout,'png')
+fout = fullfile(figdir,strcat(fname,'_large_scatter'));
+pause(1); saveas(gca,fout,'png');  close;
 end
 
 %% Function to iterate stain and take mean + Std Dev across subjects
@@ -163,9 +226,9 @@ function [sm, lg] = mean_std_stain(stain)
     % Iterate over the radii
     for ii = 1:nrad
         % EPVS
-        epvs = arrayfun(@(s) s.(rad_size).(rad_name{ii}).exp_mean, stain);
+        epvs = arrayfun(@(s) s.(rad_size).(rad_name{ii}).exp_hmatched_mean, stain);
         % Vessels
-        ves = arrayfun(@(s) s.(rad_size).(rad_name{ii}).ctl_mean, stain);
+        ves = arrayfun(@(s) s.(rad_size).(rad_name{ii}).ctl_hmatched_mean, stain);
         % Take mean & std dev across subjects
         mean_epvs(ii) = mean(epvs);
         std_epvs(ii) = std(epvs);
@@ -214,8 +277,8 @@ for s = 1:length(subs)
         % Take mean & std dev within subject
         mean_epvs(ii) = mean(epvs,'omitnan');
         std_epvs(ii) = std(epvs,'omitnan');
-        mean_ves(ii) = mean(ves);
-        std_ves(ii) = std(ves);
+        mean_ves(ii) = mean(ves,'omitnan');
+        std_ves(ii) = std(ves,'omitnan');
     end
     % Add each subject vector to struct
     stats.(subs{s}).mean_epvs = mean_epvs;

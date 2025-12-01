@@ -31,7 +31,8 @@ Deconvolved:
 %}
 
 %% Top-level settings
-clear; clc; close all;
+clear;
+clc; close all;
 
 %%% Directories (Martinos)
 % % Input directory
@@ -73,6 +74,7 @@ ves_suffix = '_VESSEL_Mask.tif';
 mask_suffix = '_mask.tif';
 
 %%% Import LHE stain
+fprintf('\nIMPORTING LHE\n')
 [lhe] = import_stain(stain_dir,stain_suffix,epvs_suffix, ...
                     ves_suffix,mask_suffix);
 
@@ -84,7 +86,7 @@ lhe = measure_epvs_and_vessel_variable(lhe,radii_sm,rad_sm,pix);
 fprintf('\nStarting large radii\n')
 lhe = measure_epvs_and_vessel_variable(lhe,radii_lg,rad_lg,pix);
 
-%% LHE Statistics
+%%% LHE Statistics
 %{
 % One-sided Wilcoxon signed-rank test
 % Hypothesize myelin rarefaction around EPVS
@@ -135,7 +137,7 @@ tail = 'right';
 writetable(cd68_stats, stat_sheet, 'WriteRowNames', true, 'Sheet', 'CD68');
 %}
 
-%%% GFAP
+%% GFAP Import Stains
 % Stain directory
 stain_dir = fullfile(hdir,'GFAP/');
 % stain suffix
@@ -160,7 +162,7 @@ gfap = measure_epvs_and_vessel_variable(gfap,radii_sm,rad_sm,pix);
 fprintf('\nStarting large radii\n')
 gfap = measure_epvs_and_vessel_variable(gfap,radii_lg,rad_lg,pix);
 
-%% GFAP Statistics
+%%% GFAP Statistics
 %{
 % One-sided Wilcoxon signed-rank test
 % Hypothesize increased scattering (GFAP) around EPVS
@@ -332,7 +334,7 @@ for ii = 1:length(subdirs)
 end
 %}
 
-%% Statistics: histology vs. retardance
+%%% Statistics: histology vs. retardance
 %{
 % Define constant for dilating donut from the inner radius
 r = 2;
@@ -367,32 +369,6 @@ fprintf('GFAP: Median EPVS = %f\n',median(epvs,'omitnan'));
 fprintf('GFAP: Median Ves = %f\n',median(ves,'omitnan'));
 fprintf('GFAP: Mean EPVS = %f\n',mean(epvs,'omitnan'));
 fprintf('GFAP: Mean Ves = %f\n',mean(ves,'omitnan'));
-%}
-
-%% Create figure overlaying z-score with donuts
-%{
-% Create first layer of z-score stain
-zstain = lhe(2).z_stain;
-mask = lhe(2).mask;
-zstain(~mask) = -4;
-figure;
-imagesc(zstain); hold on;
-
-% Overlay with annotation
-epvs = lhe(2).epvs;
-se1 = strel('disk',0);
-se2 = strel('disk',rad_sm);
-inner = imdilate(epvs,se1);
-outter = imdilate(epvs,se2);
-annot = xor(inner, outter);
-overlay = cat(3, ones(size(zstain)), zeros(size(zstain)), zeros(size(zstain)));
-h = imagesc(overlay);
-% set(h,'AlphaData',0);
-set(h,'AlphaData',annot * 0.5);
-hold off
-set(gca,'XTick',[]); set(gca,'YTick',[])
-colorbar
-set(gca,'FontSize',20)
 %}
 
 %% Function to keep first channel from logical

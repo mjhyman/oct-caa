@@ -69,19 +69,30 @@ for ii = 1:length(hist)
         se2 = strel('disk',radii(j)+rad);
     
         %%% Dilate masks for EPVS, Vessel & measure parenchyma
-        [stain_epvs,stain_ves] = dilate_meas_exclude_overlap(z_stain,mask,...
-                                        epvs,ves,se1,se2);
+        % Histogram matching results
+        [h_stain_epvs,h_stain_ves] =...
+            dilate_meas_exclude_overlap(stain_matched,mask,epvs,ves,se1,se2);
+        % Z-stain results
+        [z_stain_epvs,z_stain_ves] =...
+            dilate_meas_exclude_overlap(z_stain,mask,epvs,ves,se1,se2);
         
         %%% Add experimental + control to structure
         % Create string name for segmentation ring size
         rad_name = strcat('rad',num2str(floor(pix.*rad)));
         % Create subfield name for specific radius
         rad_str = strcat('rad',num2str(floor(pix.*radii(j))));
-        % Add to struct
-        hist(ii).(rad_name).(rad_str).exp = stain_epvs;
-        hist(ii).(rad_name).(rad_str).ctl = stain_ves;
-        hist(ii).(rad_name).(rad_str).exp_mean = mean(stain_epvs,'omitnan');
-        hist(ii).(rad_name).(rad_str).ctl_mean = mean(stain_ves,'omitnan');        
+        % Add histogram matched to struct
+        hist(ii).(rad_name).(rad_str).exp_hmatched = h_stain_epvs;
+        hist(ii).(rad_name).(rad_str).ctl_hmatched = h_stain_ves;
+        hist(ii).(rad_name).(rad_str).exp_hmatched_mean =...
+            mean(h_stain_epvs,'omitnan');
+        hist(ii).(rad_name).(rad_str).ctl_hmatched_mean =...
+            mean(h_stain_ves,'omitnan');
+        % Add z-stain to struct
+        hist(ii).(rad_name).(rad_str).exp = z_stain_epvs;
+        hist(ii).(rad_name).(rad_str).ctl = z_stain_ves;
+        hist(ii).(rad_name).(rad_str).exp_mean = mean(z_stain_epvs,'omitnan');
+        hist(ii).(rad_name).(rad_str).ctl_mean = mean(z_stain_ves,'omitnan');        
     end
 end
 end

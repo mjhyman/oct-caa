@@ -154,7 +154,7 @@ writetable(T, tout);
 disp('Export complete: all_op_measurements_columns.csv');
 
 
-%% B/W White Matter
+%% Box/Whisker White Matter
 
 %%% Mus 
 vec = struct();
@@ -210,7 +210,7 @@ set(h,{'linew'},{2}); set(gca,'FontSize',20)
 fout = fullfile(fig_out,'box_whisker_ret_wm.png');
 saveas(gcf,fout); pause(0.5); close;
 
-%% B/W Gray Matter
+%% Box/Whisker Gray Matter
 
 %%% Mus 
 vec = struct();
@@ -266,7 +266,7 @@ set(h,{'linew'},{2}); set(gca,'FontSize',20)
 fout = fullfile(fig_out,'box_whisker_ret_gm.png');
 saveas(gcf,fout); pause(0.5); close;
 
-%% B/W Gray matter
+%% Create vectors for Box/Whisker 
 function [mus_x,mus_y,ret_x,ret_y] = create_vectors(vec, ds)
 % INPUTS
 %   vec (struct): optical properties
