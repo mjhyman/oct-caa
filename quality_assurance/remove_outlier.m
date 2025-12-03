@@ -88,17 +88,23 @@ function parench = rm_struct(parench, sub, reg, rad, loc, max_pmus, max_pret)
 % Select mus and retardance for this one
 mus = parench.(sub).(reg).(rad).outter.(loc).pmus;
 ret = parench.(sub).(reg).(rad).outter.(loc).pret;
+ori = parench.(sub).(reg).(rad).outter.(loc).pori;
 
 % Remove outliers based on defined thresholds
 mus_keep = mus < max_pmus;
 ret_keep = ret < max_pret;
 
-% Store cleaned data back into the structure
-parench.(sub).(reg).(rad).outter.(loc).pmus = mus(mus_keep);
-parench.(sub).(reg).(rad).outter.(loc).pret = ret(ret_keep);
+% Combine mus_keep and ret_keep with an AND function. This discards both
+% mus and retardance if either is 0
+% Combine mus_keep and ret_keep to filter the data
+keep_indices = mus_keep & ret_keep;
+parench.(sub).(reg).(rad).outter.(loc).pmus = mus(keep_indices);
+parench.(sub).(reg).(rad).outter.(loc).pret = ret(keep_indices);
+parench.(sub).(reg).(rad).outter.(loc).pori = ori(keep_indices);
 
 % Print the number of removed outliers for each location
-fprintf('Subject: %s, Region: %s, Radius: %s, Location: %s - Removed %d outliers from mus and %d from retardance.\n', ...
-    sub, reg, rad, loc, sum(~mus_keep), sum(~ret_keep));
+fprintf(['Subject: %s, Region: %s, Radius: %s, Location: %s -' ...
+         'Removed %d outliers from mus and retardance.\n'], ...
+          sub, reg, rad, loc, sum(~keep_indices));
 
 end

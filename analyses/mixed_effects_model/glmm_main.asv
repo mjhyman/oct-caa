@@ -92,24 +92,24 @@ end
 
 
 %% GLME linearity test at each radii
-% Test at each radius. Incorporate the region and group (exp vs control)
-% into the model.
-
+% Define regions (front + occip)
+regs = {'front','occip'};
 % Iterate over radii
 for ii = 1:numel(radii)
-    % Get the current radius
-    rad = radii{ii};
-    %%% Retrieve # vessel and EPVS (same number for both mus & retardance)
-    % Frontal
-    nves = nstruct.(rad).front.ves_mus;
-    nepv = nstruct.(rad).front.epv_mus;
-    % Add to occipital
-    nves = nves + nstruct.(rad).occip.ves_mus;
-    nepv = nepv + nstruct.(rad).occip.epv_mus;
+    % Iterate over regions
+    for j = 1:2        
+        % Get the current radius
+        rad = radii{ii};
+        % Retrieve # vessel and EPVS (same number for both mus and
+        % retardance)
+        nves = nstruct.(rad).(regs{j}).ves_mus;
+        nepv = nstruct.(rad).(regs{j}).epv_mus;
 
-    % Create general linear mixed effects model and check linearity
-    [stats, p, ~, ~, ~, ~, ~, ~, ~, ~, ~] =...
-        lmm_linearity(lin_test, flag_subs, parench, rad, nves, nepv);
+        % Create general linear mixed effects model and check linearity
+        [stats, p, ~, ~, ~, ~, ~, ~, ~, ~, ~] =...
+            lmm_linearity(lin_test, flag_subs, parench, rad, nves, nepv);
+
+    end
 end
 
 %% GLME Linearity after bootstrapping

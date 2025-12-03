@@ -56,7 +56,7 @@ for ii = 1:length(subs)
         % retrieve region
         reg = regs{j};
         % retrieve optical properties (vessels and epvs)
-        segmentations = fields(parench.(sub).(reg).(rad).inner);
+        segmentations = fields(parench.(sub).(reg).(rad).outter);
         % Iterate over segmentations
         for k=1:length(segmentations)
             % retrieve segmentation
@@ -84,7 +84,8 @@ for ii = 1:length(subs)
                 end
             end
         end
-        % Iterate tissue sample counter
+        % Iterate tissue sample counter. Vessel and EPVS will have the same
+        % subject index
         if flag_subs
             tiss_idx = tiss_idx + 1;
         end
@@ -118,19 +119,28 @@ tbl_sori = table(g_exp_cnrtl,reg_exp_cntrl,subids_exp_cnrtl,ori_exp_cnrtl,...
 % Take real part of complex numbers
 tbl_sori.OpticalProperty = real(tbl_sori.OpticalProperty);
 
-%% Fit linear mixed-effects model (LME) (table)
+%%% Add the log transformation of the optical property
+log_mus = log(tbl_mus.OpticalProperty);
+log_mus(log_mus == inf) = 0;
+tbl_mus.logOpticalProperty = 
+tbl_ret.logOpticalProperty = log(tbl_ret.OpticalProperty);
+
+
+%% Fit general linear mixed-effects model (LME) (table)
 % Define the model:
 %   response = optical property array
 %   random effect (intercept/subject): subID of tissue volume
 %   fixed effect: Groups (experimental or control)
 fprintf('Fitting LME for each optical property')
-fml = 'OpticalProperty ~ Groups + (Groups | subID)';
+fml = 'OpticalProperty ~ Groups*Region + (1 | subID)';
+% Define as log transformation
+fml = 'logOpticalProperty ~ Groups*Region + (1 | subID)';
 % Fit the model for scattering
-lme_mus = fitlme(tbl_mus,fml);
+lme_mus = fitglme(tbl_mus,fml);
 % Fit the model for retardance
-lme_ret = fitlme(tbl_ret,fml);
+lme_ret = fitglme(tbl_ret,fml);
 % Fit the model for circular std. dev. of orientation
-lme_sori = fitlme(tbl_sori,fml);
+lme_sori = fitglme(tbl_sori,fml);
 
 %%% Check linearity assumptions of GLME
 if check_lin
