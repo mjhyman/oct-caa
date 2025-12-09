@@ -148,32 +148,25 @@ for s = 1:numel(stain_names)
                 glme = fitglme(tbl,mdl);
                 [~,~,stats_fixed] = fixedEffects(glme);
                 % Extract p-value
-                p_condition = stats_fixed.pValue(3);
-                p_coef = coefTest(glme);
-                if p_coef < 0.05
-                    pause(1)
-                end
-                % Test for normal distribution
-                exp_normal = lillietest(exp_vec);
-                ctl_normal = lillietest(ctl_vec);
-                % For table: radius type, mean EPVS, mean ctl
+                p = stats_fixed.pValue(3);
+
                 radius_value = sscanf(subrad, 'rad%d');
                 mean_exp = mean(exp_vec,'omitnan');
                 mean_ctl = mean(ctl_vec,'omitnan');
                 % Add to rows of spreadsheet (revise)
                 result_rows(end+1,:) = {stain, radtype, radius_value, ...
-                                        mean_exp, mean_ctl, p_condition,...
-                                        p_coef, exp_normal, ctl_normal};
+                                        mean_exp, mean_ctl, p,...
+                                        stats.signedrank, stats.zval,...
+                                        numel(exp_vec)};
             end
         end
     end
 end
 
 stat_tbl = cell2table(result_rows, ...
-                    'VariableNames', ...
-                    {'Stain', 'RadiusType', 'Radius', 'MeanEPVS',...
-                    'MeanVessel','Condition_P_Value','Coef_p_value',...
-                    'EPVS_normal','CTL_normal'});
+    'VariableNames', {'Stain', 'RadiusType', 'Radius', 'MedEPVS',...
+                    'MedVessel', 'P_Value',...
+                    'SignedRankStatistic','Z', 'NumPairs'});
 
 writetable(stat_tbl, stat_sheet);
 
