@@ -54,6 +54,93 @@ stains.cd68 = cd68.cd68;
 stains.gfap = gfap.gfap;
 stains.lhe = lhe.lhe;
 
+%% One-sided wilcoxon signed rank test + GLMM
+
+%%% Initialization
+stain_names = fieldnames(stains);   % retrieve names of all stains
+radius_types = {'rad40', 'rad100'}; % Define the radii sizes that were used
+result_rows = {}; % initialize cell array for results table
+fdr_rows = {}; % initialize cell array for FDR table
+
+%%% State which tail to use for test
+% Hypothesize myelin rarefaction around EPVS
+%   --> (med(EPVS) - med(control)) < 0
+%   --> left tailed
+tails.cd68 = 'right';
+tails.gfap = 'right';
+tails.lhe = 'left';
+% Set all as both
+% tails.cd68 = 'both';
+% tails.gfap = 'both';
+% tails.lhe = 'both';
+
+for s = 1:numel(stain_names)
+    stain = stain_names{s};
+    section_struct = stains.(stain); % Array of sections
+    %%% Iterate radius type (100um or 40um)
+    for rt = 1:numel(radius_types)
+        radtype = radius_types{rt};
+        % Get all subradius names from the first section
+        subrads = fields(section_struct(1).(radtype));
+        % Create vector for storing p-values
+        p_vector = zeros(numel(subrads),1);
+        %%% Iterate radii within type
+        for sub = 1:numel(subrads)
+            subrad = subrads{sub};
+            exp_vec = [];
+            ctl_vec = [];
+            %%% Iterate sections at specific radius
+            for sec = 1:numel(section_struct)
+                % If subradius exists & has needed fields
+                if isfield(section_struct(sec).(radtype), subrad)
+                    rad_struct = section_struct(sec).(radtype).(subrad);
+                    % Add section means to exp_vec and ctl_vec
+                    if zflag
+                        exp_vec(end+1) = rad_struct.exp_mean;
+                        ctl_vec(end+1) = rad_struct.ctl_mean;
+                    else
+                        exp_vec(end+1) = rad_struct.exp_hmatched_mean;
+                        ctl_vec(end+1) = rad_struct.ctl_hmatched_mean;
+                    end
+                end
+            end
+            
+            %%% % Wilcoxon statistical test 
+            if ~isempty(exp_vec) && ~isempty(ctl_vec) &&...
+                    numel(exp_vec)==numel(ctl_vec)
+                
+                [p, h, stats] = signrank(exp_vec, ctl_vec,...
+                                        'method','approximate',...
+                                        'tail',tails.(stain));
+                radius_value = sscanf(subrad, 'rad%d');
+                med_exp = median(exp_vec);
+                med_ctl = median(ctl_vec);
+                result_rows(end+1,:) = {stain, radtype, radius_value, ...
+                                        med_exp, med_ctl, p,...
+                                        stats.signedrank, stats.zval,...
+                                        numel(exp_vec)};
+                % Add p-value to vector
+                p_vector(sub) = p;
+            end
+        end
+        %%% Perform Benjamin & Hochberg false discovery rate
+        % perform test
+        fdr = mafdr(p_vector,'BHFDR','true');
+        % concatenate to matrix
+        fdr_rows = [fdr_rows; num2cell(fdr)];
+    end
+end
+
+% Concatenate the statistics with the FDR vector
+result_rows = [result_rows, fdr_rows];
+% Convert cell array to table
+stat_tbl = cell2table(result_rows,'VariableNames',...
+                    {'Stain', 'RadiusType', 'Radius', 'MedEPVS',...
+                    'MedVessel', 'P_Value',...
+                    'SignedRankStatistic','Z', 'NumPairs', 'FDR_q_value'});
+% Write to spreadsheet
+writetable(stat_tbl, stat_sheet);
+
 %% General linear mixed effects model
 
 %%% Initialization
@@ -174,79 +261,5 @@ stat_tbl = cell2table(result_rows, ...
                     {'Stain', 'RadiusType', 'Radius', 'MeanEPVS',...
                     'MeanVessel','Condition_P_Value','Coef_p_value',...
                     'EPVS_normal','CTL_normal'});
-
-writetable(stat_tbl, stat_sheet);
-
-%% One-sided wilcoxon signed rank test + GLMM
-
-%%% Initialization
-stain_names = fieldnames(stains);   % retrieve names of all stains
-radius_types = {'rad40', 'rad100'}; % Define the radii sizes that were used
-result_rows = {}; % initialize cell array for results table
-
-%%% State which tail to use for test
-% Hypothesize myelin rarefaction around EPVS
-%   --> (med(EPVS) - med(control)) < 0
-%   --> left tailed
-tails.cd68 = 'right';
-tails.gfap = 'right';
-tails.lhe = 'left';
-% Set all as both
-% tails.cd68 = 'both';
-% tails.gfap = 'both';
-% tails.lhe = 'both';
-
-for s = 1:numel(stain_names)
-    stain = stain_names{s};
-    section_struct = stains.(stain); % Array of sections
-    %%% Iterate radii
-    for rt = 1:numel(radius_types)
-        radtype = radius_types{rt};
-        % Get all subradius names from the first section
-        subrads = fields(section_struct(1).(radtype));
-        % Iterate subjects
-        for sub = 1:numel(subrads)
-            subrad = subrads{sub};
-            exp_vec = [];
-            ctl_vec = [];
-            % Iterate sections
-            for sec = 1:numel(section_struct)
-                % If subradius exists & has needed fields
-                if isfield(section_struct(sec).(radtype), subrad)
-                    rad_struct = section_struct(sec).(radtype).(subrad);
-                    % Add section means to exp_vec and ctl_vec
-                    if zflag
-                        exp_vec(end+1) = rad_struct.exp_mean;
-                        ctl_vec(end+1) = rad_struct.ctl_mean;
-                    else
-                        exp_vec(end+1) = rad_struct.exp_hmatched_mean;
-                        ctl_vec(end+1) = rad_struct.ctl_hmatched_mean;
-                    end
-                end
-            end
-            
-            %%% % Wilcoxon statistical test 
-            if ~isempty(exp_vec) && ~isempty(ctl_vec) &&...
-                    numel(exp_vec)==numel(ctl_vec)
-                
-                [p, h, stats] = signrank(exp_vec, ctl_vec,...
-                                        'method','approximate',...
-                                        'tail',tails.(stain));
-                radius_value = sscanf(subrad, 'rad%d');
-                med_exp = median(exp_vec);
-                med_ctl = median(ctl_vec);
-                result_rows(end+1,:) = {stain, radtype, radius_value, ...
-                                        med_exp, med_ctl, p,...
-                                        stats.signedrank, stats.zval,...
-                                        numel(exp_vec)};
-            end
-        end
-    end
-end
-
-stat_tbl = cell2table(result_rows, ...
-    'VariableNames', {'Stain', 'RadiusType', 'Radius', 'MedEPVS',...
-                    'MedVessel', 'P_Value',...
-                    'SignedRankStatistic','Z', 'NumPairs'});
 
 writetable(stat_tbl, stat_sheet);

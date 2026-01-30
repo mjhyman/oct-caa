@@ -1,4 +1,4 @@
-function xy_out = bin_swp(pair, N)
+function [xy_out, se_out] = bin_swp(pair, N)
 % Efficient scatter plot: averages all points in disjoint x-windows, returning at most N points
 % INPUTS:
 %   pair (Nx2 matrix): [x, y]
@@ -50,12 +50,27 @@ bin = bin(valid_pts);
 x = x(valid_pts);
 y = y(valid_pts);
 
-% Compute mean x and y for each bin using accumarray
-x_bin_mean = accumarray(bin(:), x(:), [N 1], @mean, single(NaN));
-y_bin_mean = accumarray(bin(:), y(:), [N 1], @mean, single(NaN));
+% Compute mean y for each bin using accumarray
+y_bin_mean = accumarray(bin(:), y(:), [N 1], @mean, single(0));
+
+%%% Calculate the standard error for y values in each bin
+% standard deviation
+y_bin_std = accumarray(bin(:), y(:), [N 1], @std, single(0));
+% number of samples
+y_bin_count = accumarray(bin(:), 1, [N 1], @sum);
+% standard error
+y_bin_se = y_bin_std ./ sqrt(y_bin_count);
 
 % Remove bins with no points (NaN means no data in that bin)
-valid_bins = ~isnan(x_bin_mean) & ~isnan(y_bin_mean);
+valid_bins = ~isnan(y_bin_mean);
 
-xy_out = [x_bin_mean(valid_bins), y_bin_mean(valid_bins)];
+% Calculate midpoints of the bins for the x-axis points
+bin_midpoints = (edges(1:end-1) + edges(2:end)) / 2;
+
+% Construct output with midpoints for x values
+xy_out = [bin_midpoints(valid_bins)', y_bin_mean(valid_bins)];
+
+% Standard Error output
+se_out = y_bin_se(valid_bins);
+
 end

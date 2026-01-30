@@ -1,6 +1,6 @@
 %% Measure the size-weighted proximity (SWP)
-% Batch script that runs on individual subjects
-% clear; clc; close all;
+% 
+clear; clc; close all;
 
 %% Directories and Data
 data_dir = '/projectnb/npbssmic/ns/CAA/';
@@ -9,6 +9,9 @@ swp_dir = '/projectnb/npbssmic/ns/CAA/swp/';
 str_base = 'radius_200_exp_2_interpolated_heatmap_log10.mat';
 % Directory to store csv
 fig_out = '/projectnb/npbssmic/ns/CAA/figures/fig4_mus_swp_epvs/';
+% flag for loading data
+load_struct_flag = false;
+load_swp_flag = true;
 
 %% Array of subject ID and regions
 subjects = struct();
@@ -25,49 +28,51 @@ vox = 20;
 % scalebar length in microns
 scaleBarLength = 5000;
 % Set slices for each subject
-subjects(1).slice = 124;
+subjects(1).slice = 93;
 subjects(2).slice = 536;
 subjects(3).slice = 347;
 
-%% Import the CAA structs
-%{
-% CAA 6
-fprintf('Loading CAA6\n')
-caa6 = load(fullfile(data_dir,'/caa6/caa6.mat'));
-caa6 = caa6.caa6;
-fprintf('Finished Loading CAA6\n')
-% CAA 17
-fprintf('Loading CAA17\n')
-caa17 = load(fullfile(data_dir,'/caa17/occip/caa17.mat'));
-caa17 = caa17.caa17;
-fprintf('Finished Loading CAA17\n')
-% CAA 22
-fprintf('Loading CAA22\n')
-caa22 = load(fullfile(data_dir,'/caa22/caa22.mat'));
-caa22 = caa22.caa22;
-fprintf('Finished Loading CAA22\n')
-%}
+%% Import the CAA structs & SWP
+
+if load_flag
+    % CAA 6
+    fprintf('Loading CAA6\n')
+    caa6 = load(fullfile(data_dir,'/caa6/caa6.mat'));
+    caa6 = caa6.caa6;
+    fprintf('Finished Loading CAA6\n')
+    % CAA 17
+    fprintf('Loading CAA17\n')
+    caa17 = load(fullfile(data_dir,'/caa17/occip/caa17.mat'));
+    caa17 = caa17.caa17;
+    fprintf('Finished Loading CAA17\n')
+    % CAA 22
+    fprintf('Loading CAA22\n')
+    caa22 = load(fullfile(data_dir,'/caa22/caa22.mat'));
+    caa22 = caa22.caa22;
+    fprintf('Finished Loading CAA22\n')
+end
+if load_swp_flag
+    %%% Import swp for each subject
+    for ii = 1:length(subjects)
+        fprintf('Loading subject %s\n',subjects(ii).subject_name)
+        % Create full file name
+        subid = subjects(ii).subject_name;
+        reg = subjects(ii).region;
+        fname = strcat(subid,'_',reg,'_');
+        fname = strcat(fname, str_base);
+        fname = fullfile(swp_dir,subid,reg,fname);    
+        % Import SWP
+        swp = load(fname);
+        swp = single(swp.swp);
+        % Add to subjects struct
+        subjects(ii).swp = swp;
+    end
+end
 % Integrate into data structs
 op = struct();
 op.caa6 = caa6;
 op.caa17 = caa17;
 op.caa22 = caa22;
-
-%% Import swp for each subject
-for ii = 1:length(subjects)
-    fprintf('Loading subject %s\n',subjects(ii).subject_name)
-    % Create full file name
-    subid = subjects(ii).subject_name;
-    reg = subjects(ii).region;
-    fname = strcat(subid,'_',reg,'_');
-    fname = strcat(fname, str_base);
-    fname = fullfile(swp_dir,subid,reg,fname);    
-    % Import SWP
-    swp = load(fname);
-    swp = single(swp.swp);
-    % Add to subjects struct
-    subjects(ii).swp = swp;
-end
 
 %% Add white matter mask, mus, vessels, EPVS to subjects struct
 for ii = 1:length(subjects)
@@ -159,11 +164,19 @@ for i = 1:length(subjects)
     hold off;
 
     %%% Save output with high quality
+    % Export as PNG
+    fname = strcat(subjects(i).subject_name,'_',subjects(i).region,'_',...
+        'depth_',num2str(slice_idx),'_swp.png');
+    fout = fullfile(fig_out,fname);
+    exportgraphics(gcf, fout,"Resolution",600)
+    pause(1)
+    % Export as PDF
     fname = strcat(subjects(i).subject_name,'_',subjects(i).region,'_',...
         'depth_',num2str(slice_idx),'_swp.pdf');
     fout = fullfile(fig_out,fname);
     exportgraphics(gcf, fout,"Resolution",600)
     pause(1)
+    close
 end
 
 %% Create grayscale mus subfigures
@@ -193,7 +206,7 @@ mus.caa22f = mus_caa22f;
 subs = fields(mus);
 for ii = 1:length(subs)
     % figure('position',[100 100 1500 1500]);
-    figure;
+    figure('position',[100 100 1500 1500]);
     imagesc(mus.(subs{ii}));
     colormap('gray');
     clim([0, 24])
@@ -207,12 +220,20 @@ for ii = 1:length(subs)
     slice = mus.(subs{ii});
     scalebar_fun(scaleBarLength, vox, slice)
     hold off
-    % Export image
-    fname = strcat(subjects(i).subject_name,'_',subjects(i).region,'_',...
-                    'depth_',num2str(slice_idx),'_swp.pdf');
+    % Export image as PNG
+    slice_idx = subjects(ii).slice;
+    fname = strcat(subjects(ii).subject_name,'_',subjects(ii).region,'_',...
+                    'depth_',num2str(slice_idx),'_mus.png');
     fout = fullfile(fig_out,fname);
     exportgraphics(gcf, fout,"Resolution",600)
     pause(1)
+    % Export image as PDF
+    fname = strcat(subjects(ii).subject_name,'_',subjects(ii).region,'_',...
+                    'depth_',num2str(slice_idx),'_mus.pdf');
+    fout = fullfile(fig_out,fname);
+    exportgraphics(gcf, fout,"Resolution",600)
+    pause(1)
+    close;
 end
 
 %% Orientation subfigures

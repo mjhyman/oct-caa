@@ -64,7 +64,7 @@ end
 %   1) remove values above threshold
 %   2) remove values outside 1.5*IQR
 %   3) subtract the median WM optical property from vector
-subtract_median = true;
+subtract_median = false;
 if subtract_median
     substr = strcat(['_max_removed__outlier_removed__' ...
                     'median_subtracted__40um_donut_'],string(dt));
@@ -182,8 +182,8 @@ scatter_main(subjects, fprops, parench_median, standardize_flag)
 % Set limits for the case of subtracting offset
 if use_percentage
     % y-axis limits
-    mus_yl = [-20, 30];
-    ret_yl = [-20, 20];
+    mus_yl = [-10, 30];
+    ret_yl = [-20, 10];
     % scatterplot y-axis tick marks
     mus_yt = min(mus_yl) : 5 : max(mus_yl);
     ret_yt = min(ret_yl) : 5 : max(ret_yl);

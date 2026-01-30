@@ -14,7 +14,7 @@ function swp_scatterplot(xy, xlab, ylab, tit, xlims, ylims, plt_dir, fname)
 figure('Position', [956  -274   909   844]);
 
 % Plot figure
-scatter(xy(:,1), xy(:,2), 60, 'b', 'filled');
+scatter(xy(:,1), xy(:,2), 60, 'k', 'filled');
 xlabel(xlab);
 ylabel(ylab);
 title(tit);
@@ -26,7 +26,8 @@ ylim(ylims);
 
 % Save the figure
 fout = fullfile(plt_dir, fname);
-saveas(gcf,fout,'png')
+saveas(gcf,fout,'pdf')
+saveas(gcf,fout,'fig')
 pause(1)
 close;
 

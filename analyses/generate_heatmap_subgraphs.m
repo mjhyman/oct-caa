@@ -83,7 +83,7 @@ subid = fieldnames(volumes);
 %%% Struct for storing vascular heat map
 heatmap = struct();
 
-%% Create matrix of EPVS & Vascular heatmaps (volume fraction)
+%% Create matrix of EPVS
 
 %%% Iterate over each subject
 for ii = 1:length(subid)

@@ -1,5 +1,5 @@
-function check_glme_linearity(lme, tbl, numericPredictors,...
-                              nlThresh, lintest_dir, op, reg)
+function check_glme_each_distance(lme, tbl, numericPredictors,...
+                              nlThresh, lintest_dir, op, dist, reg)
 % Generates diagnostic plots and calculates nonlinearity scores.
 %
 % Inputs:
@@ -9,16 +9,12 @@ function check_glme_linearity(lme, tbl, numericPredictors,...
 %   nlThresh - Threshold for nonlinearity score (e.g., 0.05). Default: 0.05
 %   lintest_dir (string) - output directory for storing plots
 %   op (string) - optical property name (scattering or retardance)
+%   dist (uint) - distance in microns
 %   reg (string) - region (front or occip)
-
-%% Ensure all arguments present
-if nargin < 6
-    error('Not Enough Arguments')
-end
 
 %% Create output directory for storing plots
 % Concatenate output directory
-ddir = fullfile(lintest_dir, string(op), string(reg));
+ddir = fullfile(lintest_dir, string(op), string(reg), string(dist));
 % Check if directory exists. If not, then create
 if ~exist(ddir, 'dir')
     mkdir(ddir);

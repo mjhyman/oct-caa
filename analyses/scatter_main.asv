@@ -41,6 +41,17 @@ err_flag = fprops.err_flag;
 mus_max = fprops.mus_max;
 ret_max = fprops.ret_max;
 rm_outlier = fprops.rm_outlier;
+% Method for standardizing the measurements
+if standardize_flag == 0
+    median_offset = 0;
+    percentage_diff = 0;
+elseif standardize_flag == 1
+    median_offset = 1;
+    percentage_diff = 0;
+else
+    median_offset = 0;
+    percentage_diff = 1;
+end
 
 %% Initialize vectors: singel value for each distance
 %%% Combined array for pairs of optical proprety vs. distance
@@ -232,7 +243,7 @@ end
 
 %%% x-axis and y-axis labels
 xlab = 'Distance (\mum)';
-if standardize_flag == 2
+if use_percentage
     ylab_mus = '\mus (% \Delta)';
     ylab_ret = 'Retardance (% \Delta)';
 else
@@ -245,14 +256,14 @@ end
 % Mus
 tit = 'Combined: \mus vs. Distance';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('COMBINED_epvs_ves_mus_vs_distance',substr);
+fname = strcat('COMBINED_epvs_ves_mus_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, comb_mean_ves_mus, comb_sem_ves_mus,...
                 comb_mean_epvs_mus, comb_sem_epvs_mus,err_flag,...
                 xlab, ylab_mus, mus_yl, xt, mus_yt, tit, dir_out, fname, psize)
 % Retardance
 tit = 'Combined: Retardance vs. Distance';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('COMBINED_epvs_ves_ret_vs_distance',substr);
+fname = strcat('COMBINED_epvs_ves_ret_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, comb_mean_ves_ret, comb_sem_ves_ret,...
                 comb_mean_epvs_ret, comb_sem_epvs_ret,err_flag,...
                 xlab, ylab_ret, ret_yl, xt, ret_yt, tit, dir_out, fname, psize)
@@ -261,14 +272,14 @@ scatter_op_vs_dist(x, comb_mean_ves_ret, comb_sem_ves_ret,...
 % Mus
 tit = 'Frontal: \mus vs. Distance';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('FRONT_epvs_ves_mus_vs_distance',substr);
+fname = strcat('FRONT_epvs_ves_mus_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, front_mean_ves_mus, front_sem_ves_mus,...
                 front_mean_epvs_mus, front_sem_epvs_mus,err_flag,...
                 xlab, ylab_mus, mus_yl, xt, mus_yt,tit, dir_out, fname, psize)
 % Retardance
 tit = 'Frontal: Retardance vs. Distance';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('FRONT_epvs_ves_ret_vs_distance',substr);
+fname = strcat('FRONT_epvs_ves_ret_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, front_mean_ves_ret, front_sem_ves_ret,...
                 front_mean_epvs_ret, front_sem_epvs_ret,err_flag,...
                 xlab, ylab_ret, ret_yl,xt, ret_yt,tit, dir_out, fname, psize)
@@ -277,14 +288,14 @@ scatter_op_vs_dist(x, front_mean_ves_ret, front_sem_ves_ret,...
 % Mus
 tit = 'Occipital: \mus vs. Distance';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('OCCIP_epvs_ves_mus_vs_distance',substr);
+fname = strcat('OCCIP_epvs_ves_mus_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, occip_mean_ves_mus, occip_sem_ves_mus,...
                 occip_mean_epvs_mus, occip_sem_epvs_mus,err_flag,...
                 xlab, ylab_mus, mus_yl, xt, mus_yt, tit, dir_out, fname, psize)
 % Retardance
 tit = 'Occipital: Retardance vs. Distance';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('OCCIP_epvs_ves_ret_vs_distance',substr);
+fname = strcat('OCCIP_epvs_ves_ret_vs_distance',substr,'.png');
 scatter_op_vs_dist(x, occip_mean_ves_ret, occip_sem_ves_ret,...
                 occip_mean_epvs_ret, occip_sem_epvs_ret,err_flag,...
                 xlab, ylab_ret, ret_yl,xt, ret_yt,tit,dir_out, fname, psize)
@@ -364,22 +375,19 @@ set(gca,'fontsize',40);
 
 % Save output
 fout = fullfile(dir_out,fname);
-saveas(gcf,fout,'pdf');
-saveas(gcf,fout,'fig');
+saveas(gcf,fout);
 pause(0.5)
 close;
 end
 
 %% Percentage Difference or Median Removal
 
-function [mus,ret] = relative_difference(standardize_flag, offsets,...
+function [mus,ret] = relative_difference(use_percentage, offsets,...
                                          sub, reg, mus, ret)
 % RELATIVE_DIFFERENCE compute either % difference or remove offset
 %   INPUTS
-%       standardize_flag (int):
-%                  0 : do not change measurement
-%                  1 : use the absolute change from median
-%                  2 : use the percentage change from median
+%       use_percentage (boolean): compute percentage difference from median
+%                               white matter value
 %       offsets (boolean): subtract median white matter optical property
 %       mus (boolean): scattering coefficient vector
 %       ret (boolean): retardance vector
@@ -387,21 +395,19 @@ function [mus,ret] = relative_difference(standardize_flag, offsets,...
 
 
 %%% percentage difference or offset removal
-if standardize_flag == 0
-    return
-elseif standardize_flag == 1
-    % Subtract the median optical property to standardize
-    med_mus = offsets.(sub).(reg).med.mus;
-    med_ret = offsets.(sub).(reg).med.ret;
-    mus = mus - med_mus;
-    ret = ret - med_ret;  
-else
+if use_percentage
     % Median mus and retardance
     med_mus = offsets.(sub).(reg).med.mus;
     med_ret = offsets.(sub).(reg).med.ret;
     % subtract median then divide by median to find d%
     mus = ((mus - med_mus) ./ med_mus) .* 100;
     ret = ((ret - med_ret) ./ med_ret) .* 100;
+elseif ~isempty(offsets)
+    % Subtract the median optical property to standardize
+    med_mus = offsets.(sub).(reg).med.mus;
+    med_ret = offsets.(sub).(reg).med.ret;
+    mus = mus - med_mus;
+    ret = ret - med_ret;                
 end
 
 end

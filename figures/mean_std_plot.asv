@@ -1,0 +1,77 @@
+function mean_std_plot(x, exp_mu, exp_sigma, ctl_mu, ctl_sigma)
+% mean_std_plot: Create a Mean ± Standard Deviation plot.
+%   The STD will be a translucent ribbon surrounding the mean.
+% 
+% Inputs:
+%   x (vector) - x-axis data points
+%   exp_mu (vector) - vector of means for experimental
+%   exp_sigma (vector) - vector of standard deviations for experimental
+%   ctl_mu (vector) - vector of means for control
+%   ctl_sigma (vector) - vector of standard deviations for control
+
+%% Esnure the x-axis and y-axis vectors are columns
+% unwrap all into a column
+x = x(:);
+exp_mu = exp_mu(:);
+exp_sigma = exp_sigma(:);
+ctl_mu = ctl_mu(:);
+ctl_sigma = ctl_sigma(:);
+
+%% Set plotting parameters
+% Set the experimental and control colors
+exp_color = [1 0 0];
+ctl_color = [0 0 0];
+% Set the transparency level (0-1)
+alpha = 0.3;
+
+%% Create a figure and plot the mean
+figure;
+hold on;
+% Scatter plots
+scatter(x, exp_mu, 'o', 'MarkerFaceColor',exp_color,'DisplayName','Experimental Mean');
+% scatter(x, ctl_mu, 'o', 'MarkerFaceColor', ctl_color, 'DisplayName', 'Control Mean');
+
+%% Add ribbons
+% Create ribbons for experimental and control means
+ribbon(x, exp_mu, exp_sigma, exp_color, alpha);
+ribbon(x, ctl_mu, ctl_sigma, ctl_color, alpha);
+%% Create fill plot with points directly over points
+        xl = x;
+        xu = flip(x);
+        xf = [xl; xu]';
+
+
+%% Add labels and legend
+ylabel('Values');
+title('Mean ± Standard Deviation Plot');
+legend('show');
+hold off;
+
+%% Create Ribbon
+    function ribbon(x, mu, sigma, color, alpha)
+        % Calculate half the distance between the x-axis values for ribbon
+        dx = (x(2) - x(1)) ./ 2;
+        
+        %%% Create x-axis points for ribbon
+        % Add extra point to end to ensure ribbon is vertical at ends
+        x_lower = [x - dx; x(end)+dx];
+        x_upper = [flip(x + dx); (x(1) - dx)];
+        % Combine x_lower and x_upper then transpose
+        x_fill = [x_lower; x_upper]';
+        
+        %%% Create y-axis points for ribbon
+        % Create the area for +/-1 standard deviation
+        lower = mu - sigma;
+        upper = mu + sigma;        
+        % Add extra points to y-xis to ensure vertical ends
+        lower = [lower; lower(end)];
+        upper = [flip(upper); upper(1)];
+        y_fill = [lower; upper]'; % y-coordinates for the fill
+        
+        % Plot +/-1 standard deviation as a filled area between lower and upper
+        fill(x_fill, y_fill, color, 'FaceAlpha', alpha, 'EdgeColor', 'none');
+        pause(0.1)
+
+        
+    end
+end

@@ -39,20 +39,53 @@ cd68 = load(fullfile(hdir,'cd68_rings_21-Nov-2025.mat')); cd68 = cd68.cd68;
 radii_sm = [40, 81, 121, 162, 202, 243, 283, 324, 364, 405, 445, 486];
 radii_lg = [100, 201, 301, 402, 503];
 
-%% AVERAGE across subjects -- scatterplot of histology vs. distance
+%% AVERAGE subjects and regions for each stain
 close all;
 
 % LHE
 [sm, lg] = mean_std_stain(lhe);
 stain_errorbar(sm, lg, radii_sm, radii_lg, 'LHE', figdir)
 
-% Import GFAP
+% GFAP
 [sm, lg] = mean_std_stain(gfap);
 stain_errorbar(sm, lg, radii_sm, radii_lg, 'GFAP', figdir)
 
-% Import CD68
+% CD68
 [sm, lg] = mean_std_stain(cd68);
 stain_errorbar(sm, lg, radii_sm, radii_lg, 'CD68', figdir)
+
+
+%% AVERAGE within brain region -- scatterplot of histology vs. distance
+% Only use the samll radius measurement (rad40)
+close all;
+
+% Define the tissue section codes for frontal and occipital
+fcode = "_1";
+ocode = "_7";
+
+%%% LHE
+% calculate for front and occipital
+[lhe_front] = average_within_region(lhe, fcode, "rad40");
+[lhe_occip] = average_within_region(lhe, ocode, "rad40");
+% Errorbar scatterplots
+stain_errorbar(lhe_front, [], radii_sm, [], 'LHE_front', figdir)
+stain_errorbar(lhe_occip, [], radii_sm, [], 'LHE_occip', figdir)
+
+%%% GFAP
+% calculate for front and occipital
+[gfap_front] = average_within_region(gfap, fcode, "rad40");
+[gfap_occip] = average_within_region(gfap, ocode, "rad40");
+% Errorbar scatterplots
+stain_errorbar(gfap_front, [], radii_sm, [], 'GFAP_front', figdir)
+stain_errorbar(gfap_occip, [], radii_sm, [], 'GFAP_occip', figdir)
+
+%%% CD68
+% calculate for front and occipital
+[cd68_front] = average_within_region(cd68, fcode, "rad40");
+[cd68_occip] = average_within_region(cd68, ocode, "rad40");
+% Errorbar scatterplots
+stain_errorbar(cd68_front, [], radii_sm, [], 'CD68_front', figdir)
+stain_errorbar(cd68_occip, [], radii_sm, [], 'CD68_occip', figdir)
 
 %% AVERAGE within subjects -- scatterplot of histology vs. distance
 close all;
@@ -128,61 +161,66 @@ fname = tstr;
 % Escape underscores from title
 tstr = strrep(tstr,'_','\_');
 
-%%% SMALL RADII    
-% Prepare figure for scatterplot
-figure('Position',[100, 100, 1500, 1000]);
-hold on;
-xlabel('Distance (\mum)');
-ylabel('Stain Density (z-score)');
-title(strcat(tstr, ' Small Radii (40 \mum)'));
-% EPVS
-errorbar(radii_sm, sm.mean_epvs, sm.std_epvs,'LineWidth',lwidth,...
-        'color','red','DisplayName', 'EPVS');
-hold on;
-% Vessels
-errorbar(radii_sm + offset, sm.mean_ves, sm.std_ves,'LineWidth',lwidth,...
-        'color','blue','DisplayName', 'vessel');
-hold off;
-legend show;
-% Increase size of dots and bars
-set(gca, 'FontSize', 40);
-set(findobj(gca, 'Type', 'scatter'), 'SizeData', 100);
-xlim([0,550]);
-xticks([0, 100, 200, 300, 400, 500]);
-xticklabels({'0','100','200','300','400','500'});
-% Save output
-fout = fullfile(figdir,strcat(fname,'_small_radii_scatter'));
-pause(1); saveas(gca,fout,'png'); close;
+%%% SMALL RADII
+if isstruct(sm)
+    % Prepare figure for scatterplot
+    figure('Position',[100, 100, 1500, 1000]);
+    hold on;
+    xlabel('Distance (\mum)');
+    ylabel('Stain Density (z-score)');
+    title(strcat(tstr, ' Small Radii (40 \mum)'));
+    % EPVS
+    errorbar(radii_sm, sm.mean_epvs, sm.std_epvs,'LineWidth',lwidth,...
+            'color','red','DisplayName', 'EPVS');
+    hold on;
+    % Vessels
+    errorbar(radii_sm + offset, sm.mean_ves, sm.std_ves,'LineWidth',lwidth,...
+            'color','blue','DisplayName', 'vessel');
+    hold off;
+    legend show;
+    % Increase size of dots and bars
+    set(gca, 'FontSize', 40);
+    set(findobj(gca, 'Type', 'scatter'), 'SizeData', 100);
+    xlim([0,550]);
+    xticks([0, 100, 200, 300, 400, 500]);
+    xticklabels({'0','100','200','300','400','500'});
+    % Save output
+    fout = fullfile(figdir,strcat(fname,'_small_radii_scatter'));
+    pause(1); saveas(gca,fout,'png'); close;
+end
 
-%%% LARGE RADII    
-% Prepare figure for scatterplot
-figure('Position',[100, 100, 1500, 1000]); hold on;
-xlabel('Distance (\mum)');
-ylabel('Stain Density (z-score)');
-title(strcat(tstr, ' Large Radii (100 \mum)'));
-% EPVS
-errorbar(radii_lg, lg.mean_epvs, lg.std_epvs,'LineWidth',lwidth,...
-        'color','red','DisplayName', 'EPVS');
-hold on;
-% Vessels
-errorbar(radii_lg + offset, lg.mean_ves, lg.std_ves,'LineWidth',lwidth,...
-        'color','blue','DisplayName', 'vessel');
-hold off;
-legend show;
-% Increase size of dots and bars
-set(gca, 'FontSize', 40);
-set(findobj(gca, 'Type', 'scatter'), 'SizeData', 100);
-xlim([0,550]);
-xticks([0, 100, 200, 300, 400, 500]);
-xticklabels({'0','100','200','300','400','500'});
-% Save output
-fout = fullfile(figdir,strcat(fname,'_large_scatter'));
-pause(1); saveas(gca,fout,'png');  close;
+%%% LARGE RADII
+if isstruct(lg)
+    % Prepare figure for scatterplot
+    figure('Position',[100, 100, 1500, 1000]); hold on;
+    xlabel('Distance (\mum)');
+    ylabel('Stain Density (z-score)');
+    title(strcat(tstr, ' Large Radii (100 \mum)'));
+    % EPVS
+    errorbar(radii_lg, lg.mean_epvs, lg.std_epvs,'LineWidth',lwidth,...
+            'color','red','DisplayName', 'EPVS');
+    hold on;
+    % Vessels
+    errorbar(radii_lg + offset, lg.mean_ves, lg.std_ves,'LineWidth',lwidth,...
+            'color','blue','DisplayName', 'vessel');
+    hold off;
+    legend show;
+    % Increase size of dots and bars
+    set(gca, 'FontSize', 40);
+    set(findobj(gca, 'Type', 'scatter'), 'SizeData', 100);
+    xlim([0,550]);
+    xticks([0, 100, 200, 300, 400, 500]);
+    xticklabels({'0','100','200','300','400','500'});
+    % Save output
+    fout = fullfile(figdir,strcat(fname,'_large_scatter'));
+    pause(1); saveas(gca,fout,'png');  close;
+end
+
 end
 
 %% Function to iterate stain and take mean + Std Dev across subjects
 function [sm, lg] = mean_std_stain(stain)
-% MEAN_STD_STAIN measure mean Std. across stains
+% MEAN_STD_STAIN measure mean Std. across ALL sections within stain
 % INPUTS:
 %   stain (struct): stain struct
 %   radii_sm (vector): vector of small radii
@@ -284,5 +322,74 @@ for s = 1:length(subs)
     stats.(subs{s}).mean_ves = mean_ves;
     stats.(subs{s}).std_ves = std_ves;
 end
+
+end
+
+%% Measure the mean + StdDev within each subject
+function [stats] = average_within_region(stain, region, rad_size)
+% Measure mean + Std within tissue section. Average within region.
+% INPUTS
+%   stain (struct): stain struct top level
+%   region (string): brain region string
+%                       front = "_1"
+%                       occip = "_7"
+%   rad_size (string): radius size "rad40"
+% OUTPUTS:
+%   stats (struct): structure containing statistics
+%       mean_epvs (vector): average EPVS
+%       std_epvs (vector): std EPVS
+%       mean_ves (vector): average Ves
+%       std_ves (vector): std Ves
+
+%%% Find the tissue sections with the respective brain region
+% Extract local variable with basename of each section
+names = {stain.baseName};
+% Find the index of each tissue section matching region string
+if endsWith(names{1},"_10x")
+    tf = contains(names,strcat(region,"_"));
+else
+    tf = endsWith(names,region);
+end
+% Take the stain indices matching the region
+stain_reg = stain(tf);
+% subject names of each section in stain
+subs = {stain_reg(:).baseName};
+% Count total number of subjects within region
+nsubs = numel(subs);
+
+%%% Initialize variables
+% Measure number of radii measurements for radius type (40 or 100 um)
+nrad = length(fields(stain_reg(1).(rad_size)));
+% Initialize vectors
+mean_epvs = zeros(nrad,nsubs);
+std_epvs = zeros(nrad,nsubs);
+mean_ves = zeros(nrad,nsubs);
+std_ves = zeros(nrad,nsubs);
+% Retrieve names of the fields of small radii
+rad_name = fields(stain_reg(1).(rad_size));
+% struct for storing each subject's mean + StdDev
+stats = struct();
+
+% Iterate subjects
+for s = 1:length(subs)
+    % Iterate over the radii
+    for ii = 1:nrad
+        % EPVS
+        epvs = stain_reg(s).(rad_size).(rad_name{ii}).exp;
+        % Vessels
+        ves = stain_reg(s).(rad_size).(rad_name{ii}).ctl;
+        % Take mean & std dev within subject
+        mean_epvs(ii,s) = mean(epvs,'omitnan');
+        std_epvs(ii,s) = std(epvs,'omitnan');
+        mean_ves(ii,s) = mean(ves,'omitnan');
+        std_ves(ii,s) = std(ves,'omitnan');
+    end
+end
+
+% Average across subjects
+stats.mean_epvs = mean(mean_epvs,2,'omitnan');
+stats.std_epvs = std(mean_epvs,0,2,'omitnan');
+stats.mean_ves = mean(mean_ves,2,'omitnan');
+stats.std_ves = std(mean_ves,0,2,'omitnan');
 
 end

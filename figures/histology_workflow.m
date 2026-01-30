@@ -50,6 +50,10 @@ rmax = 0.6;
 zmin = -2;
 zmax = 2;
 
+%%% Scale bar properties
+slen = 2000; % scale bar length in microns
+sth = 25;   % scale bar thickness in line width units
+
 %%% Font size for color bar
 fsize = 40; % Set font size for figures
 
@@ -66,6 +70,8 @@ c.Label.String = 'Stain Density (a.u.)';
 title('Stain')
 set(gca,'XTick',[]); set(gca,'YTick',[])
 set(gca,'FontSize',fsize)
+% Add scale bar (microns)
+sbar(slen, sth, pix, stain)
 % Save figure
 fout = fullfile(figdir, 'stain_deconv');
 saveas(gca,fout,'png');
@@ -87,6 +93,8 @@ clim([rmin,rmax]);
 title('Reference')
 set(gca,'XTick',[]); set(gca,'YTick',[])
 set(gca,'FontSize',fsize)
+% Add scale bar (microns)
+sbar(slen, sth, pix, ref)
 % Save figure
 fout = fullfile(figdir, 'stain_ref');
 saveas(gca,fout,'png');
@@ -104,6 +112,8 @@ c.Label.String = 'Stain Density (a.u.)';
 title('Stain Histogram Matched')
 set(gca,'XTick',[]); set(gca,'YTick',[])
 set(gca,'FontSize',fsize)
+% Add scale bar (microns)
+sbar(slen, sth, pix, stain)
 % Save figure
 fout = fullfile(figdir, 'histogram_matched');
 saveas(gca,fout,'png');
@@ -121,11 +131,44 @@ c.Label.String = 'z-score';
 title('Z-score Stain')
 set(gca,'XTick',[]); set(gca,'YTick',[])
 set(gca,'FontSize',fsize)
+% Add scale bar (microns)
+sbar(slen, sth, pix, zstain)
 % Save figure
-fout = fullfile(figdir, 'stain_z_score');
+fout = fullfile(figdir, 'histogram_matched_stain_z_score');
 saveas(gca,fout,'png');
 
 %% Create figure overlaying z-score with donuts
+
+%%% Take EPVS annotation and create overlay
+epvs = lhe(2).epvs;
+se1 = strel('disk',0);
+se2 = strel('disk',rad_sm);
+inner = imdilate(epvs,se1);
+outter = imdilate(epvs,se2);
+annot = xor(inner, outter);
+% Overlay EPVS onto z_stain
+overlay = cat(3, ones(size(zstain)), zeros(size(zstain)), zeros(size(zstain)));
+
+%%% Plot z-stain and then overlay donuts
+% z-stain
+figure('Position', [100 100 1500 1000]);
+imagesc(zstain); hold on;
+% Overlay with annotation
+h = imagesc(overlay);
+set(h,'AlphaData',annot * 0.5);
+set(gca,'XTick',[]); set(gca,'YTick',[])
+c = colorbar; clim([zmin,zmax]);
+c.Label.String = 'z-score';
+set(gca,'FontSize',fsize)
+
+%%% Add scale bar (microns)
+sbar(slen, sth, pix, zstain)
+
+%%% Save figure
+fout = fullfile(figdir, 'histogram_matched_stain_z_score_overlay_donuts');
+saveas(gca,fout,'png');
+
+%% Overlay z-score w/ donuts (cropped)
 
 %%% Take EPVS annotation and create overlay
 epvs = lhe(2).epvs;
@@ -161,7 +204,7 @@ set(gca,'FontSize',fsize)
 %%% Add scale bar
 sbar(100, 20, pix, zstainCropped)
 
-% Save figure
-fout = fullfile(figdir, 'stain_z_score_zoom');
+%%% Save figure
+fout = fullfile(figdir, 'histogram_matched_stain_z_score_overlay_donuts_zoom');
 saveas(gca,fout,'png');
 

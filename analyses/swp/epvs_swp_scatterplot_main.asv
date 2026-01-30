@@ -262,6 +262,44 @@ front_log_ret = region_data.front.log10.ret;
 occip_log_mus = region_data.occip.log10.mus;
 occip_log_ret = region_data.occip.log10.ret;
 
+%% Create Generalized additive model
+% In SWP heat_pairs, column 1 is log(SWP).
+
+%{
+%%% Create GAM for FRONTAL MUS
+% Downsample data to N points
+N = 1e6;
+idx = randperm(max(size(front_log_mus)), N);
+x = log_swp_mus(idx,1);
+y = log_swp_mus(idx,2);
+% Fit GAM
+mus_front_gam = fitrgam(x,y,'FitStandardDeviation',true);
+% Predict curve and confidence interval on SWP range
+x_step = 1e-2;
+x_predict = 1:x_step:10-x_step;
+[mus_pred, mus_ci] = predict(mus_front_gam,x_predict');
+
+%%% Plot frontal mus
+figure;
+scatter(x,y,3,'k','MarkerFaceAlpha',0.2);
+hold on;
+plot(x_predict, mus_pred, 'b', 'LineWidth',2);
+plot(x_predict, mus_pred+mus_ci/2, 'r--', 'LineWidth',1);
+plot(x_predict, mus_pred-mus_ci/2, 'r--', 'LineWidth',1);
+xlabel('Log(Size-weighted proximity)');
+ylabel('Optical property');
+legend('Data','GAM fit','95% CI');
+hold off;
+
+%%% Create GAM for retardance
+% Downsample data to N points
+idx = randperm(max(size(log_swp_mus)), N);
+x = log_swp_mus(idx,1);
+y = log_swp_mus(idx,2);
+% Fit GAM
+ret_gam = fitrgam(x,y);
+%}
+
 %% Bin each subject for ease of scatterplot display
 
 %%% plotting properties
@@ -716,11 +754,11 @@ saveas(gcf,fout,'png'); pause(1); close;
 % Retrieve current date for filename
 dt = string(datetime('now','Format','d-MMM-y'));
 % construct filename
-field_names = {'front_mus','front_ret','occip_mus','occip_ret'};
+field_names = fields(binned);
 swp_filename = strcat('op_vs_swp_',substr,dt','.xlsx');
 swp_filename = fullfile(swp_dir, swp_filename);
 % Iterate over stains
-for idx = 1:length(field_names)
+for idx = 1:length(fields(binned))
     % retrieve field name
     structName = field_names{idx};
     
@@ -735,11 +773,11 @@ for idx = 1:length(field_names)
     xy = binned.(structName);
 
     %%% Measure Spearman's rho correlation
-    [rho,p] = corr(xy(:,1), xy(:,2), 'Type','Spearman');
+    [rho,p] = corr(xy(1,:), xy(2,:), 'Type','Spearman');
     % convert to table
     rho_t = array2table([rho,p],'VariableNames',{'rho','p-value'});
     % write table
-    sheet_name = strcat(structName,'_spearman');
+    sheet_name = strcat(structname,'_spearman');
     writetable(rho_t, swp_filename, 'Sheet', sheet_name);
     
     %%% Create Table for all measurements from stain

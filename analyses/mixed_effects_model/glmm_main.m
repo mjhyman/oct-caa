@@ -112,8 +112,6 @@ for ii = 1:numel(radii)
         lmm_linearity(lin_test, flag_subs, parench, rad, nves, nepv);
 end
 
-%% GLME Linearity after bootstrapping
-
 
 %% General Linear Mixed Effects Models
 % Save to table if desired
