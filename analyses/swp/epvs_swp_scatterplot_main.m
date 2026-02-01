@@ -29,9 +29,9 @@ plt_dir = '/projectnb/npbssmic/ns/CAA/figures/fig6_mus_ret_vs_SWP/';
 
 %%% Flags for importing data
 % Flag for SWP structs
-flag_load_swp_structs = true;
+flag_load_swp_structs = false;
 % Flag for loading CAA structs (false if already in environment)
-flag_load_caa_structs = true;
+flag_load_caa_structs = false;
 
 %%% Number of bins for the x-axis along SWP
 nbin = 100;
@@ -156,11 +156,25 @@ if flag_load_caa_structs
 end
 
 %% Flag for subtracting subject median offset
+% If subtracting median offset or calculating percentage difference, then
+% load the spreadsheet of median values
+
 rm_offset = false;
-if rm_offset
-    % Load the parenchyma median offsets
+pdiff = true;
+% Load median offsets
+if rm_offset || pdiff
     load(fullfile(mat_dir, "median_white_matter_values_14-Nov-2025.mat"));
 end
+
+% Set the filename substring appropriately
+if rm_offset
+    substr = '_median_removed_';
+elseif pdiff
+    substr = '_pdiff_';
+else
+    substr = '';
+end
+
 
 %% Create 2D arrays of optical property vs. EPVS density
 % 2xN Matrix for each optical property:
@@ -221,10 +235,15 @@ for ii = 1:length(fields(subjects))
             mus = subjects.(sub).(reg).mus;
             ret = subjects.(sub).(reg).ret_full;
 
-            %%% Subtract median mus,ret offset
+            %%% Calculate offset or percentage diff
+            mus_med = parench_median.(sub).(reg).med.mus;
+            ret_med = parench_median.(sub).(reg).med.ret;
             if rm_offset
-                mus = mus - parench_median.(sub).(reg).med.mus;
-                ret = ret - parench_median.(sub).(reg).med.ret;
+                mus = mus - mus_med;
+                ret = ret - ret_med;
+            elseif pdiff
+                mus = (mus - mus_med) ./ mus_med .* 100;
+                ret = (ret - ret_med) ./ ret_med .* 100;
             end
             
             %%% Remove vessels and EPVS from the epvs heatmap
@@ -312,154 +331,6 @@ for ii = 1:length(subs)
     binned.(subs{ii}).comb.ret_se   = log_ret_se;
 end
 
-%% SUBJECT: plot "binned" subset
-
-% Figure porperties
-xlab = 'EPVS log(SWP)'; % x-axis label
-mus_ylab = '\mu_s (cm^-^1)';
-ret_ylab = 'retardance (degrees)';
-xlims = [1,10];
-
-% Set limits if removing offset
-if rm_offset
-    mus_ylim = [-5,5];
-    ret_ylim = [-10,5];
-    substr = '_median_removed_';
-else
-    mus_ylim = [5,15];
-    ret_ylim = [16,35];
-    substr = '';
-end
-
-% Iterate subjects
-for ii = 1:length(subs)
-    % Retrieve regions for this subject
-    regs = fields(heat_pairs.(subs{ii}));
-    % iterate over regions
-    for j = 1:length(regs)
-        % Retrieve the binned data
-        mus_pair = binned.(subs{ii}).(regs{j}).mus;
-        ret_pair = binned.(subs{ii}).(regs{j}).ret;
-        % Set title string for both plots
-        tit = string(subs{ii}) + ' ' + string(regs{j});
-        % scattering coefficient
-        fout = strcat(subs{ii},'_',regs{j},substr,'_mus_vs_log_swp');
-        swp_scatterplot(mus_pair, xlab, mus_ylab, tit, xlims, mus_ylim,...
-                        plt_dir,fout)
-        % Retardance
-        fout = strcat(subs{ii},'_',regs{j},substr,'_ret_vs_log_swp');
-        swp_scatterplot(ret_pair, xlab, ret_ylab, tit, xlims, ret_ylim,...
-                        plt_dir,fout)
-    end
-    
-    %%% Plot the combined front + occipital
-    % Retrieve the binned data
-    mus_pair = binned.(subs{ii}).comb.mus;
-    ret_pair = binned.(subs{ii}).comb.ret;
-    % Set title string for both plots
-    tit = string(subs{ii}) + ' combined';
-    % scattering coefficient
-    fout = strcat(subs{ii},substr,'_comb_mus_vs_log_swp');
-    swp_scatterplot(mus_pair, xlab, mus_ylab, tit, xlims, mus_ylim,...
-                    plt_dir,fout)
-    % Retardance
-    fout = strcat(subs{ii},substr,'_comb_ret_vs_log_swp');
-    swp_scatterplot(ret_pair, xlab, ret_ylab, tit, xlims, ret_ylim,...
-                    plt_dir,fout)
-end
-
-%%% SUBJECT: overlay all subjects
-%%% Define Labels (legend) and Colors
-labels = struct();
-colors = struct();
-% Frontal (no CAA 17)
-labels.front = {'CAA26 (Control)','CAA6 (Control)',...
-               'CAA 25 (Severe)','CAA 22 (Severe)'};
-colors.front = {
-    [0.3010 0.7450 0.9330];   % Cyan
-    [0.0000 0.4470 0.7000];   % Blue
-    [0.8500 0.3250 0.0980];   % Orange
-    [0.6350 0.0780 0.1840];   % Red
-    };   
-% Occipital (with CAA 17)
-labels.occip = {'CAA26 (Control)','CAA6 (Control)','CAA 17 (Moderate)',...
-               'CAA 25 (Severe)','CAA 22 (Severe)'};
-colors.occip = {
-    [0.3010 0.7450 0.9330];   % Cyan
-    [0.0000 0.4470 0.7000];   % Blue
-    [0.9290 0.6940 0.1250];   % Yellow
-    [0.8500 0.3250 0.0980];   % Orange
-    [0.6350 0.0780 0.1840];   % Red
-    };   
-
-%%% scattering coefficient
-% frontal
-xy1 = binned.caa26.front.mus;
-xy2 = binned.caa6.front.mus;
-xy4 = binned.caa25.front.mus;
-xy5 = binned.caa22.front.mus;
-xy_cell = {xy1, xy2, xy4, xy5};
-tit = 'Frontal: mus vs. log(SWP)';
-fname = strcat('overlay_frontal_mus_vs_log_swp',substr);
-swp_scatterplot_overlay(xy_cell, labels.front, colors.front, xlab,...
-                        mus_ylab, tit, xlims, mus_ylim, plt_dir, fname)
-% occipital
-xy1 = binned.caa26.occip.mus;
-xy2 = binned.caa6.occip.mus;
-xy3 = binned.caa17.occip.mus;
-xy4 = binned.caa25.occip.mus;
-xy5 = binned.caa22.occip.mus;
-xy_cell = {xy1, xy2, xy3, xy4, xy5};
-tit = 'Occipital: mus vs. log(SWP)';
-fname = strcat('overlay_occipital_mus_vs_log_swp',substr);
-swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
-                        mus_ylab, tit, xlims, mus_ylim, plt_dir, fname)
-% Combined
-xy1 = binned.caa26.comb.mus;
-xy2 = binned.caa6.comb.mus;
-xy3 = binned.caa17.comb.mus;
-xy4 = binned.caa25.comb.mus;
-xy5 = binned.caa22.comb.mus;
-xy_cell = {xy1, xy2, xy3, xy4, xy5};
-tit = 'Combined: mus vs. log(SWP)';
-fname = strcat('overlay_combined_mus_vs_log_swp',substr);
-swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
-                        mus_ylab, tit, xlims, mus_ylim, plt_dir, fname)
-
-%%% Retardance
-% frontal
-xy1 = binned.caa26.front.ret;
-xy2 = binned.caa6.front.ret;
-xy4 = binned.caa25.front.ret;
-xy5 = binned.caa22.front.ret;
-xy_cell = {xy1, xy2, xy4, xy5};
-tit = 'Frontal: ret vs. log(SWP)';
-fname = strcat('overlay_frontal_ret_vs_log_swp',substr);
-swp_scatterplot_overlay(xy_cell, labels.front, colors.front, xlab,...
-                        ret_ylab, tit, xlims, ret_ylim, plt_dir, fname)
-% occipital
-xy1 = binned.caa26.occip.ret;
-xy2 = binned.caa6.occip.ret;
-xy3 = binned.caa17.occip.ret;
-xy4 = binned.caa25.occip.ret;
-xy5 = binned.caa22.occip.ret;
-xy_cell = {xy1, xy2, xy3, xy4, xy5};
-tit = 'Occipital: ret vs. log(SWP)';
-fname = strcat('overlay_occipital_ret_vs_log_swp',substr);
-swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
-                        ret_ylab, tit, xlims, ret_ylim, plt_dir, fname)
-% Combined
-xy1 = binned.caa26.comb.ret;
-xy2 = binned.caa6.comb.ret;
-xy3 = binned.caa17.comb.ret;
-xy4 = binned.caa25.comb.ret;
-xy5 = binned.caa22.comb.ret;
-xy_cell = {xy1, xy2, xy3, xy4, xy5};
-tit = 'Combined: ret vs. log(SWP)';
-fname = strcat('overlay_combined_ret_vs_log_swp',substr);
-swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
-                        ret_ylab, tit, xlims, ret_ylim, plt_dir, fname)
-
 %% Separate/combine heat_pairs across subject and region
 fprintf('Separating heatmap pairs by subject and region\n')
 % combine across occip + frontal
@@ -502,7 +373,7 @@ binned.occip_mus_se = se;
 binned.occip_ret = xy;
 binned.occip_ret_se = se;
 
-%% Calculate the min/max values across all binned matrices
+%%% Calculate the min/max values across all binned matrices
 groups = {'comb_mus','comb_ret','front_mus','front_ret',...
           'occip_mus','occip_ret'};
 nfield = length(groups);
@@ -539,7 +410,10 @@ xlims = [xmin,ceil(xmax)];
 mus_lims = [ceil(mus_min), ceil(mus_max)];
 ret_lims = [ceil(ret_min), ceil(ret_max)];
 
-%% Plot combined frontal + occipital
+%% Plot combined, frontal, occipital
+
+%%% Combined
+%{
 % scattering coefficient
 ylab = '\mu_s (cm^-^1)';
 tit = {'Frontal + Occipital', '\mu_s vs. EPVS log(SWP)'};
@@ -558,6 +432,7 @@ fname = strcat(substr,'comb_ret_swp');
 swp_scatterplot(xy, xlab, ylab, tit, xlims, ret_lims, plt_dir, fname);
 fname = strcat(substr,'comb_ret_swp_errorbar');
 swp_scatterplot_errorbars(xy, se, xlab, ylab, tit, xlims, ret_lims, plt_dir, fname);
+%}
 
 %%% Plot frontal
 % scattering coefficient
@@ -766,6 +641,155 @@ T = array2table(xy, 'VariableNames',...
                {'log(SWP)','ret'});
 writetable(T, median_swp_filename, 'Sheet', 'ret');
 %}
+
+%% SUBJECT: plot "binned" subset
+
+% Figure porperties
+xlab = 'EPVS log(SWP)'; % x-axis label
+mus_ylab = '\mu_s (cm^-^1)';
+ret_ylab = 'retardance (degrees)';
+xlims = [1,10];
+
+% Set limits if removing offset
+if rm_offset
+    mus_ylim = [-5,5];
+    ret_ylim = [-10,5];
+elseif pdiff
+    mus_ylim = [-10, 10];
+    ret_ylim = [-10, 10];
+else
+    mus_ylim = [5,15];
+    ret_ylim = [16,35];
+end
+
+% Iterate subjects
+for ii = 1:length(subs)
+    % Retrieve regions for this subject
+    regs = fields(heat_pairs.(subs{ii}));
+    % iterate over regions
+    for j = 1:length(regs)
+        % Retrieve the binned data
+        mus_pair = binned.(subs{ii}).(regs{j}).mus;
+        ret_pair = binned.(subs{ii}).(regs{j}).ret;
+        % Set title string for both plots
+        tit = string(subs{ii}) + ' ' + string(regs{j});
+        % scattering coefficient
+        fout = strcat(subs{ii},'_',regs{j},substr,'_mus_vs_log_swp');
+        swp_scatterplot(mus_pair, xlab, mus_ylab, tit, xlims, mus_ylim,...
+                        plt_dir,fout)
+        % Retardance
+        fout = strcat(subs{ii},'_',regs{j},substr,'_ret_vs_log_swp');
+        swp_scatterplot(ret_pair, xlab, ret_ylab, tit, xlims, ret_ylim,...
+                        plt_dir,fout)
+    end
+    
+    %%% Plot the combined front + occipital
+    % Retrieve the binned data
+    mus_pair = binned.(subs{ii}).comb.mus;
+    ret_pair = binned.(subs{ii}).comb.ret;
+    % Set title string for both plots
+    tit = string(subs{ii}) + ' combined';
+    % scattering coefficient
+    fout = strcat(subs{ii},substr,'_comb_mus_vs_log_swp');
+    swp_scatterplot(mus_pair, xlab, mus_ylab, tit, xlims, mus_ylim,...
+                    plt_dir,fout)
+    % Retardance
+    fout = strcat(subs{ii},substr,'_comb_ret_vs_log_swp');
+    swp_scatterplot(ret_pair, xlab, ret_ylab, tit, xlims, ret_ylim,...
+                    plt_dir,fout)
+end
+
+%%% SUBJECT: overlay all subjects
+%%% Define Labels (legend) and Colors
+labels = struct();
+colors = struct();
+% Frontal (no CAA 17)
+labels.front = {'CAA26 (Control)','CAA6 (Control)',...
+               'CAA 25 (Severe)','CAA 22 (Severe)'};
+colors.front = {
+    [0.3010 0.7450 0.9330];   % Cyan
+    [0.0000 0.4470 0.7000];   % Blue
+    [0.8500 0.3250 0.0980];   % Orange
+    [0.6350 0.0780 0.1840];   % Red
+    };   
+% Occipital (with CAA 17)
+labels.occip = {'CAA26 (Control)','CAA6 (Control)','CAA 17 (Moderate)',...
+               'CAA 25 (Severe)','CAA 22 (Severe)'};
+colors.occip = {
+    [0.3010 0.7450 0.9330];   % Cyan
+    [0.0000 0.4470 0.7000];   % Blue
+    [0.9290 0.6940 0.1250];   % Yellow
+    [0.8500 0.3250 0.0980];   % Orange
+    [0.6350 0.0780 0.1840];   % Red
+    };   
+
+%%% scattering coefficient
+% frontal
+xy1 = binned.caa26.front.mus;
+xy2 = binned.caa6.front.mus;
+xy4 = binned.caa25.front.mus;
+xy5 = binned.caa22.front.mus;
+xy_cell = {xy1, xy2, xy4, xy5};
+tit = 'Frontal: mus vs. log(SWP)';
+fname = strcat('overlay_frontal_mus_vs_log_swp',substr);
+swp_scatterplot_overlay(xy_cell, labels.front, colors.front, xlab,...
+                        mus_ylab, tit, xlims, mus_ylim, plt_dir, fname)
+% occipital
+xy1 = binned.caa26.occip.mus;
+xy2 = binned.caa6.occip.mus;
+xy3 = binned.caa17.occip.mus;
+xy4 = binned.caa25.occip.mus;
+xy5 = binned.caa22.occip.mus;
+xy_cell = {xy1, xy2, xy3, xy4, xy5};
+tit = 'Occipital: mus vs. log(SWP)';
+fname = strcat('overlay_occipital_mus_vs_log_swp',substr);
+swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
+                        mus_ylab, tit, xlims, mus_ylim, plt_dir, fname)
+% Combined
+xy1 = binned.caa26.comb.mus;
+xy2 = binned.caa6.comb.mus;
+xy3 = binned.caa17.comb.mus;
+xy4 = binned.caa25.comb.mus;
+xy5 = binned.caa22.comb.mus;
+xy_cell = {xy1, xy2, xy3, xy4, xy5};
+tit = 'Combined: mus vs. log(SWP)';
+fname = strcat('overlay_combined_mus_vs_log_swp',substr);
+swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
+                        mus_ylab, tit, xlims, mus_ylim, plt_dir, fname)
+
+%%% Retardance
+% frontal
+xy1 = binned.caa26.front.ret;
+xy2 = binned.caa6.front.ret;
+xy4 = binned.caa25.front.ret;
+xy5 = binned.caa22.front.ret;
+xy_cell = {xy1, xy2, xy4, xy5};
+tit = 'Frontal: ret vs. log(SWP)';
+fname = strcat('overlay_frontal_ret_vs_log_swp',substr);
+swp_scatterplot_overlay(xy_cell, labels.front, colors.front, xlab,...
+                        ret_ylab, tit, xlims, ret_ylim, plt_dir, fname)
+% occipital
+xy1 = binned.caa26.occip.ret;
+xy2 = binned.caa6.occip.ret;
+xy3 = binned.caa17.occip.ret;
+xy4 = binned.caa25.occip.ret;
+xy5 = binned.caa22.occip.ret;
+xy_cell = {xy1, xy2, xy3, xy4, xy5};
+tit = 'Occipital: ret vs. log(SWP)';
+fname = strcat('overlay_occipital_ret_vs_log_swp',substr);
+swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
+                        ret_ylab, tit, xlims, ret_ylim, plt_dir, fname)
+% Combined
+xy1 = binned.caa26.comb.ret;
+xy2 = binned.caa6.comb.ret;
+xy3 = binned.caa17.comb.ret;
+xy4 = binned.caa25.comb.ret;
+xy5 = binned.caa22.comb.ret;
+xy_cell = {xy1, xy2, xy3, xy4, xy5};
+tit = 'Combined: ret vs. log(SWP)';
+fname = strcat('overlay_combined_ret_vs_log_swp',substr);
+swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
+                        ret_ylab, tit, xlims, ret_ylim, plt_dir, fname)
 
 %% Combine across all sujects/regions
 
