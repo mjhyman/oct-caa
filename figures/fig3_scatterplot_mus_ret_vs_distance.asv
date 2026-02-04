@@ -168,15 +168,9 @@ for ii = 1:numel(f)
             p1 = scatter(distances, exp, dot_size, 'r', 'filled');
             % axis labels + title
             xlabel('Distance (\mum)');
-            if strcmp(f{ii},'raw') || strcmp(f{ii},'med')
-                if strcmp(op{j},'mus')
-                    ylabel('(mm^-^1)');
-                else
-                    ylabel('(degrees)');
-                end
-            else
-                ylabel('\Delta %');
-            end
+
+
+            ylabel('\Delta %');
             tstr = sprintf('%s %s %s',f{ii}, op_title{j}, reg_title{k});
             title(tstr);
             % Subplot title
@@ -195,9 +189,6 @@ for ii = 1:numel(f)
             if strcmp(f{ii},'raw') || strcmp(f{ii},'med')
                 if strcmp(op{j},'mus')
                     ylabel('(mm^-^1)');
-                else
-                    ylabel('(degrees)');
-                end
             else
                 ylabel('\Delta %');
             end

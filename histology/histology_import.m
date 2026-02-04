@@ -78,7 +78,7 @@ fprintf('\nIMPORTING LHE\n')
 [lhe] = import_stain(stain_dir,stain_suffix,epvs_suffix, ...
                     ves_suffix,mask_suffix);
 
-%% LHE EPVS + Vessel measurements
+%%% LHE EPVS + Vessel measurements
 % Measure the small radii
 fprintf('\nStarting small radii\n')
 lhe = measure_epvs_and_vessel_variable(lhe,radii_sm,rad_sm,pix);
