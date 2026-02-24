@@ -5,7 +5,7 @@ clear; clc; close all;
 % Input from bash
 sid = str2double(getenv('SGE_TASK_ID'));
 if isnan(sid)
-    sid=3;
+    sid=5;
     fprintf('The SGE_TASK_ID was not passed to Matlab\n')
     fprintf('Setting SGE_TASK_ID to %s\n',string(sid))
 end
@@ -70,20 +70,6 @@ end
 % Subfolders for saving
 subdir1 = subjects(sid).subject_name;
 subdir2 = subjects(sid).region;
-
-% Check if heatmap already exists
-%{
-fname = fullfile(save_base, subdir1, subdir2,...
-                strcat(subject_name, '_', region,...
-                        '_radius_',num2str(radius),...
-                        '_exp_',num2str(p), ...
-                        '_interpolated_heatmap.mat'));
-if isfile(fname)
-    fprintf(['Heatmap already exists for sub=%s, reg=%s p=%d.' ...
-        'Skipping.\n'], subject_name, region, p);
-    return
-end
-%}
 
 % Load the subject data
 file_path = fullfile(data_dir, subject_files.(subject_name));
