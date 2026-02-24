@@ -27,12 +27,11 @@ subjects(9).region = 'occip';
 
 % Common string within filename
 fcom = '_radius_200_exp_2_interpolated_heatmap.mat';
-fout = '_radius_200_exp_2_interpolated_heatmap_log10.tif';
-favi = '_radius_200_exp_2_interpolated_heatmap_log10.avi';
 matout = '_radius_200_exp_2_interpolated_heatmap_log10.mat';
 
 %% IMPORT SWP and subject strut
-for ii = 1:length(subjects)
+for ii = 8:9
+% for ii = 1:length(subjects)
     % Create filepath
     sub = subjects(ii).subject_name;
     reg = subjects(ii).region;
@@ -59,4 +58,5 @@ for ii = 1:length(subjects)
     fname = strcat(sub, '_', reg, matout);
     matsave = fullfile(fpath,fname);
     save(matsave,'swp','-v7.3');   
+    fprintf('\nFinished %s\n',strcat(sub, '_', reg))
 end

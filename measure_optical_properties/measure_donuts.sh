@@ -5,15 +5,15 @@
 
 # Request a whole node with 16 cores and at least 256 GB of RAM.
 # Specify number of cores
-#$ -pe omp 16
+#$ -pe omp 28
 # Specify memory per core
-#$ -l mem_per_core=16G
+#$ -l mem_per_core=18G
 
 # Send email upon completion
 #$ -m ea
 
 # Time limit for job
-#$ -l h_rt=48:00:00
+#$ -l h_rt=120:00:00
 
 # Name of job
 #$ -N donuts

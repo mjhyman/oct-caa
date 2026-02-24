@@ -10,8 +10,8 @@ maxNumCompThreads(28);
 %%% Directories (SCC)
 % Input directory
 hdir='/projectnb/npbssmic/ns/CAA/histology/';
-% Output directory for SWP data
-swp_dir = fullfile(hdir, '/swp/');
+% Directory to save output figures
+figdir = '/projectnb/npbssmic/ns/CAA/histology/figures';
 
 %%% Flags for using histo-matched + z-score
 % If false -> use just histogram matching
@@ -21,10 +21,10 @@ zflag = true;
 t = datetime('today');
 if zflag
     fname = strcat('histo_swp_hmatched_zscore_');
-    swp_mat = fullfile(swp_dir,fname);
+    swp_mat = fullfile(hdir,fname);
 else
     fname = strcat('histo_swp_hmatched_');
-    swp_mat = fullfile(swp_dir,fname);
+    swp_mat = fullfile(hdir,fname);
 end
 
 %% Size weighted proximity (SWP) settings
@@ -45,8 +45,9 @@ ds = 4;
 parpool_flag = true;
 
 %%% Output filename extension including radius_mm, ds
-fname_ext = strcat('_radius',num2str(radius_mm),'mm_','ds',num2str(ds),...
-                   '_',string(t),'.mat');
+fname_ext = strcat('_radius_mm',radius_mm,'mm')
+
+
 
 %% Import the SGE Task ID from the batch .SH script
 % Load the SGE Task ID from the batch script
@@ -55,7 +56,7 @@ fprintf('SGE Task ID: %i\n', taskid);
 % If no task ID, then default to 3 for testing
 if isempty(taskid)
     fprintf('Failed to retrieve SGE Task ID. Defaulting to task ID 3.\n');
-    taskid = 1; % Default to GFAP if no task ID is found
+    taskid = 3; % Default to GFAP if no task ID is found
 end
 
 %% Import stain according to SGE Task ID
@@ -81,7 +82,7 @@ if taskid == 1
     % Measure LHE SWP
     [lhe] = iterate_sections(lhe, 'lhe', radius, p, ds, parpool_flag);
     %%% Save output
-    fout = strcat(swp_mat,'_LHE',fname_ext);
+    fout = strcat(swp_mat,'_LHE_',string(t),'.mat');
     save(fout,"lhe",'-v7.3')
 elseif taskid == 2
     %%% CD68 Import Stains
@@ -104,7 +105,7 @@ elseif taskid == 2
     % Measure CD68 SWP
     [cd68] = iterate_sections(cd68, 'cd68', radius, p, ds, parpool_flag);
     %%% Save output
-    fout = strcat(swp_mat,'_CD68',fname_ext);
+    fout = strcat(swp_mat,'_CD68_',string(t),'.mat');
     save(fout,"cd68",'-v7.3')
 else
     %%% GFAP Import Stains
@@ -124,10 +125,10 @@ else
                         ves_suffix,mask_suffix);
     % Histogram match and z-score normalization
     gfap = histo_match_zscore(gfap);
-    % Measure gfap SWP
+    %% Measure gfap SWP
     [gfap] = iterate_sections(gfap, 'gfap', radius, p, ds, parpool_flag);
     %%% Save output
-    fout = strcat(swp_mat,'_GFAP',fname_ext);
+    fout = strcat(swp_mat,'_GFAP__',string(t),'.mat');
     save(fout,"gfap",'-v7.3')
 end
 

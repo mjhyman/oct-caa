@@ -13,7 +13,6 @@ csv_out = '/projectnb/npbssmic/ns/CAA/metrics/';
 import_all_data = false;
 
 
-
 %% Array of subject ID and regions
 subjects = struct();
 subjects(1).subject_name = 'caa6';
@@ -78,7 +77,6 @@ for ii = 1:length(subjects)
     swp = single(swp(~isnan(swp)));
     
     %%% Compute mean of upper 5%, 10%, 25%
-    
     means_upper = zeros(size(pcts));
     % Sort low to high
     vals_sorted = sort(swp, 'ascend');

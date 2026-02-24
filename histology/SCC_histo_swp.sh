@@ -7,17 +7,17 @@
 #$ -m ea
 
 # Time limit for job
-#$ -l h_rt=72:00:00
+#$ -l h_rt=240:00:00
 
 # Name of job
 #$ -N hswp_batch
 
 # Launch a job for each stain to run in parallel (3 stains in total)
-#$ -t 1-3
+#$ -t 2
 
-# Entire node w/ 512 GB RAM
+# Entire node
 #$ -pe omp 28
-#$ -l mem_per_core=9G
+#$ -l mem_per_core=13G
 
 # Keep track of information related to the current job
 echo "=========================================================="

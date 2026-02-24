@@ -1,7 +1,8 @@
 function [xy_out, se_out] = bin_swp(pair, N)
-% Efficient scatter plot: averages all points in disjoint x-windows, returning at most N points
+% Efficient scatter plot: averages all points in disjoint x-windows,
+% returning at most N points
 % INPUTS:
-%   pair (Nx2 matrix): [x, y]
+%   pair (Nx2 matrix): [x; y]
 %   N (integer): max number of plotted points (bins)
 %   xlab (string): x-axis label
 %   ylab (string): y-axis label
@@ -14,6 +15,18 @@ function [xy_out, se_out] = bin_swp(pair, N)
 x = single(pair(:,1));
 y = single(pair(:,2));
 clear pair
+
+% Removing outliers using IQR method
+Q1 = prctile(y, 25); % First quartile
+Q3 = prctile(y, 75); % Third quartile
+IQR = Q3 - Q1;       % Interquartile range
+lower_bound = Q1 - 1.5 * IQR; % Lower bound
+upper_bound = Q3 + 1.5 * IQR; % Upper bound
+
+% Remove outliers
+valid_pts = (y >= lower_bound) & (y <= upper_bound);
+x = x(valid_pts);
+y = y(valid_pts);
 
 % Retrieve maximum of x-axis data
 xmin = min(x);

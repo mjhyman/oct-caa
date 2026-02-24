@@ -29,9 +29,9 @@ plt_dir = '/projectnb/npbssmic/ns/CAA/figures/fig6_mus_ret_vs_SWP/';
 
 %%% Flags for importing data
 % Flag for SWP structs
-flag_load_swp_structs = false;
+flag_load_swp_structs = true;
 % Flag for loading CAA structs (false if already in environment)
-flag_load_caa_structs = false;
+flag_load_caa_structs = true;
 
 %%% Number of bins for the x-axis along SWP
 nbin = 100;
@@ -160,7 +160,7 @@ end
 % load the spreadsheet of median values
 
 rm_offset = false;
-pdiff = true;
+pdiff = false;
 % Load median offsets
 if rm_offset || pdiff
     load(fullfile(mat_dir, "median_white_matter_values_14-Nov-2025.mat"));
@@ -320,7 +320,7 @@ for ii = 1:length(subs)
     % Combine frontal and occipital for this subject
     [~,~,log_mus,log_ret] = combine_subjects_regions(heat_pair_sub);
     
-    % Bin the data
+    % Bin the combined regions
     [log_mus,log_mus_se] = bin_swp(log_mus, nbin);
     [log_ret,log_ret_se] = bin_swp(log_ret, nbin);
 

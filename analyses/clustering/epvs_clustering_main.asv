@@ -13,6 +13,13 @@ end
 % Exponent for denominator in SWP
 p = 2;
 
+% TODO:
+%{
+- determine whether to remove vessels from mask (either the connected
+components vessels seg_wm_no_epvs or the [vessels - EPVS])
+- determine whether to use another method for vessel density
+%}
+
 %% Array of subject ID and regions
 subjects = struct();
 subjects(1).subject_name = 'caa6';
@@ -52,16 +59,16 @@ fprintf('subject = %s, region = %s, p = %d\n',subject_name, region,p)
 %% Settings
 data_dir = '/projectnb/npbssmic/ns/CAA/';
 radius = 200;
-save_base = '/projectnb/npbssmic/ns/CAA/swp/';
+swp_dir = '/projectnb/npbssmic/ns/CAA/swp/';
 
 %% Map subject names to file paths
+% Subject-level .MAT files
 subject_files = struct( ...
     'caa6', '/caa6/caa6.mat', ...
     'caa17', '/caa17/occip/caa17.mat', ...
     'caa22', '/caa22/caa22.mat', ...
     'caa25', '/caa25/caa25.mat', ...
     'caa26', '/caa26/caa26.mat');
-
 % Validate subject name
 if ~isfield(subject_files, subject_name)
     error('Subject name "%s" not recognized.', subject_name);
@@ -71,21 +78,7 @@ end
 subdir1 = subjects(sid).subject_name;
 subdir2 = subjects(sid).region;
 
-% Check if heatmap already exists
-%{
-fname = fullfile(save_base, subdir1, subdir2,...
-                strcat(subject_name, '_', region,...
-                        '_radius_',num2str(radius),...
-                        '_exp_',num2str(p), ...
-                        '_interpolated_heatmap.mat'));
-if isfile(fname)
-    fprintf(['Heatmap already exists for sub=%s, reg=%s p=%d.' ...
-        'Skipping.\n'], subject_name, region, p);
-    return
-end
-%}
-
-% Load the subject data
+%%% Load the subject data
 file_path = fullfile(data_dir, subject_files.(subject_name));
 if ~isfile(file_path)
     error('File does not exist\n%s',file_path)
@@ -95,11 +88,23 @@ end
 tmp = load(file_path);
 subject_data = tmp.(subject_name);
 fprintf('Finished loading %s\n', subject_name)
-
 % Validate region
 if ~isfield(subject_data, region)
     error('Region "%s" not found in subject "%s" data.', region, subject_name);
 end
+
+%% Load the SWP data
+fname = strcat(subject_name,'_',region,...
+    '_radius_200_exp_2_interpolated_heatmap_log10.mat');
+swp_path = fullfile(swp_dir, subject_name, region,fname);
+if ~isfile(swp_path)
+    error('File does not exist\n%s',swp_path)
+else
+    fprintf('Loading subject %s %s SWP\n', subject_name, region)
+end
+tmp = load(swp_path);
+swp = single(tmp.swp);
+fprintf('Finished loading %s %s SWP\n', subject_name, region)
 
 %% Retrieve EPVS, WM Mask, vessels
 
@@ -108,14 +113,8 @@ if isfield(subject_data.(region), 'epvs')
     epvs = subject_data.(region).epvs;
     % White Matter binary mask
     mask = subject_data.(region).mask_wm;
-    % Blood vessels that are disjoint from EPVS. The automated algorithm
-    % had lots of false positives. This matrix only uses the voxels that
-    % are not connected to EPVS
-    ves = subject_data.(region).seg_wm_no_epvs;
-    
-    % Set the vessels to 0 in mask
-    mask(ves) = 0;
-    
+    % Blood vessels
+    ves = subject_data.(region).seg;
     % Print to console
     fprintf('Starting %s %s \n', subject_name, region);
 else
@@ -123,12 +122,21 @@ else
     return
 end
 
-%% Calculate EPVS density
-[subsampled_volume, interpolated_volume] = ...
-    epvs_density_variable_p(epvs, mask, radius, p);
+%%% Remove vessels from the WM mask
+% Keep the vessel voxels that are disjoint from EPVS
+ves(epvs) = 0;
+mask(ves) = 0;
+
+%% Compute the EPVS Radial Relation
+% Prepare inputs
+voxel_size_mm = [0.02, 0.02, 0.02]; % Define voxel size in mm
+% Prepare variable argin
+varargin = {epvs, ves}; % Prepare additional arguments for the function
+results = epvs_radial_relation(mask, mask, voxel_size_mm,...
+    'IncludeSWP',true,'SWP_map',swp,'Verbose',true);
 
 % Save results to .MAT and .TIF
-save_epvs_heatmap(save_base, subject_name, region, ...
+save_epvs_heatmap(swp_dir, subject_name, region, ...
     subsampled_volume, interpolated_volume, radius, p);
 
 fprintf('Finished processing %s %s \n', subject_name, region);

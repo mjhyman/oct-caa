@@ -1,4 +1,5 @@
-function [subsampled_volume, interpolated_volume] = epvs_density_variable_p(epvs, mask, radius, p)
+function [subsampled_volume, interpolated_volume] =...
+    epvs_density_variable_p(epvs, mask, radius, p)
 % Computes EPVS density at every 4th voxel in 3D space and interpolates full map
 %
 % INPUTS:
@@ -10,6 +11,11 @@ function [subsampled_volume, interpolated_volume] = epvs_density_variable_p(epvs
 % OUTPUTS:
 %   subsampled_volume    - sparse volume with EPVS density at 4x subsampled grid
 %   interpolated_volume  - interpolated full-volume EPVS density
+
+%% Set maximum number of computation processes to avoid job reaper
+ncores = 32;
+fprintf('Maximum number of processes = %i\n',ncores)
+parpool('processes',ncores);
 
 %% Parameters
 epsilon = 1e-3;
@@ -99,8 +105,9 @@ for chunk_idx = 1:nChunks
         if isempty(idx)
             vals(i) = 0;
         else
+            % Sum across all distances & omit NaNs
             w = all_EPVS_weights(idx);
-            vals(i) = sum(w ./ (single(d) + epsilon).^p, 'omitnan'); % 'omitnan' safe for rare cases
+            vals(i) = sum((w ./ (single(d) + epsilon).^p),'all','omitnan');
         end
     end
 

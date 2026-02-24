@@ -1,6 +1,7 @@
-function [subsampled_volume, interpolated_volume] =...
-    planar_size_weighted_proximity(epvs, mask, radius, p, ds, parpool_flag)
-% Compute SWP every 4th voxel in 2D space - interpolates full map
+function [subsampled_volume, interpolated_volume] = ...
+planar_size_weighted_proximity(epvs, mask, radius, p, ds, parpool_flag)
+% Compute SWP every ds-th voxel in 2D space (flip-flopped EPVS->samples)
+% with textual progress reporting.
 %
 % INPUTS:
 %   epvs   - logical 2D matrix (1 = EPVS voxel)
@@ -8,30 +9,36 @@ function [subsampled_volume, interpolated_volume] =...
 %               be set to 0 in this mask.
 %   radius - search radius (voxels)
 %   p      - exponent in the weighting function
-%   ds     - downsample integer
+%   ds     - downsample integer (sample every ds voxels)
 %   parpool_flag (boolean) - True: use parallel computing
 %
 % OUTPUTS:
-%   subsampled_volume    - sparse volume with EPVS density at 4x subsampled grid
+%   subsampled_volume    - sparse volume with EPVS density at ds-subsampled grid
 %   interpolated_volume  - interpolated full-volume EPVS density
 
 %% Parameters
+epsilon = 1e-3; % small value to prevent division by zero
 
-% Value in denominator to prevent dividing by zero
-epsilon = 1e-3;
+% Tuning: memory threshold for dense per-worker local_data (bytes)
+MAX_DENSE_BYTES_PER_WORKER = 200e6;
 
-try
-    user_mem = memory;
-    chunk_size = min(max(20000,floor(user_mem.MaxPossibleArrayBytes/100/8)),...
-                    200000);
-catch
-    chunk_size = 20000;
+% Tuning: target EPVS per block (helps choose a sensible block count)
+TARGET_EPVS_PER_BLOCK = 5000;
+
+% Progress reporting frequency inside each block (report every this many EPVS)
+N_EPVS_REPORT = 500;
+
+%% Basic checks and dims
+if islogical(epvs)
+    epvs = logical(epvs);
+end
+if islogical(mask)
+    mask = logical(mask);
 end
 
-% Retrieve dimensions of the EPVS matrix. These are the dimensions 
 dims = size(epvs);
 
-%% EPVS voxel coordinates and weights
+% Locate EPVS voxels
 epvs_idx = find(epvs);
 n_epvs_vox = numel(epvs_idx);
 
@@ -42,40 +49,29 @@ if n_epvs_vox == 0
     return;
 end
 
-% Initialize arrays for improved speed
-all_EPVS_coords = zeros(n_epvs_vox,2,'single'); 
+%% Build EPVS coords and weights
+all_EPVS_coords = zeros(n_epvs_vox,2,'double');
 all_EPVS_weights = zeros(n_epvs_vox,1,'single');
 
-%%% Find EPVS coordinates and weights of each disjoint group
-% Find EPVS connected components
-cc = bwconncomp(epvs, 26);
-% Iterate over each disjoint EPVS
+cc = bwconncomp(epvs, 8); % 8-connectivity for 2D
 curr_idx = 1;
-for i = 1:cc.NumObjects
-    idxs = cc.PixelIdxList{i};
-    [x, y] = ind2sub(dims, idxs);
+for k = 1:cc.NumObjects
+    idxs = cc.PixelIdxList{k};
     n = numel(idxs);
-    all_EPVS_coords(curr_idx:curr_idx+n-1, :) = single([x(:), y(:)]);
+    [x, y] = ind2sub(dims, idxs);
+    all_EPVS_coords(curr_idx:curr_idx+n-1, :) = [x(:), y(:)];
     all_EPVS_weights(curr_idx:curr_idx+n-1) = single(n);
     curr_idx = curr_idx + n;
 end
 
-%% Define sampling grid: every 4th voxel in 3D
-
-% Initilize grid at every fourth voxel
-[xg, yg] = ndgrid(1:ds:dims(1), 1:ds:dims(2)); 
-% Retrieve grid coordinates of every fourth voxel
-grid_coords = [xg(:), yg(:)];
-% Convert subscripts to indices
+%% Sampling grid (every ds voxels)
+[xg_coarse, yg_coarse] = ndgrid(1:ds:dims(1), 1:ds:dims(2));
+grid_coords = [xg_coarse(:), yg_coarse(:)];
 sample_inds = sub2ind(dims, grid_coords(:,1), grid_coords(:,2));
-% Find indices of parenchyma tissue that are NOT EPVS
-valid_idx = mask(sample_inds) & ~epvs(sample_inds);
-% Find the respective grid coordinates
-valid_coords = grid_coords(valid_idx, :); 
-% Find the number of valid grid coordinates
+valid_mask_samples = mask(sample_inds) & ~epvs(sample_inds);
+valid_coords = grid_coords(valid_mask_samples, :);
 num_valid = size(valid_coords, 1);
 
-% If no valid parenchyma, then return warning
 if num_valid == 0
     warning('No valid sampled voxels found.');
     subsampled_volume = sparse([]);
@@ -83,83 +79,219 @@ if num_valid == 0
     return;
 end
 
-% Initialize rows, columns, and data matrix
 rows = valid_coords(:,1);
 cols = valid_coords(:,2);
-data = zeros(num_valid,1,'single');
 
-%% Build KD-tree (KDTreeSearcher needs double)
-tree = KDTreeSearcher(double(all_EPVS_coords));
+%% Build KD-tree on sampled points
+tree_samples = KDTreeSearcher(double(valid_coords)); % requires double
 
-%% Chunking
-chunk_start_indices = 1:chunk_size:num_valid;
-nChunks = numel(chunk_start_indices);
+%% Decide block and accumulation strategy
+bytes_per_single = 4;
+dense_bytes = num_valid * bytes_per_single;
 
-fprintf('Computing EPVS density at every 4th voxel (%d sampled)...\n',...
-        num_valid);
+numWorkers = 1;
+if parpool_flag
+    poolobj = gcp('nocreate');
+    if isempty(poolobj)
+        poolobj = parpool; % start default pool
+    end
+    numWorkers = poolobj.NumWorkers;
+end
+
+nBlocks = max(1, ceil(n_epvs_vox / TARGET_EPVS_PER_BLOCK));
+nBlocks = min(nBlocks, max(1, 2*numWorkers));
+if parpool_flag
+    nBlocks = max(nBlocks, numWorkers);
+end
+
+use_dense = (dense_bytes <= MAX_DENSE_BYTES_PER_WORKER);
+
+if use_dense
+    fprintf('Using dense per-worker accumulators (%.1f MB per vector)\n', dense_bytes/1e6);
+else
+    fprintf('Using sparse per-worker accumulators (dense %.1f MB too large)\n', dense_bytes/1e6);
+end
+
+%% Partition EPVS indices into blocks
+block_edges = round(linspace(1, n_epvs_vox+1, nBlocks+1));
+blocks = cell(nBlocks,1);
+for b = 1:nBlocks
+    blocks{b} = block_edges(b):(block_edges(b+1)-1);
+end
+
+%% Main accumulation with text progress
+fprintf('Starting accumulation: %d EPVS -> %d samples (blocks=%d, workers=%d)\n', ...
+n_epvs_vox, num_valid, nBlocks, numWorkers);
 tic;
 
-for chunk_idx = 1:nChunks
-    start_idx = chunk_start_indices(chunk_idx);
-    stop_idx = min(start_idx + chunk_size - 1, num_valid);
-    chunk_inds = start_idx:stop_idx;
-    chunk_coords = double(valid_coords(chunk_inds,:)); 
+partials = cell(nBlocks,1);
 
-    [Idx, D] = rangesearch(tree, chunk_coords, radius);
-
-    vals = zeros(numel(chunk_inds), 1, 'single');
+if parpool_flag
+    % Parallel blocks
+    parfor b = 1:nBlocks
+        idx_block = blocks{b};
+        n_block = numel(idx_block);
+        last_report = 0;
+        if use_dense
+            local_data = zeros(num_valid,1,'single');
+            for jj = 1:n_block
+                j = idx_block(jj);
+                ep_coord = all_EPVS_coords(j, :);
+                w = all_EPVS_weights(j);
     
-    % Parallel loop for density computation
-    if parpool_flag
-        parfor i = 1:numel(chunk_inds)
-            idx = Idx{i};
-            d = D{i};
-            if isempty(idx)
-                vals(i) = 0;
-            else
-                w = all_EPVS_weights(idx);
-                % 'omitnan' safe for rare cases
-                vals(i) = sum(w ./ (single(d) + epsilon).^p, "all",'omitnan'); 
+                [idxs_cell, dists_cell] = rangesearch(tree_samples, ep_coord, radius);
+                idxs = idxs_cell{1};
+                dists = dists_cell{1};
+    
+                if ~isempty(idxs)
+                    d_s = single(dists(:));
+                    contrib = w ./ (d_s + single(epsilon)).^single(p);
+                    local_data(idxs) = local_data(idxs) + contrib;
+                end
+    
+                if mod(jj, N_EPVS_REPORT) == 0 || jj == n_block
+                    % Progress message for this worker-block
+                    fprintf('Worker block %d: processed %d/%d EPVS in block (global %d/%d)\n', ...
+                            b, jj, n_block, idx_block(jj), n_epvs_vox);
+                end
             end
-        end
-    else
-        for i = 1:numel(chunk_inds)
-            idx = Idx{i};
-            d = D{i};
-            if isempty(idx)
-                vals(i) = 0;
+            partials{b} = local_data;
+        else
+            idxs_all = zeros(0,1,'int32');
+            contrib_all = zeros(0,1,'single');
+            for jj = 1:n_block
+                j = idx_block(jj);
+                ep_coord = all_EPVS_coords(j, :);
+                w = all_EPVS_weights(j);
+    
+                [idxs_cell, dists_cell] = rangesearch(tree_samples, ep_coord, radius);
+                idxs = idxs_cell{1};
+                dists = dists_cell{1};
+    
+                if ~isempty(idxs)
+                    d_s = single(dists(:));
+                    contrib = w ./ (d_s + single(epsilon)).^single(p);
+                    idxs_all = [idxs_all; int32(idxs(:))]; %#ok<AGROW>
+                    contrib_all = [contrib_all; single(contrib(:))]; %#ok<AGROW>
+                end
+    
+                if mod(jj, N_EPVS_REPORT) == 0 || jj == n_block
+                    fprintf('Worker block %d: processed %d/%d EPVS in block (global %d/%d)\n', ...
+                            b, jj, n_block, idx_block(jj), n_epvs_vox);
+                end
+            end
+            if isempty(idxs_all)
+                partials{b} = sparse([],[],[],num_valid,1,0);
             else
-                w = all_EPVS_weights(idx);
-                % 'omitnan' safe for rare cases
-                vals(i) = sum(w ./ (single(d) + epsilon).^p, "all",'omitnan'); 
+                partials{b} = sparse(double(idxs_all), ones(numel(idxs_all),1), double(contrib_all), num_valid, 1);
             end
         end
     end
+else
 
-    data(chunk_inds) = vals;
-
-    clear Idx D;
-
-    % Print chunk # to console
-    fprintf('Chunk %d/%d complete (%.1f%%)\n', chunk_idx, nChunks,...
-            100 * chunk_idx / nChunks);
+        % Serial blocks with progress
+    total_processed = 0;
+    for b = 1:nBlocks
+        idx_block = blocks{b};
+        n_block = numel(idx_block);
+    
+        fprintf('Starting block %d/%d (EPVS %d to %d)\n', b, nBlocks, idx_block(1), idx_block(end));
+    
+        if use_dense
+            local_data = zeros(num_valid,1,'single');
+            for jj = 1:n_block
+                j = idx_block(jj);
+                ep_coord = all_EPVS_coords(j, :);
+                w = all_EPVS_weights(j);
+    
+                [idxs_cell, dists_cell] = rangesearch(tree_samples, ep_coord, radius);
+                idxs = idxs_cell{1};
+                dists = dists_cell{1};
+    
+                if ~isempty(idxs)
+                    d_s = single(dists(:));
+                    contrib = w ./ (d_s + single(epsilon)).^single(p);
+                    local_data(idxs) = local_data(idxs) + contrib;
+                end
+    
+                total_processed = total_processed + 1;
+                if mod(total_processed, N_EPVS_REPORT) == 0 || jj == n_block
+                    fprintf(' Block %d: processed %d/%d EPVS in block (global %d/%d)\n', ...
+                            b, jj, n_block, total_processed, n_epvs_vox);
+                end
+            end
+            partials{b} = local_data;
+        else
+            idxs_all = zeros(0,1,'int32');
+            contrib_all = zeros(0,1,'single');
+            for jj = 1:n_block
+                j = idx_block(jj);
+                ep_coord = all_EPVS_coords(j, :);
+                w = all_EPVS_weights(j);
+    
+                [idxs_cell, dists_cell] = rangesearch(tree_samples, ep_coord, radius);
+                idxs = idxs_cell{1};
+                dists = dists_cell{1};
+    
+                if ~isempty(idxs)
+                    d_s = single(dists(:));
+                    contrib = w ./ (d_s + single(epsilon)).^single(p);
+                    idxs_all = [idxs_all; int32(idxs(:))]; %#ok<AGROW>
+                    contrib_all = [contrib_all; single(contrib(:))]; %#ok<AGROW>
+                end
+    
+                total_processed = total_processed + 1;
+                if mod(total_processed, N_EPVS_REPORT) == 0 || jj == n_block
+                    fprintf(' Block %d: processed %d/%d EPVS in block (global %d/%d)\n', ...
+                            b, jj, n_block, total_processed, n_epvs_vox);
+                end
+            end
+            if isempty(idxs_all)
+                partials{b} = sparse([],[],[],num_valid,1,0);
+            else
+                partials{b} = sparse(double(idxs_all), ones(numel(idxs_all),1), double(contrib_all), num_valid, 1);
+            end
+        end
+        fprintf('Finished block %d/%d\n', b, nBlocks);
+    end
 end
 
-fprintf('Subsampled computation done in %.2f seconds.\n', toc);
+% Reduce partials into final data vector
+fprintf('Reducing partial results into final sampled vector...\n');
+if use_dense
+    data = zeros(num_valid,1,'single');
+    for b = 1:nBlocks
+        data = data + single(partials{b});
+        partials{b} = [];
+    end
+else
+    data = zeros(num_valid,1,'single');
+    for b = 1:nBlocks
+        if isa(partials{b},'double') || isa(partials{b},'single') || isa(partials{b},'logical')
+            data = data + single(partials{b});
+        else
+            [ii, ~, vv] = find(partials{b});
+            if isempty(ii)
+                data(ii) = data(ii) + single(vv);
+            end
+        end
+        partials{b} = [];
+    end
+end
 
-%% Build sparse 1D vector, then convert to full and reshape to 3D
-fprintf('Starting Interpolation\n');
+fprintf('Accumulation and reduction complete (elapsed %.2f s)\n', toc);
 
+%% Build subsampled volume from data
 flat_idx = sub2ind(dims, rows, cols);
 S = sparse(flat_idx, 1, double(data), prod(dims), 1);
 subsampled_volume = single(reshape(full(S), dims));
 
-% Prepare coarsely sampled grid for interpolation
-Sgrid = single(subsampled_volume(1:ds:end,1:ds:end));
-
-F = griddedInterpolant(xg, yg, Sgrid, 'linear', 'nearest');
+%% Interpolated full-resolution map
+fprintf('Starting interpolation\n');
+Sgrid = single(subsampled_volume(1:ds:end, 1:ds:end));
+F = griddedInterpolant(xg_coarse, yg_coarse, Sgrid, 'linear', 'nearest');
 [xq, yq] = ndgrid(1:dims(1), 1:dims(2));
 interpolated_volume = single(F(xq, yq));
+fprintf('Interpolation done\n');
 
-fprintf('Interpolation complete.\n');
 end

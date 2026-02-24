@@ -8,14 +8,9 @@ dpath = ['/autofs/cluster/octdata3/users/mjhyman/oct_caa_analyses/' ...
             'optical_properties'];
 % SCC
 dpath = '/projectnb/npbssmic/ns/CAA/';
-% Resolution of voxel (millimeters)
-res = [0.02,0.02,0.02];
 
-%%% Add path to freesurfer files
-addpath('/projectnb/npbssmic/s/mhyman/oct-caa/freesurfer');
-addpath('/projectnb/npbssmic/s/mhyman/oct-caa');
-
-
+% Add path to freesurfer files
+addpath('/projectnb/npbssmic/s/mhyman/oct-caa/freesurfer')
 
 %% Load all structures
 
@@ -104,20 +99,20 @@ seg = logical(seg.vol);
 caa26.occip.seg = seg;
 %}
 
-%% Update EPVS for all subjects
+%% TODO: Update EPVS for all subjects
 
 %%% CAA 6
 fprintf('Importing CAA6 EPVS\n')
 % Frontal
-epvs = fullfile(dpath,'caa6/front/epvs_dilate_erode_4_4.nii.gz');
-epvs = MRIread(epvs,0,0);
-epvs = logical(epvs.vol);
-caa6.front.epvs = epvs;
-% Occipital
-epvs = fullfile(dpath,'caa6/occip/epvs_dilate_erode_4_4.nii.gz');
-epvs = MRIread(epvs,0,0);
-epvs = logical(epvs.vol);
-caa6.occip.epvs = epvs;
+% epvs = fullfile(dpath,'caa6/front/epvs_dilate_erode_4_4.nii.gz');
+% epvs = MRIread(epvs,0,0);
+% epvs = logical(epvs.vol);
+% caa6.front.epvs = epvs;
+% % Occipital
+% epvs = fullfile(dpath,'caa6/occip/epvs_dilate_erode_4_4.nii.gz');
+% epvs = MRIread(epvs,0,0);
+% epvs = logical(epvs.vol);
+% caa6.occip.epvs = epvs;
 
 %%% CAA 17
 fprintf('Importing CAA17 EPVS\n')
@@ -130,10 +125,10 @@ caa17.occip.epvs = epvs;
 %%% CAA 22
 fprintf('Importing CAA22 EPVS\n')
 % Frontal
-epvs = fullfile(dpath,'caa22/front/epvs_dilate_erode_4_4.nii.gz');
-epvs = MRIread(epvs,0,0);
-epvs = logical(epvs.vol);
-caa22.front.epvs = epvs;
+% epvs = fullfile(dpath,'caa22/front/epvs_dilate_erode_4_4.nii.gz');
+% epvs = MRIread(epvs,0,0);
+% epvs = logical(epvs.vol);
+% caa22.front.epvs = epvs;
 % Occipital
 epvs = fullfile(dpath,'caa22/occip/epvs_dilate_erode_4_4.nii.gz');
 epvs = MRIread(epvs,0,0);
@@ -143,10 +138,10 @@ caa22.occip.epvs = epvs;
 %%% CAA 25
 fprintf('Importing CAA25 EPVS\n')
 % Frontal
-epvs = fullfile(dpath,'caa25/front/epvs_dilate_erode_4_4.nii.gz');
-epvs = MRIread(epvs,0,0);
-epvs = logical(epvs.vol);
-caa25.front.epvs = epvs;
+% epvs = fullfile(dpath,'caa25/front/epvs_dilate_erode_4_4.nii.gz');
+% epvs = MRIread(epvs,0,0);
+% epvs = logical(epvs.vol);
+% caa25.front.epvs = epvs;
 % Occipital
 epvs = fullfile(dpath,'caa25/occip/epvs_dilate_erode_4_4.nii.gz');
 epvs = MRIread(epvs,0,0);
@@ -169,82 +164,64 @@ caa26.occip.epvs = epvs;
 %% Remove EPVS from vessels and output NIFTI of vessels (w/o EPVS)
 
 %%% CAA 6
-fprintf('Removing EPVS from vessels in CAA6\n')
+fprintf('Importing CAA6 EPVS\n')
 % Frontal
 epvs = caa6.front.epvs;
-ves = caa6.front.seg_wm;
+ves = caa6.front.seg;
 seg_no_epvs = exclude_epvs_ves(ves,epvs);
-caa6.front.seg_wm_no_epvs = seg_no_epvs;
-fout = fullfile(dpath,'caa6/front/','caa6_front_seg_no_epvs.nii.gz');
-save_mri(seg_no_epvs,fout,res,'uchar',0);
+
 % Occipital
-epvs = caa6.occip.epvs;
-ves = caa6.occip.seg_wm;
-seg_no_epvs = exclude_epvs_ves(ves,epvs);
-caa6.occip.seg_wm_no_epvs = seg_no_epvs;
-fout = fullfile(dpath,'caa6/occip/','caa6_occip_seg_no_epvs.nii.gz');
-save_mri(seg_no_epvs,fout,res,'uchar',0);
+epvs = fullfile(dpath,'caa6/occip/epvs_dilate_erode_4_4.nii.gz');
+epvs = MRIread(epvs,0,0);
+epvs = logical(epvs.vol);
+caa6.occip.epvs = epvs;
 
 %%% CAA 17
-fprintf('Removing EPVS from vessels in CAA17\n')
+fprintf('Importing CAA17 EPVS\n')
 % Occipital
-epvs = caa17.occip.epvs;
-ves = caa17.occip.seg_wm;
-seg_no_epvs = exclude_epvs_ves(ves,epvs);
-caa17.occip.seg_wm_no_epvs = seg_no_epvs;
-fout = fullfile(dpath,'caa17/occip/','caa17_occip_seg_no_epvs.nii.gz');
-save_mri(seg_no_epvs,fout,res,'uchar',0);
+epvs = fullfile(dpath,'caa17/occip/epvs_dilate_erode_4_4.nii.gz');
+epvs = MRIread(epvs,0,0);
+epvs = logical(epvs.vol);
+caa17.occip.epvs = epvs;
 
 %%% CAA 22
-fprintf('Removing EPVS from vessels in CAA22\n')
+fprintf('Importing CAA22 EPVS\n')
 % Frontal
-epvs = caa22.front.epvs;
-ves = caa22.front.seg_wm;
-seg_no_epvs = exclude_epvs_ves(ves,epvs);
-caa22.front.seg_wm_no_epvs = seg_no_epvs;
-fout = fullfile(dpath,'caa22/front/','caa22_front_seg_no_epvs.nii.gz');
-save_mri(seg_no_epvs,fout,res,'uchar',0);
+% epvs = fullfile(dpath,'caa22/front/epvs_dilate_erode_4_4.nii.gz');
+% epvs = MRIread(epvs,0,0);
+% epvs = logical(epvs.vol);
+% caa22.front.epvs = epvs;
 % Occipital
-epvs = caa22.occip.epvs;
-ves = caa22.occip.seg_wm;
-seg_no_epvs = exclude_epvs_ves(ves,epvs);
-caa22.occip.seg_wm_no_epvs = seg_no_epvs;
-fout = fullfile(dpath,'caa22/occip/','caa22_occip_seg_no_epvs.nii.gz');
-save_mri(seg_no_epvs,fout,res,'uchar',0);
+epvs = fullfile(dpath,'caa22/occip/epvs_dilate_erode_4_4.nii.gz');
+epvs = MRIread(epvs,0,0);
+epvs = logical(epvs.vol);
+caa22.occip.epvs = epvs;
 
 %%% CAA 25
-fprintf('Removing EPVS from vessels in CAA25\n')
+fprintf('Importing CAA25 EPVS\n')
 % Frontal
-epvs = caa25.front.epvs;
-ves = caa25.front.seg_wm;
-seg_no_epvs = exclude_epvs_ves(ves,epvs);
-caa25.front.seg_wm_no_epvs = seg_no_epvs;
-fout = fullfile(dpath,'caa25/front/','caa25_front_seg_no_epvs.nii.gz');
-save_mri(seg_no_epvs,fout,res,'uchar',0);
+% epvs = fullfile(dpath,'caa25/front/epvs_dilate_erode_4_4.nii.gz');
+% epvs = MRIread(epvs,0,0);
+% epvs = logical(epvs.vol);
+% caa25.front.epvs = epvs;
 % Occipital
-epvs = caa25.occip.epvs;
-ves = caa25.occip.seg_wm;
-seg_no_epvs = exclude_epvs_ves(ves,epvs);
-caa25.occip.seg_wm_no_epvs = seg_no_epvs;
-fout = fullfile(dpath,'caa25/occip/','caa25_occip_seg_no_epvs.nii.gz');
-save_mri(seg_no_epvs,fout,res,'uchar',0);
+epvs = fullfile(dpath,'caa25/occip/epvs_dilate_erode_4_4.nii.gz');
+epvs = MRIread(epvs,0,0);
+epvs = logical(epvs.vol);
+caa25.occip.epvs = epvs;
 
 %%% CAA 26
-fprintf('Removing EPVS from vessels in CAA26\n')
+fprintf('Importing CAA26 EPVS\n')
 % Frontal
-epvs = caa26.front.epvs;
-ves = caa26.front.seg_wm;
-seg_no_epvs = exclude_epvs_ves(ves,epvs);
-caa26.front.seg_wm_no_epvs = seg_no_epvs;
-fout = fullfile(dpath,'caa26/front/','caa26_front_seg_no_epvs.nii.gz');
-save_mri(seg_no_epvs,fout,res,'uchar',0);
+epvs = fullfile(dpath,'caa26/front/epvs_dilate_erode_4_4.nii.gz');
+epvs = MRIread(epvs,0,0);
+epvs = logical(epvs.vol);
+caa26.front.epvs = epvs;
 % Occipital
-epvs = caa26.occip.epvs;
-ves = caa26.occip.seg_wm;
-seg_no_epvs = exclude_epvs_ves(ves,epvs);
-caa26.occip.seg_wm_no_epvs = seg_no_epvs;
-fout = fullfile(dpath,'caa26/occip/','caa26_occip_seg_no_epvs.nii.gz');
-save_mri(seg_no_epvs,fout,res,'uchar',0);
+epvs = fullfile(dpath,'caa26/occip/epvs_dilate_erode_4_4.nii.gz');
+epvs = MRIread(epvs,0,0);
+epvs = logical(epvs.vol);
+caa26.occip.epvs = epvs;
 
 %% Load updated white matter structs
 %%% CAA 6 Frontal

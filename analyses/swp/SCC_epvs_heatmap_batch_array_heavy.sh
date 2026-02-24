@@ -15,7 +15,7 @@
 # set the task ID
 #$ -t 8-9
 
-# Run this for CAA22 front (dense EPVS)
+# Compute Settings
 #$ -pe omp 28
 #$ -l mem_per_core=18G
 

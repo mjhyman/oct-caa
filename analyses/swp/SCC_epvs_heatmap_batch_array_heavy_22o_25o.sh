@@ -7,17 +7,16 @@
 #$ -m ea
 
 # Time limit for job
-#$ -l h_rt=48:00:00
+#$ -l h_rt=120:00:00
 
 # Name of job
-#$ -N swp_p2
+#$ -N swp
 
 # set the task ID
-#$ -t 4
+#$ -t 5,7
 
-# Run this for CAA22 front (dense EPVS)
-#$ -pe omp 28
-#$ -l mem_per_core=18G
+# Compute Settings
+#$ -pe omp 36
 
 # Keep track of information related to the current job
 echo "=========================================================="
@@ -30,6 +29,6 @@ echo "Starting task number $SGE_TASK_ID"
 # Combine output/error files into single file
 #$ -j y
 
-module load matlab/2024b
+module load matlab/2025a
 matlab -nodisplay -batch epvs_density_batch $SGE_TASK_ID
 
