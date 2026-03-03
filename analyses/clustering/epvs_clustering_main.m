@@ -10,56 +10,36 @@ if isnan(sid)
     fprintf('Setting SGE_TASK_ID to %s\n',string(sid))
 end
 
-% Exponent for denominator in SWP
-p = 2;
-
-% TODO:
-%{
-- determine whether to remove vessels from mask (either the connected
-components vessels seg_wm_no_epvs or the [vessels - EPVS])
-- determine whether to use another method for vessel density
-%}
-
 %% Array of subject ID and regions
 subjects = struct();
 subjects(1).subject_name = 'caa6';
 subjects(1).region = 'front';
-subjects(1).p = p;
 subjects(2).subject_name = 'caa6';
 subjects(2).region = 'occip';
-subjects(2).p = p;
 subjects(3).subject_name = 'caa17';
 subjects(3).region = 'occip';
-subjects(3).p = p;
 subjects(4).subject_name = 'caa22';
 subjects(4).region = 'front';
-subjects(4).p = p;
 subjects(5).subject_name = 'caa22';
 subjects(5).region = 'occip';
-subjects(5).p = p;
 subjects(6).subject_name = 'caa25';
 subjects(6).region = 'front';
-subjects(6).p = p;
 subjects(7).subject_name = 'caa25';
 subjects(7).region = 'occip';
-subjects(7).p = p;
 subjects(8).subject_name = 'caa26';
 subjects(8).region = 'front';
-subjects(8).p = p;
 subjects(9).subject_name = 'caa26';
 subjects(9).region = 'occip';
-subjects(9).p = p;
 
 % Set local subject_name and region
 subject_name = subjects(sid).subject_name;
 region = subjects(sid).region;
-p = subjects(sid).p;
-fprintf('subject = %s, region = %s, p = %d\n',subject_name, region,p)
+fprintf('Computing EPVS clustering for subject %s, region %s\n',...
+        subject_name,region)
 
 %% Settings
 data_dir = '/projectnb/npbssmic/ns/CAA/';
-radius = 200;
-swp_dir = '/projectnb/npbssmic/ns/CAA/swp/';
+cluster_dir = '/projectnb/npbssmic/ns/CAA/cluster/';
 
 %% Map subject names to file paths
 % Subject-level .MAT files
@@ -93,19 +73,6 @@ if ~isfield(subject_data, region)
     error('Region "%s" not found in subject "%s" data.', region, subject_name);
 end
 
-%% Load the SWP data
-fname = strcat(subject_name,'_',region,...
-    '_radius_200_exp_2_interpolated_heatmap_log10.mat');
-swp_path = fullfile(swp_dir, subject_name, region,fname);
-if ~isfile(swp_path)
-    error('File does not exist\n%s',swp_path)
-else
-    fprintf('Loading subject %s %s SWP\n', subject_name, region)
-end
-tmp = load(swp_path);
-swp = single(tmp.swp);
-fprintf('Finished loading %s %s SWP\n', subject_name, region)
-
 %% Retrieve EPVS, WM Mask, vessels
 
 if isfield(subject_data.(region), 'epvs')
@@ -122,8 +89,7 @@ else
     return
 end
 
-%%% Remove vessels from the WM mask
-% Keep the vessel voxels that are disjoint from EPVS
+%%% Remove EPVS & vessels from the WM mask
 ves(epvs) = 0;
 mask(ves) = 0;
 
@@ -132,9 +98,17 @@ mask(ves) = 0;
 voxel_size_mm = [0.02, 0.02, 0.02]; % Define voxel size in mm
 % Call function to compute relation
 results = epvs_radial_relation(mask, epvs, voxel_size_mm,...
-       'LargePercentile',95,'RadialBins',[0, 1, 2, 3, 4, 5, 6, 7, 8]);
-
-% Save results to .MAT and .TIF
-pause(1)
-
+       'LargePercentile',90,...
+       'RadialBins',[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],...
+       'Debug',false);
 fprintf('Finished processing %s %s \n', subject_name, region);
+
+%% Save results to .MAT and .TIF
+% Create output directory if it doesn't exist
+if ~exist(fullfile(cluster_dir, subject_name, region), 'dir')
+    mkdir(fullfile(cluster_dir, subject_name, region));
+end
+% Save
+fprintf('Saving %s %s \n', subject_name, region);
+fout = fullfile(cluster_dir, subject_name, region, 'epvs_cluster.mat');
+save(fout,'results','-v7.3');

@@ -5,13 +5,19 @@ clear; clc; close all;
 % Input from bash
 sid = str2double(getenv('SGE_TASK_ID'));
 if isnan(sid)
-    sid=5;
+    sid=3;
     fprintf('The SGE_TASK_ID was not passed to Matlab\n')
     fprintf('Setting SGE_TASK_ID to %s\n',string(sid))
 end
 
+% Search radius (voxels)
+radius = 500;
+
 % Exponent for denominator in SWP
 p = 2;
+
+% string for identifying the run type
+prefix = 'swp_voxelwise';
 
 %% Array of subject ID and regions
 subjects = struct();
@@ -49,9 +55,8 @@ region = subjects(sid).region;
 p = subjects(sid).p;
 fprintf('subject = %s, region = %s, p = %d\n',subject_name, region,p)
 
-%% Settings
+%% Folder Settings
 data_dir = '/projectnb/npbssmic/ns/CAA/';
-radius = 200;
 save_base = '/projectnb/npbssmic/ns/CAA/swp/';
 
 %% Map subject names to file paths
@@ -94,14 +99,11 @@ if isfield(subject_data.(region), 'epvs')
     epvs = subject_data.(region).epvs;
     % White Matter binary mask
     mask = subject_data.(region).mask_wm;
-    % Blood vessels that are disjoint from EPVS. The automated algorithm
+    % Blood vessel voxels disjoint from EPVS. The automated algorithm
     % had lots of false positives. This matrix only uses the voxels that
-    % are not connected to EPVS
-    ves = subject_data.(region).seg_wm_no_epvs;
-    
-    % Set the vessels to 0 in mask
-    mask(ves) = 0;
-    
+    % are not already labeled as EPVS
+    ves = subject_data.(region).seg_wm;
+    ves = ves & ~epvs;    
     % Print to console
     fprintf('Starting %s %s \n', subject_name, region);
 else
@@ -109,12 +111,20 @@ else
     return
 end
 
-%% Calculate EPVS density
-[subsampled_volume, interpolated_volume] = ...
-    epvs_density_variable_p(epvs, mask, radius, p);
+%% Calculate SWP (revised for memory management)
+[subsampled_volume, interpolated_volume, interpolated_ves_rm] = ...
+    swp_voxelwise_v2(epvs, mask, ves, radius, p,'voxels');
 
-% Save results to .MAT and .TIF
-save_epvs_heatmap(save_base, subject_name, region, ...
+% voxel-wise calculation
+% [subsampled_volume, interpolated_volume, interpolated_ves_rm] = ...
+%     swp_voxelwise(epvs, mask, ves, radius, p);
+
+% Centroid method
+% [subsampled_volume, interpolated_volume] = ...
+%     epvs_density_variable_p(epvs, mask, radius, p);
+
+%% Save results to .MAT and .TIF
+save_epvs_heatmap(save_base, subject_name, region, prefix, ...
     subsampled_volume, interpolated_volume, radius, p);
 
 fprintf('Finished processing %s %s \n', subject_name, region);

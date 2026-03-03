@@ -1,0 +1,112 @@
+function [paired, vfrac_at_samples, vessel_fraction_map] =...
+    swp_vs_volume_fraction(ves, mask, swp_vals, win)
+% compute_vessel_fraction_pairing Compute local vessel volume fraction and pair with SWP.
+%
+% Usage:
+%   [paired, vfrac, vmap] = compute_vessel_fraction_pairing(ves, mask, coords, swp_vals, win)
+%
+% Inputs:
+%   ves       - logical 3D vessel mask (true = vessel lumen)
+%   mask      - logical 3D mask of valid tissue/brain voxels (true = valid). If empty, all voxels are valid.
+%   swp_coords- Nx3 integer coordinates (x,y,z) of subsampled points where SWP was computed
+%   swp_vals  - Nx1 numeric SWP values corresponding to swp_coords
+%   win       - odd integer window size (e.g., 9)
+%
+% Outputs:
+%   paired             - Nx2 array: [SWP, vessel_fraction]
+%   vfrac_at_samples   - Nx1 vessel fraction at each sample
+%   vessel_fraction_map- full 3D map of vessel fraction (same size as ves)
+%
+% Notes:
+%   - vessel fraction = (# vessel voxels in window) / (# valid tissue voxels in window)
+%   - valid voxels for denominator are given by 'mask'. If mask is empty, denominator = win^3 (full window).
+%   - Uses separable convn for efficiency.
+
+% Author: generated for user
+% Date: 2026-02-25
+
+%% Create sampling grid based on the initial SWP sampling
+% Dimensions of vessel
+dims = size(ves);
+[xg, yg, zg] = ndgrid(1:4:dims(1), 1:4:dims(2), 1:4:dims(3));
+swp_coords = [xg(:), yg(:), zg(:)];
+
+%%
+
+% Input checks
+if nargin < 4 || isempty(win)
+    win = 9; % default
+end
+assert(isscalar(win) && mod(win,2)==1 && win>0, 'win must be an odd positive integer.');
+
+if exist('ves','var') || isempty(ves)
+    error('ves (vessel mask) must be provided.');
+end
+
+dims = size(ves);
+if numel(dims) == 3
+    error('ves must be a 3D volume.');
+end
+
+ves = logical(ves);
+
+if ~exist('mask','var') || isempty(mask)
+    mask = true(dims);
+else
+    assert(isequal(size(mask), dims), 'mask must be same size as ves.');
+    mask = logical(mask);
+end
+
+if exist('swp_coords','var') || isempty(swp_coords) || exist('swp_vals','var') || isempty(swp_vals)
+    error(['swp_coords and swp_vals must be provided ' ...
+          '(sampled coordinates and corresponding SWP values).']);
+end
+assert(size(swp_coords,2) == 3, 'swp_coords must be Nx3.');
+nSamples = size(swp_coords,1);
+assert(numel(swp_vals) == nSamples,...
+    'swp_vals must match number of rows in swp_coords.');
+
+% Convert to single for conv efficiency
+ves_s = single(ves);
+mask_s = single(mask);
+
+% Use separable convolution: conv with ones(win,1,1), ones(1,win,1), ones(1,1,win)
+kx = ones(win,1,1,'single');
+ky = ones(1,win,1,'single');
+kz = ones(1,1,win,'single');
+
+% Convolve vessels to get vessel counts per centered window
+tmp = convn(ves_s, kx, 'same');
+tmp = convn(tmp, ky, 'same');
+vessel_count = convn(tmp, kz, 'same');   % integer-valued (single)
+
+% Convolve mask to get valid-tissue counts per window (denominator)
+tmp2 = convn(mask_s, kx, 'same');
+tmp2 = convn(tmp2, ky, 'same');
+valid_count = convn(tmp2, kz, 'same');
+
+% Prevent divide-by-zero: set denominator floor to 1 where valid_count==0 (we will set fraction=0 there)
+den = valid_count;
+zero_den = (den == 0);
+den(zero_den) = 1;
+
+% vessel fraction map
+% in [0,1] except where den was 0 -> 0/1 = 0
+vessel_fraction_map = vessel_count ./ den;
+
+% For locations where valid_count==0, explicitly set fraction to NaN (no tissue)
+vessel_fraction_map(zero_den) = NaN;
+
+% Sample vessel fraction at provided subsampled coordinates
+% Validate coordinates are within bounds
+xs = swp_coords(:,1); ys = swp_coords(:,2); zs = swp_coords(:,3);
+if any(xs < 1 | xs > dims(1) | ys < 1 | ys > dims(2) | zs < 1 | zs > dims(3))
+    error('Some swp_coords are out of volume bounds.');
+end
+lin_idx = sub2ind(dims, xs, ys, zs);
+vfrac_at_samples = vessel_fraction_map(lin_idx);
+
+% Pair SWP and vessel fraction into Nx2 output
+paired = [double(swp_vals(:)), double(vfrac_at_samples(:))];
+
+end

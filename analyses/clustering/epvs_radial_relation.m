@@ -1,134 +1,119 @@
 function results = epvs_radial_relation(brain_mask, epvs_mask,...
-                                    voxel_size_mm, varargin)
-% CROSS_TYPE_RADIAL_DENSITY_LARGE_TO_SMALL
-% Cross-type radial density: measure small EPVS neighbor density around large EPVS centers.
-% Shell volumes are computed as voxelwise intersection with brain_mask excluding EPVS voxels.
+                                        voxel_size_mm, varargin)
+% EPVS_RADIAL_RELATION Computes spatial relationship between large and small EPVS.
 %
-% Usage:
-%   results = cross_type_radial_density_large_to_small(brain_mask, epvs_mask, voxel_size_mm, Name, Value)
-%
-% Required:
-%   brain_mask    - 3D logical array (brain ROI)
-%   epvs_mask     - 3D logical array (EPVS voxels)
-%   voxel_size_mm - scalar or [sx sy sz]
-%
-% Name-Value options:
-%   'LargePercentile' (90) - defines large EPVS as top X% by object volume (mm^3)
-%   'RadialBins' ([0 0.5 1 2 4]) - mm
-%   'NumPermutations' (500)
-%   'MinSeeds' (5)
-%   'IncludePermutations' (true)
-%   'Verbose' (true)
-%
-% Outputs (results struct):
-%   .centroids_mm (M x 3) - EPVS centroids in mm (all objects)
-%   .volumes_mm3 (M x 1)
-%   .seed_idx (indices of large seeds)
-%   .neighbor_idx (indices of small EPVS)
-%   .binEdges, .binMids
-%   .seed_shell_vox_counts (S x nbins) - number of NON-EPVS voxels in each shell for each seed
-%   .seed_shell_volumes (S x nbins) - shell volumes in mm^3 (non-EPVS)
-%   .seed_epvs_counts (S x nbins) - number of other EPVS centroids in each shell (small neighbors)
-%   .seed_epvs_density (S x nbins) - counts / mm^3 (NaN where shell volume==0)
-%   .observed_mean_density (1 x nbins), .observed_sem (1 x nbins)
-%   .perm_mean (nperm x nbins), .perm_median/.perm_lo/.perm_hi
-%   .pvals (1 x nbins) - one-sided (observed >= perm)
-%
-% Note: This operates on a single subject; run per-subject in a loop for cohort-level analysis.
-
+%   'LargePercentile' (90) - Top X% of volumes treated as "seeds"
+%   'RadialBins' ([0 0.5 1 2 4]) - Distance bins in mm for shell analysis
+%   'NumPermutations' (500) - Number of random-label shuffles
+%   'MinSeeds' (5) - Minimum number of seeds required to run
+%   'IncludePermutations' (true) - Run null distribution
+%   'Verbose' (true) - Print progress to console
+%   'MinVolumeMM3' (0.0005) - Filter out objects smaller than this
+%   'Debug' (false) - Show 3D visualization of the largest split object
+try
 % ---- Parse inputs ----
 p = inputParser;
 addRequired(p,'brain_mask',@(x)islogical(x) || isnumeric(x));
-addRequired(p,'epvs_mask',@(x)islogical(x) || isnumeric(x));
+addRequired(p,'epvs_mask',@(x)islogical(x) || numeric(x));
 addRequired(p,'voxel_size_mm',@(x)isnumeric(x) && (isscalar(x)||numel(x)==3));
 addParameter(p,'LargePercentile',90,@isnumeric);
-addParameter(p,'RadialBins',[0 0.5 1 2 4],@isnumeric);
+addParameter(p,'RadialBins', [0 0.5 1 2 4], @isnumeric);
 addParameter(p,'NumPermutations',500,@isnumeric);
 addParameter(p,'MinSeeds',5,@isnumeric);
 addParameter(p,'IncludePermutations',true,@islogical);
 addParameter(p,'Verbose',true,@islogical);
+addParameter(p,'MinVolumeMM3', 0.0005, @isnumeric); 
+addParameter(p,'Debug', false, @islogical);
 parse(p,brain_mask,epvs_mask,voxel_size_mm,varargin{:});
 params = p.Results;
 
-brain_mask = logical(brain_mask);
-epvs_mask = logical(epvs_mask);
 if isscalar(params.voxel_size_mm)
-    vx = [params.voxel_size_mm params.voxel_size_mm params.voxel_size_mm];
-else
-    vx = params.voxel_size_mm(:)';
+    vx = repmat(params.voxel_size_mm,1,3); 
+else 
+    vx = params.voxel_size_mm(:)'; 
 end
 voxel_vol = prod(vx);
 
-binEdges = params.RadialBins(:)';
-nbins = numel(binEdges)-1;
-binMids = 0.5*(binEdges(1:end-1) + binEdges(2:end));
+% ---- Watershed Segmentation ----
+if params.Verbose, fprintf('Splitting trunks and branches...\n'); end
+D = bwdist(~epvs_mask);
+h_threshold = 2 * min(vx); 
+D_sloped = imhmax(D, h_threshold);
+L = watershed(-D_sloped);
+L(~epvs_mask) = 0; 
+
+% ---- Filtering and Centroids ----
+stats = regionprops(L, 'Area', 'Centroid', 'PixelIdxList', 'BoundingBox');
+all_volumes_mm3 = [stats.Area]' * voxel_vol;
+keep_idx = all_volumes_mm3 >= params.MinVolumeMM3;
+filtered_stats = stats(keep_idx);
+volumes_mm3 = all_volumes_mm3(keep_idx);
+M = numel(filtered_stats);
+raw_centroids = cat(1, filtered_stats.Centroid);
+centroids_mm = (raw_centroids - 0.5) .* vx; 
+
+% ---- Optional Debugging Figure ----
+if params.Debug && M > 0
+    [~, biggest] = max(volumes_mm3);
+    bb = floor(filtered_stats(biggest).BoundingBox);
+    pad = 5;
+    rowR = max(1, bb(2)-pad):min(size(L,1), bb(2)+bb(5)+pad);
+    colR = max(1, bb(1)-pad):min(size(L,2), bb(1)+bb(4)+pad);
+    pagR = max(1, bb(3)-pad):min(size(L,3), bb(3)+bb(6)+pad);
+    crop = L(rowR, colR, pagR);
+    
+    figure('Color', 'w', 'Name', 'Watershed Split Debug');
+    p_fig = patch(isosurface(crop > 0, 0.5));
+    p_fig.FaceColor = 'interp';
+    p_fig.FaceVertexCData = crop(isosurface(crop > 0, 0.5)); 
+    set(p_fig, 'EdgeColor', 'none', 'FaceAlpha', 0.7);
+    view(3); camlight; lighting gouraud; grid on;
+    title('Largest EPVS: Trunk vs. Branches');
+end
+
+%% Define Binning and Seeds
+binEdges = params.RadialBins;
+nbins = numel(binEdges) - 1;
+binMids = (binEdges(1:end-1) + binEdges(2:end)) / 2;
 maxr = binEdges(end);
 
-% ---- Label EPVS objects and compute centroids ----
-cc = bwconncomp(epvs_mask, 26);
-volumes_vox = cellfun(@numel, cc.PixelIdxList);
-% filter out tiny objects if desired (keep >=1 voxel)
-keep = volumes_vox >= 1;
-volumes_vox = volumes_vox(keep);
-pixLists = cc.PixelIdxList(keep);
-M = numel(pixLists);
-if M == 0
-    error('No EPVS objects found in epvs_mask.');
-end
-
-% compute centroids in mm
-[dimX, dimY, dimZ] = size(brain_mask);
-centroids_mm = zeros(M,3);
-for i=1:M
-    inds = pixLists{i};
-    [sx,sy,sz] = ind2sub([dimX,dimY,dimZ], inds);
-    centroids_mm(i,1) = mean((sx - 0.5) * vx(1));
-    centroids_mm(i,2) = mean((sy - 0.5) * vx(2));
-    centroids_mm(i,3) = mean((sz - 0.5) * vx(3));
-end
-volumes_mm3 = volumes_vox * voxel_vol;
-
-% ---- Define seeds (large) and small EPVS ----
 large_thresh = prctile(volumes_mm3, params.LargePercentile);
-seed_idx = find(volumes_mm3 >= large_thresh);      % indices into 1..M
-neighbor_idx = find(volumes_mm3 < large_thresh);   % "small" EPVS indices
+seed_idx = find(volumes_mm3 >= large_thresh);      
+neighbor_idx = find(volumes_mm3 < large_thresh);   
 numSeeds = numel(seed_idx);
+
 if params.Verbose
-    fprintf('Detected %d EPVS objects; seeds (large)=%d (threshold=%.4g mm^3)\n', M, numSeeds, large_thresh);
+    fprintf('Detected %d EPVS; seeds=%d (thresh=%.4g mm^3)\n', M, numSeeds, large_thresh);
 end
+
 if numSeeds < params.MinSeeds
-    warning('Number of seeds (%d) < MinSeeds (%d). Output will be NaN.', numSeeds, params.MinSeeds);
+    warning('Insufficient seeds. Output will be NaN.');
+    results = struct(); return;
 end
 
 %% Prepare voxel coords for NON-EPVS brain voxels
-% used to compute shell volumes by counting brain voxels that are NOT EPVS
-% (exclude all EPVS voxels)
 non_epvs_brain_mask = brain_mask & ~epvs_mask;
 [idxX, idxY, idxZ] = ind2sub(size(brain_mask), find(non_epvs_brain_mask));
-voxel_coords = [(idxX - 0.5) * vx(1), (idxY - 0.5) * vx(2),...
-                (idxZ - 0.5) * vx(3)];
+voxel_coords = [(idxX - 0.5) * vx(1), (idxY - 0.5) * vx(2), (idxZ - 0.5) * vx(3)];
 
-% build KD-tree for voxel_coords if available
+% Build KD-tree
 useKD = license('test','statistics_toolbox') && exist('createns','file');
-useKD = 0;
 if useKD
-    fprintf('Creating KS for voxel_coords\n')
-    voxelTree = createns(voxel_coords,'NSMethod','kdtree','Distance','fasteuclidean');
-    fprintf('Creating KS for centroids\n')
-    centTree = createns(centroids_mm,'NSMethod','kdtree','Distance','fasteuclidean');
+    if params.Verbose, fprintf('Building KD-Trees...\n'); end
+    voxelTree = createns(voxel_coords,'NSMethod','kdtree','Distance','euclidean');
+    centTree = createns(centroids_mm,'NSMethod','kdtree','Distance','euclidean');
 end
 
-%% Precompute per-EPVS object: shell voxel counts (non-EPVS voxels only)
-% We compute shell voxel counts for all M objects (so permutations can reuse them).
-seed_shell_vox_counts_all = zeros(M, nbins); % voxels in shell∩(brain\EPVS)
+%% Precompute Shell Voxel Counts
+seed_shell_vox_counts_all = zeros(M, nbins); 
+if params.Verbose, fprintf('Computing shell volumes (voxel counting)...\n'); end
+
 for i = 1:M
     pt = centroids_mm(i,:);
     if useKD
-        vinds = rangesearch(voxelTree, pt, maxr);
-        vinds = vinds{1}(:);
-        if ~isempty(vinds)
-            local_coords = voxel_coords(vinds,:);
-            dists = sqrt(sum((local_coords - pt).^2,2));
+        [~, dists] = rangesearch(voxelTree, pt, maxr);
+        dists = dists{1}(:);
+        if ~isempty(dists)
             [~,~,binidx] = histcounts(dists, binEdges);
             for b = 1:nbins
                 seed_shell_vox_counts_all(i,b) = sum(binidx==b);
@@ -138,163 +123,110 @@ for i = 1:M
         dists_all = sqrt(sum((voxel_coords - pt).^2,2));
         maskv = dists_all <= maxr;
         if any(maskv)
-            dists = dists_all(maskv);
-            [~,~,binidx] = histcounts(dists, binEdges);
+            [~,~,binidx] = histcounts(dists_all(maskv), binEdges);
             for b = 1:nbins
                 seed_shell_vox_counts_all(i,b) = sum(binidx==b);
             end
         end
     end
-    % Update console
-    fprintf('\tComputing shell counts for %i of %i EPVS\n',i,M)
+    if params.Verbose && mod(i,50)==0, fprintf('\tObject %i of %i\n',i,M); end
 end
-% convert to mm^3:
 seed_shell_vol_all = seed_shell_vox_counts_all * voxel_vol;
 
-%% Precompute neighbor centroid distances (for each EPVS),
-% to count small neighbors per shell
-% neighbor_list: for each i store (neighbor_idx, distance)
+%% Precompute Neighbor Centroid Distances
 neighbor_list = cell(M,1);
-% use KD-tree for centroids
+if params.Verbose, fprintf('Computing neighbor distances...\n'); end
+
 if useKD
     for i = 1:M
-        idxs = rangesearch(centTree, centroids_mm(i,:), maxr);
-        idxs = idxs{1}(:);
-        idxs(idxs==i) = [];
-        if ~isempty(idxs)
-            dists = sqrt(sum((centroids_mm(idxs,:) - centroids_mm(i,:)).^2,2));
-            neighbor_list{i} = [idxs(:), dists(:)];
-        else
-            neighbor_list{i} = [];
-        end
-        % Update console
-        fprintf('\tComputing neighbor centroid distance for %i of %i\n',i,M)
+        [idxs, dists] = rangesearch(centTree, centroids_mm(i,:), maxr);
+        idxs = idxs{1}(:); dists = dists{1}(:);
+        self = (idxs == i);
+        idxs(self) = []; dists(self) = [];
+        if ~isempty(idxs), neighbor_list{i} = [idxs, dists]; end
     end
 else
-    D = squareform(pdist(centroids_mm));
-    for i=1:M
-        idxsLocal = find(D(i,:)<=maxr & (1:M)~=i);
+    D_mat = squareform(pdist(centroids_mm));
+    for i = 1:M
+        idxsLocal = find(D_mat(i,:) <= maxr & (1:M) ~= i);
         if ~isempty(idxsLocal)
-            neighbor_list{i} = [idxsLocal(:), D(i,idxsLocal)'];
-        else
-            neighbor_list{i} = [];
+            neighbor_list{i} = [idxsLocal(:), D_mat(i,idxsLocal)'];
         end
-        % Update console
-        fprintf('\tComputing neighbor centroid distance for %i of %i\n',i,M)
     end
 end
 
-%% Per seed, compute small-EPVS centroid counts per shell
-% densities normalized by non-EPVS shell volume
-numSeeds = numel(seed_idx);
+%% Observed Density Calculation
+
 seed_epvs_counts = zeros(numSeeds, nbins);
-seed_shell_vox_counts = zeros(numSeeds, nbins);
-seed_shell_volumes = zeros(numSeeds, nbins); % mm^3
+seed_shell_volumes = zeros(numSeeds, nbins);
+
 for s = 1:numSeeds
-    i = seed_idx(s); % object index
-    % EPVS neighbor counts: count only small EPVS neighbors (neighbor_idx)
-    nl = neighbor_list{i};
+    idx = seed_idx(s);
+    nl = neighbor_list{idx};
     if ~isempty(nl)
-        % select only neighbors whose index is in neighbor_idx (small EPVS)
         isSmall = ismember(nl(:,1), neighbor_idx);
         if any(isSmall)
-            dists_small = nl(isSmall,2);
-            seed_epvs_counts(s,:) = histcounts(dists_small, binEdges);
-        else
-            seed_epvs_counts(s,:) = 0;
+            seed_epvs_counts(s,:) = histcounts(nl(isSmall,2), binEdges);
         end
-    else
-        seed_epvs_counts(s,:) = 0;
     end
-    % shell voxel counts and volumes for this seed (non-EPVS voxels only)
-    seed_shell_vox_counts(s,:) = seed_shell_vox_counts_all(i,:);
-    seed_shell_volumes(s,:) = seed_shell_vox_counts(s,:) * voxel_vol;
-    % Update console
-    fprintf('\tCentroid count/shell for %i of %i shell\n',s,numSeeds)
+    seed_shell_volumes(s,:) = seed_shell_vol_all(idx,:);
 end
 
-% densities (counts / mm^3), NaN where shell_volumes==0
 seed_epvs_density = seed_epvs_counts ./ seed_shell_volumes;
 seed_epvs_density(~isfinite(seed_epvs_density)) = NaN;
+observed_mean_density = mean(seed_epvs_density, 1, 'omitmissing');
+observed_sem = std(seed_epvs_density, 0, 1, 'omitmissing') ./ sqrt(sum(~isnan(seed_epvs_density),1));
 
-% observed mean and SEM across seeds (aggregate per subject)
-observed_mean_density = mean(seed_epvs_density, 1,'omitmissing');
-observed_sem = std(seed_epvs_density, 0, 1,'omitmissing') ./...
-    sqrt(sum(~isnan(seed_epvs_density),1));
-
-%% Permutation (random-label) null
-% shuffle labels of large/small among objects. This provides a null
-% distribution for comparison
+%% Permutations
 if params.IncludePermutations && params.NumPermutations > 0
+    if params.Verbose, fprintf('Running %d Permutations...\n', params.NumPermutations); end
     nperm = params.NumPermutations;
     perm_mean = NaN(nperm, nbins);
-    rng(0); % fixed seed for reproducibility; change or make optional if desired
+    rng(0); 
+    
     for p = 1:nperm
-        perm_idx = randperm(M, numSeeds); % pick numSeeds objects as "seeds"
-        % for each permuted seed, use precomputed small-neighbor counts based on true centroids:
-        % but we need counts of neighbors that would be "small" under this permutation.
-        % Simpler approach: we simulate permuted labels by selecting permuted seed indices,
-        % and treat the remaining objects as "small". So for each permuted seed we need counts
-        % of neighbors that are NOT in perm_idx.
+        perm_idx = randperm(M, numSeeds); 
         perm_small_mask = true(M,1);
         perm_small_mask(perm_idx) = false;
-        % compute mean density across permuted seeds:
+        
         per_seed_counts = zeros(numSeeds, nbins);
         per_seed_vols = zeros(numSeeds, nbins);
+        
         for k = 1:numSeeds
             objidx = perm_idx(k);
             nl = neighbor_list{objidx};
             if ~isempty(nl)
-                % keep neighbors that are labeled small in this permutation
                 keepMask = perm_small_mask(nl(:,1));
                 if any(keepMask)
-                    dists_keep = nl(keepMask,2);
-                    per_seed_counts(k,:) = histcounts(dists_keep, binEdges);
+                    per_seed_counts(k,:) = histcounts(nl(keepMask,2), binEdges);
                 end
             end
-            per_seed_vols(k,:) = seed_shell_vol_all(objidx,:); % precomputed non-EPVS shell volumes for that object pos
+            per_seed_vols(k,:) = seed_shell_vol_all(objidx,:);
         end
         dens = per_seed_counts ./ per_seed_vols;
         dens(~isfinite(dens)) = NaN;
         perm_mean(p,:) = mean(dens,1,'omitmissing');
-        % Update console w/ radom label
-        fprintf('\tRandom permutation %i of %i\n',p,nperm)
     end
-    perm_median = median(perm_mean,1,'omitmissing');
-    perm_lo = prctile(perm_mean,2.5,1);
-    perm_hi = prctile(perm_mean,97.5,1);
-    % p-values one-sided (observed >= perm)
-    pvals = zeros(1,nbins);
-    for b = 1:nbins
-        pvals(b) = (sum(perm_mean(:,b) >= observed_mean_density(b)) + 1) / (nperm + 1);
-    end
+    
+    perm_median = median(perm_mean, 1, 'omitmissing');
+    perm_lo = prctile(perm_mean, 2.5, 1);
+    perm_hi = prctile(perm_mean, 97.5, 1);
+    pvals = (sum(perm_mean >= observed_mean_density, 1) + 1) / (nperm + 1);
 else
-    perm_mean = [];
-    perm_median = [];
-    perm_lo = [];
-    perm_hi = [];
-    pvals = [];
+    perm_mean = []; perm_median = []; perm_lo = []; perm_hi = []; pvals = [];
 end
 
-%% ---- Collect outputs ----
-results.centroids_mm = centroids_mm;
-results.volumes_mm3 = volumes_mm3;
-results.seed_idx = seed_idx;
-results.neighbor_idx = neighbor_idx;
-results.binEdges = binEdges;
-results.binMids = binMids;
-results.seed_shell_vox_counts_all = seed_shell_vox_counts_all;
-results.seed_shell_vol_all = seed_shell_vol_all;
-results.seed_shell_vox_counts = seed_shell_vox_counts;
-results.seed_shell_volumes = seed_shell_volumes;
-results.seed_epvs_counts = seed_epvs_counts;
-results.seed_epvs_density = seed_epvs_density;
+%% Collect outputs
 results.observed_mean_density = observed_mean_density;
 results.observed_sem = observed_sem;
-results.perm_mean = perm_mean;
+results.pvals = pvals;
+results.binMids = binMids;
 results.perm_median = perm_median;
+results.params = params;
 results.perm_lo = perm_lo;
 results.perm_hi = perm_hi;
-results.pvals = pvals;
-results.params = params;
+results.perm_mean = perm_mean;
+catch
+    pause(0.1)
+end
 end
