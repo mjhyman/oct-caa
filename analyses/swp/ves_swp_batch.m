@@ -16,8 +16,8 @@ radius = 500;
 % Exponent for denominator in SWP
 p = 2;
 
-% string for identifying the run type
-prefix = 'swp_voxelwise';
+% string for identifying the run type (vessel)
+prefix = 'swp_voxelwise_ves';
 
 %% Array of subject ID and regions
 subjects = struct();
@@ -112,16 +112,12 @@ else
 end
 
 %% Calculate SWP (revised for memory management)
-[subsampled_volume, interpolated_volume, interpolated_ves_rm] = ...
-    swp_voxelwise_v2(epvs, mask, ves, radius, p,'voxels');
+% The swp_voxelwise algorithm was designed for computing the size-weighted
+% proximity (SWP) for the EPVS. In this function call, swap the EPVS and
+% the vessel segmentation. This will compute the vessel SWP.
 
-% voxel-wise calculation
-% [subsampled_volume, interpolated_volume, interpolated_ves_rm] = ...
-%     swp_voxelwise(epvs, mask, ves, radius, p);
-
-% Centroid method
-% [subsampled_volume, interpolated_volume] = ...
-%     epvs_density_variable_p(epvs, mask, radius, p);
+[subsampled_volume, interpolated_volume, ~] = ...
+    swp_voxelwise_v2(ves, mask, epvs, radius, p, 'voxels');
 
 %% Save results to .MAT and .TIF
 save_epvs_heatmap(save_base, subject_name, region, prefix, ...

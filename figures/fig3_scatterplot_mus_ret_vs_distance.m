@@ -21,8 +21,10 @@ per = 'caa_all_radii_percentage_diff_40um_donut_13-01-2026.xlsx';
 save_flag = true;
 
 %% Import Std Dev. CSVs for all three methods
-% standard deviation struct
-sd = struct();
+% summary statistics struct
+ss = struct();
+% posterior distribution struct
+pd = struct();
 % cells for iterating
 method = {'raw','med','per'};
 op = {'mus','ret'};
@@ -42,9 +44,9 @@ for ii = 1:3
     for j = 1:2
         % Iterate region
         for k = 1:2
-            % Create filename
+            % Create filename for summary stats and import
             fname = strcat(dirs.(method{ii}),'__',op{j},'_',regs{k},'_summary_stats.csv');
-            sd.(method{ii}).(op{j}).(regs{k}) =...
+            ss.(method{ii}).(op{j}).(regs{k}) =...
                 readtable(fullfile(beta_dir, dirs.(method{ii}), fname));
         end
     end
@@ -255,8 +257,8 @@ for j = 1:numel(op)
         ctl = avg.per.(op{j}).(regs{k}).ctl;
         
         % Extract standard deviations
-        exp_sd = sd.per.(op{j}).(regs{k}).exp_sd;
-        ctl_sd = sd.per.(op{j}).(regs{k}).ctrl_sd;
+        exp_sd = ss.per.(op{j}).(regs{k}).exp_sd;
+        ctl_sd = ss.per.(op{j}).(regs{k}).ctrl_sd;
         
         % Ribbon scatter plot
         figure;
@@ -335,8 +337,8 @@ for ii = 1:numel(f)
             exp = avg.(f{ii}).(op{j}).(regs{k}).exp;
             ctl = avg.(f{ii}).(op{j}).(regs{k}).ctl;
             % Extract standard deviations
-            exp_sd = sd.(f{ii}).(op{j}).(regs{k}).exp_sd;
-            ctl_sd = sd.(f{ii}).(op{j}).(regs{k}).ctrl_sd;
+            exp_sd = ss.(f{ii}).(op{j}).(regs{k}).exp_sd;
+            ctl_sd = ss.(f{ii}).(op{j}).(regs{k}).ctrl_sd;
             % Draw scatterplot
             figure;
             scatter(distances, exp, 'r', 'filled');
