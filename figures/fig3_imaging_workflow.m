@@ -1,4 +1,4 @@
-%% Create subfigures for Figure 1 (image analysis workflow)
+%% Create subfigures for Donut image analysis workflow
 %{
 This figure uses CAA 22 frontal:
     - scattering coefficient (mus)

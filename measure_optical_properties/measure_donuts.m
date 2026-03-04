@@ -338,6 +338,8 @@ function [mus_outer, ret_outer, ori_outer,...
 %       ret_inner (single array): average ret for parenchyma from XOR of
 %                                   original and dilated vessels (inner)
 %       ori_inner (single array): std. dev. of orientation (inner)
+%       parench_outer (single array): outer donut in parenchyma
+%       parench_inner (single array): inner donut in parenchyma
 %   OUTLINE:
 %       - Dilate vessels or EPVS with se1
 %           - Take XOR of of dilated and undilated vessels (inner)
