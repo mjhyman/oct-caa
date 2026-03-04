@@ -321,7 +321,7 @@ function [mus_outer, ret_outer, ori_outer,...
     parenchyma_optical_props(seg, mus, ret, ori, se1, se2)
 % Measure optical properties in parenchyma of all vessels
 %   INPUTS:
-%       seg (logical mat): vessels
+%       seg (logical mat): vessels or EPVS segmentation
 %       mus (single mat): scattering coefficient matrix
 %       ret (single mat): retardance matrix
 %       ori (single mat): orientation matrix
@@ -339,7 +339,7 @@ function [mus_outer, ret_outer, ori_outer,...
 %                                   original and dilated vessels (inner)
 %       ori_inner (single array): std. dev. of orientation (inner)
 %   OUTLINE:
-%       - Dilate vessels with se1
+%       - Dilate vessels or EPVS with se1
 %           - Take XOR of of dilated and undilated vessels (inner)
 %       - Dilate vessels with se2 (se2 > se1)
 %           - xor of outer/inner = disjoint ring

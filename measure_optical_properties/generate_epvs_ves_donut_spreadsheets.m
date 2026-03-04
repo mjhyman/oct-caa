@@ -131,8 +131,6 @@ function [tbl_mus, tbl_ret, tbl_sori] =...
     vectorize_struct(parench, regions, standardize_flag, parench_median,...
                     rad, n_ctl, n_exp, mus_upper, ret_upper)
 % VECTORIZE_STRUCT: Vectorize the structure into a format for a spreadsheet
-% TODO: 
-%   - include disease stage in spreadsheet
 %
 % INPUTS:
 %   parench (struct): parenchyma optical properties struct
