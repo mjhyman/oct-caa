@@ -50,20 +50,9 @@ fprintf('Computing EPVS clustering for subject %s, region %s\n',...
 % Directories
 data_dir = '/projectnb/npbssmic/ns/CAA/';
 cluster_dir = '/projectnb/npbssmic/ns/CAA/cluster/';
-
-%%% Upper Percentile Threshold - this determines which EPVS to identify as
-% the "seed" EPVS.
-epvs_seed_th = 90;
-
-%%% Minimum Threshold for Watershed (voxels)
-% EPVS fewer than 5 voxels in radius will not be split. This is to prevent
-% splitting disjoint small EPVS into fragments. The goal is to split
-% EPVS branches from trunks
+% Minimum Threshold for Watershed (voxels)
+% EPVS fewer than 5 voxels in radius will not be 
 wmin = 5;
-
-%%% Skeleton downsample
-% factor to downsample the skeleton of the EPVS
-skel_ds = 10;
 
 %% Map subject names to file paths
 % Subject-level .MAT files
@@ -97,11 +86,6 @@ if ~isfield(subject_data, region)
     error('Region "%s" not found in subject "%s" data.', region, subject_name);
 end
 
-% Update console
-fprintf(['Running %s %s - %i percentile - %i watershed radius (voxels) - ' ...
-    'skeleton downsample %i\n'], subject_name, region, epvs_seed_th,...
-    wmin, skel_ds);
-
 %% Retrieve EPVS, WM Mask, vessels
 
 if isfield(subject_data.(region), 'epvs')
@@ -129,10 +113,10 @@ voxel_size_mm = [0.02, 0.02, 0.02]; % Define voxel size in mm
 wmin = subjects(sid).th;
 % Call function to compute relation
 results = epvs_radial_relation(mask, epvs, voxel_size_mm,...
-       'LargePercentile',epvs_seed_th,...
+       'LargePercentile',90,...
        'RadialBins',[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],...
        'WatershedMinRadius',wmin.*voxel_size_mm(1),...
-       'SkelSkipN',skel_ds,...
+       'SkelSkipN',10,...
        'Debug',false);
 fprintf('Finished processing %s %s \n', subject_name, region);
 
@@ -141,15 +125,7 @@ fprintf('Finished processing %s %s \n', subject_name, region);
 if ~exist(fullfile(cluster_dir, subject_name, region), 'dir')
     mkdir(fullfile(cluster_dir, subject_name, region));
 end
-
-% Create filename to include parameters
-% Create a filename to include parameters
-filename = sprintf(['epvs_cluster_%s_%s_percentile_%i_WatershedRadius_%i_' ...
-    'SkeletonDS_%i.mat'], subject_name, region, epvs_seed_th, wmin,skel_ds);
-
 % Save
-fprintf(['Saving %s %s - %i percentile - %i watershed radius (voxels) - ' ...
-    'skeleton downsample %i\n'], subject_name, region, epvs_seed_th,...
-    wmin, skel_ds);
-fout = fullfile(cluster_dir, subject_name, region, filename);
+fprintf('Saving %s %s \n', subject_name, region);
+fout = fullfile(cluster_dir, subject_name, region, 'epvs_cluster.mat');
 save(fout,'results','-v7.3');

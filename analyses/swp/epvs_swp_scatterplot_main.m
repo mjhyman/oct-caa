@@ -45,7 +45,7 @@ if flag_load_swp_structs
     % CAA 6 Frontal
     fprintf('Importing SWP for CAA6 Frontal\n')
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/front/' ...
-                'caa6_front_radius_200_exp_2_interpolated_heatmap.mat']);
+                'caa6_front_swp_voxelwise_ves_radius_500_exp_2_interpolated_heatmap.mat']);
     swp_struct.raw.caa6f = tmp.interpolated_volume;
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/front/' ...
                 'caa6_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
@@ -54,7 +54,7 @@ if flag_load_swp_structs
     % CAA 6 Occipital
     fprintf('Importing SWP for CAA6 Occip\n')
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/occip/' ...
-                'caa6_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+                'caa6_occip_swp_voxelwise_ves_radius_500_exp_2_interpolated_heatmap.mat']);
     swp_struct.raw.caa6o = tmp.interpolated_volume;
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa6/occip/' ...
                 'caa6_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
@@ -63,7 +63,7 @@ if flag_load_swp_structs
     % CAA 17 Occipital
     fprintf('Importing SWP for CAA17 Occip\n')
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa17/occip/' ...
-                'caa17_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+                'caa17_occip_swp_voxelwise_radius_500_exp_2_interpolated_heatmap.mat']);
     swp_struct.raw.caa17o = tmp.interpolated_volume;
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa17/occip/' ...
                 'caa17_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
@@ -72,7 +72,7 @@ if flag_load_swp_structs
     % CAA 22 front
     fprintf('Importing SWP for CAA22 Front\n')
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/front/'...
-                'caa22_front_radius_200_exp_2_interpolated_heatmap.mat']);
+                'caa22_front_swp_voxelwise_radius_500_exp_2_interpolated_heatmap.mat']);
     swp_struct.raw.caa22f = tmp.interpolated_volume;
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/front/' ...
                 'caa22_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
@@ -81,7 +81,7 @@ if flag_load_swp_structs
     % CAA 22 Occip
     fprintf('Importing SWP for CAA22 Occip\n')
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/occip/' ...
-                'caa22_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+                'caa22_occip_swp_voxelwise_radius_500_exp_2_interpolated_heatmap.mat']);
     swp_struct.raw.caa22o = tmp.interpolated_volume;
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa22/occip/' ...
                 'caa22_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
@@ -90,7 +90,7 @@ if flag_load_swp_structs
     % CAA 25 Front
     fprintf('Importing SWP for CAA25 Front\n')
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/front/' ...
-                'caa25_front_radius_200_exp_2_interpolated_heatmap.mat']);
+                'caa25_front_swp_voxelwise_radius_500_exp_2_interpolated_heatmap.mat']);
     swp_struct.raw.caa25f = tmp.interpolated_volume;
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/front/' ...
                 'caa25_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
@@ -99,7 +99,7 @@ if flag_load_swp_structs
     % CAA 25 Occip
     fprintf('Importing SWP for CAA25 Occip\n')
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/occip/' ...
-                'caa25_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+                'caa25_occip_swp_voxelwise_radius_500_exp_2_interpolated_heatmap.mat']);
     swp_struct.raw.caa25o = tmp.interpolated_volume;
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa25/occip/' ...
                 'caa25_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);
@@ -108,7 +108,7 @@ if flag_load_swp_structs
     % CAA 26 Front
     fprintf('Importing SWP for CAA26 Front\n')
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/front/' ...
-                'caa26_front_radius_200_exp_2_interpolated_heatmap.mat']);
+                'caa26_front_swp_voxelwise_radius_500_exp_2_interpolated_heatmap.mat']);
     swp_struct.raw.caa26f = tmp.interpolated_volume;
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/front/' ...
                 'caa26_front_radius_200_exp_2_interpolated_heatmap_log10.mat']);
@@ -117,7 +117,7 @@ if flag_load_swp_structs
     % CAA 26 Occip
     fprintf('Importing SWP for CAA26 Occip\n')
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/occip/' ...
-                'caa26_occip_radius_200_exp_2_interpolated_heatmap.mat']);
+                'caa26_occip_swp_voxelwise_radius_500_exp_2_interpolated_heatmap.mat']);
     swp_struct.raw.caa26o = tmp.interpolated_volume;
     tmp = load(['/projectnb/npbssmic/ns/CAA/swp/caa26/occip/' ...
                 'caa26_occip_radius_200_exp_2_interpolated_heatmap_log10.mat']);

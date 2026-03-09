@@ -1,0 +1,123 @@
+%% Dowsample scattering coefficient volumes for isosurface visualization
+% CAA 26 front
+% CAA 6 front
+% CAA 17 occip
+% CAA 22 front
+
+%% Prepare environment
+clear; clc; close all;
+% Add top-level directory + subdirectories
+parentDir = fileparts(pwd);
+fsDir = fullfile(parentDir, 'freesurfer');
+cstatDir = fullfile(parentDir, 'CircStat2012a');
+addpath(fsDir);
+addpath(cstatDir);
+addpath(parentDir);
+
+% Voxel dimensions (microns) for all runs
+res = [20,20,20]; % resolution in microns
+
+%%% Flag for loading .MAT struct and creating WM masks
+% flag for reloading the .MAT struct for each subject
+flag_load_caa_structs = true;
+
+%%% Directories on SCC w/ Matlab struct
+data_dir = '/projectnb/npbssmic/ns/CAA/';
+% Output directory
+t = string(datetime('now','TimeZone','local','Format','d-MMM-y'));
+fout = strcat('parenchyma_optical_properties_40um_thick_',t,'.mat');
+fout = fullfile(data_dir,fout);
+
+%% Load each subject's .MAT struct and create WM mask
+
+%%% Load the .MAT structs
+if flag_load_caa_structs
+    % CAA 6
+    fprintf('Loading CAA6\n')
+    caa6 = load(fullfile(data_dir,'/caa6/caa6.mat'));
+    caa6 = caa6.caa6;
+    fprintf('Finished Loading CAA6\n')
+    % CAA 17
+    fprintf('Loading CAA17\n')
+    caa17 = load(fullfile(data_dir,'/caa17/occip/caa17.mat'));
+    caa17 = caa17.caa17;
+    fprintf('Finished Loading CAA17\n')
+    % CAA 22
+    fprintf('Loading CAA22\n')
+    caa22 = load(fullfile(data_dir,'/caa22/caa22.mat'));
+    caa22 = caa22.caa22;
+    fprintf('Finished Loading CAA22\n')
+    % CAA 26
+    fprintf('Loading CAA26\n')
+    caa26 = load(fullfile(data_dir,'/caa26/caa26.mat'));
+    caa26 = caa26.caa26;
+    fprintf('Finished Loading CAA26\n')
+end
+
+%%% Combine all subjects into single struct for ease
+subjects = struct();
+subjects.caa6 = caa6;
+subjects.caa17 = caa17;
+subjects.caa22 = caa22;
+subjects.caa26 = caa26;
+% Clear for memory
+clear caa6 caa17 caa22 caa26
+
+%% Downsample 
+% Downsample factor
+ds = 4;
+% initial voxel size (mm)
+vox1 = [0.02,0.02,0.02];
+% Target voxel size (mm)
+vox2 = vox1 .* ds;
+
+%%% Cell Arrays of subjects, regions, 
+subs = fields(subjects);
+regs = {'front','occip','front','front'};
+
+% output directory
+ddir = '/projectnb/npbssmic/ns/CAA/';
+
+%%% Iterate volumes
+for ii = 1:numel(subs)
+    fprintf('\nStarting subject %s\n',subs{ii})
+    % Load volume, mask, WM mask
+    mus = subjects.(subs{ii}).(regs{ii}).mus;
+    mask = subjects.(subs{ii}).(regs{ii}).mask;
+    mask_wm = subjects.(subs{ii}).(regs{ii}).mask_wm;
+    
+    %%% Apply mask
+    fprintf('\nMasking and downsampling')
+    % Create copies for masking
+    mus_masked = mus;
+    mus_wm_masked = mus;
+    % Apply tissue mask    
+    mus_masked(~mask) = 0;
+    % Apply white matter mask
+    mus_wm_masked(~mask_wm) = 0;
+
+    %%% Downsample + convert to single
+    mus_masked = single(imresize3(mus_masked,1/ds,'Linear'));
+    mus_wm_masked = single(imresize3(mus_wm_masked,1/ds,'Linear'));
+
+    %%% Save as .nii.gz
+    % Create subfolder directory
+    subdir = fullfile(subs{ii}, regs{ii});
+    % Filenames of masked and WM masked
+    mask_fname = strcat('mus_ds',num2str(ds),'_masked.nii.gz');
+    wm_fname = strcat('mus_ds',num2str(ds),'_wm_masked.nii.gz');
+    % Create full file output
+    mask_out = fullfile(ddir,subdir,mask_fname);
+    wm_out = fullfile(ddir,subdir,wm_fname);
+    % Output as compressed NIFTI
+    fprintf('\nSaving Outputs')
+    save_mri(mus_masked,mask_out,vox2,'float',0);
+    save_mri(mus_wm_masked,wm_out,vox2,'float',0);
+end
+
+%% Use volshow to view as test
+n = 256;
+alphamap1D = zeros(n,1,'single');
+alphamap1D(2:end) = 1;
+
+volshow(mus_masked,'Alphamap',alphamap1D);
