@@ -5,7 +5,7 @@
 % CAA 22 front
 
 %% Prepare environment
-clear; clc; close all;
+% clear; clc; close all;
 % Add top-level directory + subdirectories
 parentDir = fileparts(pwd);
 fsDir = fullfile(parentDir, 'freesurfer');
@@ -63,7 +63,42 @@ subjects.caa26 = caa26;
 % Clear for memory
 clear caa6 caa17 caa22 caa26
 
-%% Downsample 
+%% Export vessel (masked with white matter and EPVS)
+
+%%% Cell Arrays of subjects, regions, 
+vox1 = [0.02,0.02,0.02]; % initial voxel size (mm)
+subs = fields(subjects);
+regs = {'front','occip','front','front'};
+% output directory
+ddir = '/projectnb/npbssmic/ns/CAA/';
+% structuring element for dilating EPVS
+se = strel('sphere',10);
+
+%%% Iterate volumes
+for ii = 1:numel(subs)
+    fprintf('\nStarting subject %s\n',subs{ii})
+    % Load WM vessel segmentation
+    ves = subjects.(subs{ii}).(regs{ii}).seg_wm;
+    % load EPVS, dilate by ten, and mask vessels
+    epvs = subjects.(subs{ii}).(regs{ii}).epvs;
+    % Dilate EPVS and mask vessels
+    epvs_dilated = imdilate(epvs, se);
+    ves_masked = ves;
+    ves_masked(epvs_dilated) = 0;
+
+    %%% Save as .nii.gz
+    % Create subfolder directory
+    subdir = fullfile(subs{ii}, regs{ii});
+    % Filenames of masked and WM masked
+    ves_fname = strcat('ves_dilate_erode_4_4_wm_masked.nii.gz');
+    % Create full file output
+    ves_out = fullfile(ddir,subdir,'isosurface_figures',ves_fname);
+    % Output as compressed NIFTI
+    fprintf('\nSaving Outputs\n')
+    save_mri(ves_masked,ves_out,vox1,'uchar',0);
+end
+
+%% Downsample white matter mus and entire tissue mus
 % Downsample factor
 ds = 4;
 % initial voxel size (mm)
@@ -114,10 +149,3 @@ for ii = 1:numel(subs)
     save_mri(mus_masked,mask_out,vox2,'float',0);
     save_mri(mus_wm_masked,wm_out,vox2,'float',0);
 end
-
-%% Use volshow to view as test
-n = 256;
-alphamap1D = zeros(n,1,'single');
-alphamap1D(2:end) = 1;
-
-volshow(mus_masked,'Alphamap',alphamap1D);

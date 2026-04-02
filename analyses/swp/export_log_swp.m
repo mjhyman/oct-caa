@@ -26,12 +26,12 @@ subjects(9).subject_name = 'caa26';
 subjects(9).region = 'occip';
 
 % Common string within filename
-fcom = '_radius_200_exp_2_interpolated_heatmap.mat';
-matout = '_radius_200_exp_2_interpolated_heatmap_log10.mat';
+fcom = '_swp_voxelwise_ves_radius_500_exp_2_interpolated_heatmap';
+matout = strcat(fcom,'_log10.mat');
+fcom = strcat(fcom,'.mat');
 
-%% IMPORT SWP and subject strut
-for ii = 8:9
-% for ii = 1:length(subjects)
+%% IMPORT SWP and calculate LOG10
+for ii = 1:length(subjects)
     % Create filepath
     sub = subjects(ii).subject_name;
     reg = subjects(ii).region;

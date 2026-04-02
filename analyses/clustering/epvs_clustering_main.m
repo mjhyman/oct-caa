@@ -125,8 +125,6 @@ mask(ves) = 0;
 %% Compute the EPVS Radial Relation
 % Prepare inputs
 voxel_size_mm = [0.02, 0.02, 0.02]; % Define voxel size in mm
-% Retrieve the watershed minimum radius
-wmin = subjects(sid).th;
 % Call function to compute relation
 results = epvs_radial_relation(mask, epvs, voxel_size_mm,...
        'LargePercentile',epvs_seed_th,...

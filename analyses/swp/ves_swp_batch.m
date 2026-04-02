@@ -14,6 +14,7 @@ end
 radius = 500;
 
 % Exponent for denominator in SWP
+% Distance strength factor. Higher means more localized effect of SWP
 p = 2;
 
 % string for identifying the run type (vessel)
@@ -94,16 +95,21 @@ end
 
 %% Retrieve EPVS, WM Mask, vessels
 
+% Structuring element for removing vessel false positives surrounding EPVS
+se = strel('sphere',10);
+
 if isfield(subject_data.(region), 'epvs')
     % EPVS binary mask
     epvs = subject_data.(region).epvs;
     % White Matter binary mask
     mask = subject_data.(region).mask_wm;
-    % Blood vessel voxels disjoint from EPVS. The automated algorithm
-    % had lots of false positives. This matrix only uses the voxels that
-    % are not already labeled as EPVS
+    
+    %%% Dilate EPVS to remove vessel segmentation false positives
+    % The automated algorithm had lots of false positives. Dilating the
+    % EPVS will remove any lingering voxels outside the EPVS segmentation
     ves = subject_data.(region).seg_wm;
-    ves = ves & ~epvs;    
+    epvs_dil = imdilate(epvs,se);
+    ves = ves & ~epvs_dil;
     % Print to console
     fprintf('Starting %s %s \n', subject_name, region);
 else
@@ -117,7 +123,7 @@ end
 % the vessel segmentation. This will compute the vessel SWP.
 
 [subsampled_volume, interpolated_volume, ~] = ...
-    swp_voxelwise_v2(ves, mask, epvs, radius, p, 'voxels');
+    swp_voxelwise_v2(ves, mask, epvs_dil, radius, p, 'voxels');
 
 %% Save results to .MAT and .TIF
 save_epvs_heatmap(save_base, subject_name, region, prefix, ...

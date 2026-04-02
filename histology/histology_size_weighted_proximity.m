@@ -45,7 +45,7 @@ ds = 4;
 parpool_flag = true;
 
 %%% Output filename extension including radius_mm, ds
-fname_ext = strcat('_radius',num2str(radius_mm),'mm_','ds',num2str(ds),...
+fname_ext = strcat('_voxelwise_radius',num2str(radius_mm),'mm_','ds',num2str(ds),...
                    '_',string(t),'.mat');
 
 %% Import the SGE Task ID from the batch .SH script
@@ -79,7 +79,7 @@ if taskid == 1
     % Histogram match and z-score normalization
     lhe = histo_match_zscore(lhe);
     % Measure LHE SWP
-    [lhe] = iterate_sections(lhe, 'lhe', radius, p, ds, parpool_flag);
+    [lhe] = iterate_sections(lhe, 'lhe', radius, p, ds);
     %%% Save output
     fout = strcat(swp_mat,'_LHE',fname_ext);
     save(fout,"lhe",'-v7.3')
@@ -102,7 +102,7 @@ elseif taskid == 2
     % Histogram match and z-score normalization
     cd68 = histo_match_zscore(cd68);
     % Measure CD68 SWP
-    [cd68] = iterate_sections(cd68, 'cd68', radius, p, ds, parpool_flag);
+    [cd68] = iterate_sections(cd68, 'cd68', radius, p, ds);
     %%% Save output
     fout = strcat(swp_mat,'_CD68',fname_ext);
     save(fout,"cd68",'-v7.3')
@@ -125,7 +125,7 @@ else
     % Histogram match and z-score normalization
     gfap = histo_match_zscore(gfap);
     % Measure gfap SWP
-    [gfap] = iterate_sections(gfap, 'gfap', radius, p, ds, parpool_flag);
+    [gfap] = iterate_sections(gfap, 'gfap', radius, p, ds);
     %%% Save output
     fout = strcat(swp_mat,'_GFAP',fname_ext);
     save(fout,"gfap",'-v7.3')
@@ -133,7 +133,7 @@ end
 
 %% Function to iterate section
 
-function [stain] = iterate_sections(stain,sname,radius,p,ds,parpool_flag)
+function [stain] = iterate_sections(stain,sname,radius,p,ds)
 % ITERATE_SECTIONS measure SWP for each section
 % INPUTS:
 %   stain (struct): stain struct
@@ -155,12 +155,17 @@ for ii = 1:length(stain)
     mask(ves) = 0;
     fprintf('\nMeasuring SWP for stain %s section %i/%i\n',...
             sname,ii,length(stain));
-    % Calculate the subsampled and interpolated SWP
-    [~, swp] = planar_size_weighted_proximity(epvs, mask, radius, p, ds,...
-                                             parpool_flag);
-    % Add swp back to struct
-    stain(ii).swp = swp;
-    % Add radius, p, and ds to struct
+    
+    %%% Calculate EPVS SWP (subsampled and interpolated)
+    [~,~,epvs_swp] = planar_size_weighted_proximity(epvs, mask, ves, radius, p,'all');
+    stain(ii).epvs_swp = epvs_swp;
+
+    %%% Calculate Vessel SWP (subsampled and interpolated)
+    % swap the epvs and vessel input arguments
+    [~,~,ves_swp] = planar_size_weighted_proximity(ves, mask, epvs, radius, p,'all');
+    stain(ii).ves_swp = ves_swp;
+
+    %%% Add parameters to struct (radius, p, and ds)
     stain(ii).radius = radius;
     stain(ii).p = p;
     stain(ii).downsample = ds;

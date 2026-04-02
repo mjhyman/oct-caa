@@ -1,4 +1,4 @@
-function swp_scatterplot(xy, xlab, ylab, tit, xlims, ylims, plt_dir, fname)
+function swp_scatterplot_subject(xy, xlab, ylab, tit, plt_dir, fname)
 % Scatterplot function for optical property vs SWP
 % INPUTS
 %   xy (matrix): xy pairs
@@ -20,16 +20,11 @@ ylabel(ylab);
 title(tit);
 set(gca, 'fontsize', 30);
 
-% Set axis limits
-xlim(xlims);
-ylim(ylims);
-
 % Save the figure
 fout = fullfile(plt_dir, fname);
-pause(1)
 saveas(gcf,fout,'pdf')
 saveas(gcf,fout,'fig')
-saveas(gcf,fout,'png')
+pause(1)
 close;
 
 end

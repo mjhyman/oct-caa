@@ -6,73 +6,95 @@ clear; clc; close all;
 data_dir = '/projectnb/npbssmic/ns/CAA/';
 swp_dir = '/projectnb/npbssmic/ns/CAA/swp/';
 % SWP string base
-str_base = 'radius_200_exp_2_interpolated_heatmap_log10.mat';
+epvs_base = 'swp_voxelwise_radius_500_exp_2_interpolated_heatmap';
+ves_base = 'swp_voxelwise_ves_radius_500_exp_2_interpolated_heatmap';
 % Directory to store csv
 fig_out = '/projectnb/npbssmic/ns/CAA/figures/fig4_mus_swp_epvs/';
 % flag for loading data
-load_struct_flag = false;
+load_caa_flag = true;
 load_swp_flag = true;
 
-%% Array of subject ID and regions
+%% Array of subject ID, regions, depth (slice)
 subjects = struct();
-subjects(1).subject_name = 'caa6';
+subjects(1).subject_name = 'caa26';
 subjects(1).region = 'front';
-subjects(2).subject_name = 'caa17';
-subjects(2).region = 'occip';
-subjects(3).subject_name = 'caa22';
-subjects(3).region = 'front';
+subjects(2).subject_name = 'caa6';
+subjects(2).region = 'front';
+subjects(3).subject_name = 'caa17';
+subjects(3).region = 'occip';
+subjects(4).subject_name = 'caa22';
+subjects(4).region = 'front';
+% Set slices for each subject
+subjects(1).slice = 10;
+subjects(2).slice = 10;
+subjects(3).slice = 113;
+subjects(4).slice = 10;
 
 %% Figure properties
 % Voxel size (microns)
 vox = 20;
 % scalebar length in microns
 scaleBarLength = 5000;
-% Set slices for each subject
-subjects(1).slice = 93;
-subjects(2).slice = 536;
-subjects(3).slice = 347;
+
 
 %% Import the CAA structs & SWP
 
-if load_flag
-    % CAA 6
+if load_caa_flag
+    % CAA 26 - control
+    fprintf('Loading CAA6\n')
+    caa26 = load(fullfile(data_dir,'/caa26/caa26.mat'));
+    caa26 = caa26.caa26;
+    fprintf('Finished Loading CAA6\n')
+    % CAA 6 - mild
     fprintf('Loading CAA6\n')
     caa6 = load(fullfile(data_dir,'/caa6/caa6.mat'));
     caa6 = caa6.caa6;
     fprintf('Finished Loading CAA6\n')
-    % CAA 17
+    % CAA 17 - moderate
     fprintf('Loading CAA17\n')
     caa17 = load(fullfile(data_dir,'/caa17/occip/caa17.mat'));
     caa17 = caa17.caa17;
     fprintf('Finished Loading CAA17\n')
-    % CAA 22
+    % CAA 22 - severe
     fprintf('Loading CAA22\n')
     caa22 = load(fullfile(data_dir,'/caa22/caa22.mat'));
     caa22 = caa22.caa22;
     fprintf('Finished Loading CAA22\n')
+    % Integrate into data structs
+    op = struct();
+    op.caa26 = caa26;
+    op.caa6 = caa6;
+    op.caa17 = caa17;
+    op.caa22 = caa22;
 end
+%% Import swp for each subject
 if load_swp_flag
-    %%% Import swp for each subject
     for ii = 1:length(subjects)
-        fprintf('Loading subject %s\n',subjects(ii).subject_name)
+        fprintf('Loading SWP for subject %s\n',subjects(ii).subject_name)
         % Create full file name
         subid = subjects(ii).subject_name;
         reg = subjects(ii).region;
-        fname = strcat(subid,'_',reg,'_');
-        fname = strcat(fname, str_base);
-        fname = fullfile(swp_dir,subid,reg,fname);    
+        fname_base = strcat(subid,'_',reg,'_');
+        
+        %%% EPVS
+        epvs_fname = strcat(fname_base, epvs_base);
+        epvs_fname = fullfile(swp_dir,subid,reg,epvs_fname);    
         % Import SWP
-        swp = load(fname);
-        swp = single(swp.swp);
+        epvs_swp = load(epvs_fname);
+        epvs_swp = single(epvs_swp.interpolated_volume);
         % Add to subjects struct
-        subjects(ii).swp = swp;
+        subjects(ii).epvs_swp = epvs_swp;
+
+        %%% Vessel
+        ves_fname = strcat(fname_base, ves_base);
+        ves_fname = fullfile(swp_dir,subid,reg,ves_fname);    
+        % Import SWP
+        ves_swp = load(ves_fname);
+        ves_swp = single(ves_swp.interpolated_volume);
+        % Add to subjects struct
+        subjects(ii).ves_swp = ves_swp;
     end
 end
-% Integrate into data structs
-op = struct();
-op.caa6 = caa6;
-op.caa17 = caa17;
-op.caa22 = caa22;
 
 %% Add white matter mask, mus, vessels, EPVS to subjects struct
 for ii = 1:length(subjects)
@@ -92,94 +114,94 @@ end
 %% Create SWP figures
 %%% Find limits to normalize across the three subjects
 % Initialize vectors for storing min/max
-swp_min = 1;
-swp_max = 5;
-% Iterate over subjects under review
-for ii = 1:length(subjects)
-    % swp of current iteration
-    swp = subjects(ii).swp;
-    % Find max
-    swp_max = max([swp_max,max(swp(:))]);
-end
-% Round up to nearest integer
-swp_max = ceil(swp_max);
-
-% set colormap
-cmap = parula(256);
+swp_min.ves = 1;
+swp_min.epvs = 1;
+swp_max.ves = 40;
+swp_max.epvs = 130;
 
 % Iterate over subjects
-for i = 1:length(subjects)
-    figure('position',[100 100 1500 1500]);
+for ii = 4:length(subjects)
     %%% Extract slice from each matrix
     % Extract slice index
-    slice_idx = subjects(i).slice;
-    % Extract swp slice and mask slice
-    slice = subjects(i).swp(:, :, slice_idx);
-    mask = subjects(i).mask_wm(:, :, slice_idx);
-    % Extract vessels and EPVS
-    vessel = subjects(i).seg(:, :, slice_idx);
-    epvs = subjects(i).epvs(:, :, slice_idx);
+    slice_idx = subjects(ii).slice;
+    % Extract WM mask, vessels, EPVS
+    mask = subjects(ii).mask_wm(:, :, slice_idx);
+    ves = subjects(ii).seg(:, :, slice_idx);
+    epvs = subjects(ii).epvs(:, :, slice_idx);
+    % Remove EPVS from vessel segmentation
+    ves(epvs) = 0;
 
-    % Map heatmap values to parula colormap
-    heatmap = slice;  % Your SWP slice
-    heatmap(heatmap < swp_min) = swp_min; % Clip
-    heatmap(heatmap > swp_max) = swp_max; % Clip
+    % Retrieve Vessel SWP
+    ves_heatmap = subjects(ii).ves_swp(:, :, slice_idx);
+    epvs_heatmap = subjects(ii).epvs_swp(:, :, slice_idx);
+    % Retrieve subject and region names
+    subid = subjects(ii).subject_name;
+    reg = subjects(ii).region;
     
-    % Convert heatmap values to colormap indices
-    idx = round((heatmap - swp_min) / (swp_max - swp_min) * 255) + 1;
-    % If there are NaNs (shouldn't be unless you set them)
-    idx(isnan(idx)) = 1;
-    idx(idx < 1) = 1;
-    idx(idx > 256) = 256;
-    
-    % Create RGB image
-    rgbImage = ind2rgb(idx, cmap);
-    
-    % Overlay black where ~mask_wm OR epvs==1
-    blackMask = (~mask) | (epvs == 1);
-    for c = 1:3
-        temp = rgbImage(:,:,c);
-        temp(blackMask) = 0;
-        rgbImage(:,:,c) = temp;
-    end
-    imshow(rgbImage);
-    % Adjust colorbar
-    colormap(cmap);
-    cb = colorbar;
-    cb.Ticks = 0 : 1/(swp_max-swp_min) : 1;
-    cb.TickLabels = string(1:10);
-    cb.FontSize = 15;
-    
-    % Plot WM boundary
-    hold on;
-    boundaries = bwboundaries(mask);
-    for k = 1:numel(boundaries)
-        boundary = boundaries{k};
-        plot(boundary(:,2), boundary(:,1), 'm', 'LineWidth', 1.5);
-    end
-    pause(1)
+    % Create heatmap for vessel SWP
+    swp_heatmap(ves_heatmap, swp_min.ves, swp_max.ves, mask, ves,...
+                scaleBarLength, vox,...
+                fig_out, subid, reg, slice_idx, ves_base)
 
-    %%% Add scale bar to bottom right corner
-    scalebar_fun(scaleBarLength, vox, slice)
-    hold off;
+    % Create heatmap for EPVS SWP
+    swp_heatmap(epvs_heatmap, swp_min.epvs, swp_max.epvs, mask, epvs,...
+                scaleBarLength, vox,...
+                fig_out, subid, reg, slice_idx, epvs_base)
+end
 
-    %%% Save output with high quality
-    % Export as PNG
-    fname = strcat(subjects(i).subject_name,'_',subjects(i).region,'_',...
-        'depth_',num2str(slice_idx),'_swp.png');
-    fout = fullfile(fig_out,fname);
-    exportgraphics(gcf, fout,"Resolution",600)
-    pause(1)
-    % Export as PDF
-    fname = strcat(subjects(i).subject_name,'_',subjects(i).region,'_',...
-        'depth_',num2str(slice_idx),'_swp.pdf');
-    fout = fullfile(fig_out,fname);
-    exportgraphics(gcf, fout,"Resolution",600)
-    pause(1)
-    close
+%% Create zoomed SWP figures
+
+% Initialize x,y dimensions for zoomed subset (voxels)
+sz = 400;
+% Initialize the zoomed box for SWP heatmaps
+coords = struct();
+coords.caa26 = [600, 760];
+coords.caa6 = [1000, 350];
+coords.caa17 = [930, 470];
+coords.caa22 = [425, 340];
+% Zoom inset scale bar (micron)
+zoom_scalebar = 1000;
+
+% Iterate over subjects
+for ii = 4:length(subjects)
+    %%% Extract slice from each matrix
+    % Extract slice index
+    slice_idx = subjects(ii).slice;
+    % Extract WM mask, vessels, EPVS
+    mask = subjects(ii).mask_wm(:, :, slice_idx);
+    ves = subjects(ii).seg(:, :, slice_idx);
+    epvs = subjects(ii).epvs(:, :, slice_idx);
+    % Remove EPVS from vessel segmentation
+    ves(epvs) = 0;
+
+    %%% Retrieve Vessel SWP
+    ves_heatmap = subjects(ii).ves_swp(:, :, slice_idx);
+    epvs_heatmap = subjects(ii).epvs_swp(:, :, slice_idx);
+
+    %%% Extract the zoomed subset coordinates
+    xy = coords.(subjects(ii).subject_name);
+    % Take subset of swp, mask, seg
+    ves_heatmap = ves_heatmap(xy(1):xy(1)+sz, xy(2):xy(2)+sz);
+    epvs_heatmap = epvs_heatmap(xy(1):xy(1)+sz, xy(2):xy(2)+sz);
+    mask = mask(xy(1):xy(1)+sz, xy(2):xy(2)+sz);
+    ves = ves(xy(1):xy(1)+sz, xy(2):xy(2)+sz);
+    epvs = epvs(xy(1):xy(1)+sz, xy(2):xy(2)+sz);
+    
+    %%% Retrieve subject and region names
+    subid = subjects(ii).subject_name;
+    reg = subjects(ii).region;
+    % Create heatmap for vessel SWP
+    swp_heatmap(ves_heatmap, swp_min.ves, swp_max.ves, mask, ves,...
+                zoom_scalebar, vox,...
+                fig_out, subid, reg, slice_idx, strcat(ves_base,'_zoom'))
+    % Create heatmap for EPVS SWP
+    swp_heatmap(epvs_heatmap, swp_min.epvs, swp_max.epvs, mask, epvs,...
+                zoom_scalebar, vox,...
+                fig_out, subid, reg, slice_idx, strcat(epvs_base,'_zoom'))
 end
 
 %% Create grayscale mus subfigures
+%{
 % import the TIFs that had agarose manually removed
 % CAA6f = caa6_front_depth_93_mus.tif
 % CAA17o = caa17_occip_depth_536_mus.tif
@@ -235,6 +257,7 @@ for ii = 1:length(subs)
     pause(1)
     close;
 end
+%}
 
 %% Orientation subfigures
 %{
@@ -313,4 +336,81 @@ x_start = x_end - sbar_px;
 y_pos = imHeight - round(imHeight*0.03);
 % Draw scale bar (white line)
 plot([x_start x_end], [y_pos y_pos], 'w', 'LineWidth', 5);
+end
+
+%% SWP Heatmap Function
+function swp_heatmap(heatmap, swp_min, swp_max, mask, seg,...
+    scaleBarLength, vox,...
+    fig_out, subname, region, slice_idx, base_fname)
+% INPUTS:
+%   heatmap (float matrix): swp heatmap matrix
+%   swp_min (uint): minimum value for heatmap
+%   swp_max (uint): maximum value for heatmap
+%   mask (logical): white matter tissue mask
+%   seg (logical): vessel or EPVS segmentation (depends on iteration)
+%   scaleBarLength (uint): scale bar length in microns
+%   vox (uint): isotropic voxel size (microns)
+%   fig_out (string): output directory
+%   subname (string): subject name string
+%   region (string): subject brain region string
+%   slice_idx (uint): OCT depth for reference in filename
+%   base_fname (string): filename base
+
+%%% set colormap
+cmap = parula(256);
+% Clip the upper and lower to ease plotting
+heatmap(heatmap < swp_min) = swp_min; % Clip
+heatmap(heatmap > swp_max) = swp_max; % Clip
+% Convert heatmap values to colormap indices
+idx = round((heatmap - swp_min) / (swp_max - swp_min) * 255) + 1;
+% Set any NaN to minimum value
+idx(isnan(idx)) = 1;
+idx(idx < 1) = 1;
+idx(idx > 256) = 256;
+
+% Create RGB image
+figure('position',[100, 100, 1100, 1500]);
+rgbImage = ind2rgb(idx, cmap);
+
+%%% Overlay black where ~mask_wm OR segmentation==1
+blackMask = (~mask) | (seg == 1);
+for c = 1:3
+    temp = rgbImage(:,:,c);
+    temp(blackMask) = 0;
+    rgbImage(:,:,c) = temp;
+end
+imshow(rgbImage,'InitialMagnification','fit');
+% Adjust colorbar + tick marks and labels
+colormap(cmap);
+cb = colorbar;
+tick_vals = linspace(0, 1, 10);
+cb.Ticks = tick_vals;
+cb.TickLabels = string(round(linspace(swp_min, swp_max, 10)));
+cb.FontSize = 15;
+
+%%% Purple boundary around tissue
+hold on;
+boundaries = bwboundaries(mask);
+for k = 1:numel(boundaries)
+    boundary = boundaries{k};
+    plot(boundary(:,2), boundary(:,1),'m','LineWidth', 1.5);
+end
+
+%%% Add scale bar to bottom right corner
+scalebar_fun(scaleBarLength, vox, heatmap)
+hold off;
+pause(1)
+
+%%% Save output with high quality
+% Export as PNG
+fname = strcat(subname,'_',region,'_','depth_',num2str(slice_idx),'_',base_fname,'.png');
+fout = fullfile(fig_out,fname);
+exportgraphics(gcf, fout,"Resolution",600)
+pause(1)
+% Export as PDF
+fname = strcat(subname,'_',region,'_','depth_',num2str(slice_idx),'_',base_fname,'.pdf');
+fout = fullfile(fig_out,fname);
+exportgraphics(gcf, fout,"Resolution",600)
+pause(1)
+close
 end

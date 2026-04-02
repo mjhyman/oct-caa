@@ -8,7 +8,7 @@
 %}
 
 %% Top-level settings
-% clc; clear; close all;
+clc; clear; close all;
 
 %%% Directories (SCC)
 % Input directory
@@ -26,7 +26,7 @@ cd68_fname = 'histo_swp_hmatched_zscore__CD68_voxelwise_radius4mm_ds4_20-Mar-202
 
 %%% Output figure settings
 % x-axis binning number of points
-nbins = 100;
+nbin = 100;
 % Date for file output
 t = datetime('today');
 % Font size for figures
@@ -34,15 +34,15 @@ fsize = 30;
 
 %% Import stains
 
-% % Import LHE
-% lhe = load(fullfile(hdir, lhe_fname));
-% lhe = lhe.lhe;
-% % Import GFAP
-% gfap = load(fullfile(hdir, gfap_fname));
-% gfap = gfap.gfap;
-% % Import CD68
-% cd68 = load(fullfile(hdir, cd68_fname));
-% cd68 = cd68.cd68;
+% Import LHE
+lhe = load(fullfile(hdir, lhe_fname));
+lhe = lhe.lhe;
+% Import GFAP
+gfap = load(fullfile(hdir, gfap_fname));
+gfap = gfap.gfap;
+% Import CD68
+cd68 = load(fullfile(hdir, cd68_fname));
+cd68 = cd68.cd68;
 
 % Add all stains to the struct "stain"
 stains = struct();
@@ -102,8 +102,8 @@ for ii = 1:numel(stain_names)
 
         %%% Plot stain vs. EPVS SWP and Vessel SWP
         % Bin to 100 points for scatterplot
-        ves_swp_stain = bin_swp(ves_swp_stain, nbins);
-        epvs_swp_stain = bin_swp(epvs_swp_stain, nbins);
+        ves_swp_stain = bin_swp(ves_swp_stain, nbin);
+        epvs_swp_stain = bin_swp(epvs_swp_stain, nbin);
         
         % Plot stain vs. Vessel SWP for the current section
         subplot(2,1,1);
@@ -189,7 +189,7 @@ end
 
 %% Plot average region (frontal and occipital separate)
 % Labels and such
-ylab = {'Stain Intensity','(z-score)'};
+ylab = 'Stain Intensity (z-score)';
 xlims = [0,30];
 ylims = [-0.5,0.5];
 screen = get(0,'ScreenSize'); % [left bottom width height]
@@ -240,7 +240,7 @@ for ii = 1:numel(stain_names)
     hold on; p = plot(ves_comb_fit);
     p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
     title('Stain vs. Vessel SWP')
-    xlabel('Vessel SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
+    xlabel('Vessel SWP'); ylabel(ylab); xlim(xlims); ylim(ylims);
     set(gca,'fontsize',fsize)
     % EPVS
     subplot(2,1,2)
@@ -248,7 +248,7 @@ for ii = 1:numel(stain_names)
     hold on; p = plot(epvs_comb_fit);
     p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
     title('Stain vs. EPVS SWP')
-    xlabel('EPVS SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
+    xlabel('EPVS SWP'); ylabel(ylab); xlim(xlims); ylim(ylims);
     % Super title
     sgtitle([stain_names{ii},' combined']);
     set(gca,'fontsize',fsize)
@@ -264,7 +264,7 @@ for ii = 1:numel(stain_names)
     hold on; p = plot(ves_front_fit);
     p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
     title('Stain vs. Vessel SWP')
-    xlabel('Vessel SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
+    xlabel('Vessel SWP'); ylabel(ylab); xlim(xlims); ylim(ylims);
     set(gca,'fontsize',fsize)
     % EPVS
     subplot(2,1,2)
@@ -272,7 +272,7 @@ for ii = 1:numel(stain_names)
     hold on; p = plot(epvs_front_fit);
     p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
     title('Stain vs. EPVS SWP')
-    xlabel('EPVS SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
+    xlabel('EPVS SWP'); ylabel(ylab); xlim(xlims); ylim(ylims);
     set(gca,'fontsize',fsize)
     % Super title
     sgtitle([stain_names{ii},' front']);
@@ -289,7 +289,7 @@ for ii = 1:numel(stain_names)
     hold on; p = plot(ves_occip_fit);
     p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
     title('Stain vs. Vessel SWP')
-    xlabel('Vessel SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
+    xlabel('Vessel SWP'); ylabel(ylab); xlim(xlims); ylim(ylims);
     set(gca,'fontsize',fsize)
     % EPVS
     subplot(2,1,2)
@@ -297,7 +297,7 @@ for ii = 1:numel(stain_names)
     hold on; p = plot(epvs_occip_fit);
     p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
     title('Stain vs. EPVS SWP')
-    xlabel('EPVS SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
+    xlabel('EPVS SWP'); ylabel(ylab); xlim(xlims); ylim(ylims);
     set(gca,'fontsize',fsize)
     % Super title
     sgtitle([stain_names{ii},' occip']);
@@ -529,98 +529,53 @@ stage_avg.(stain_names{ii}).(stages{j}).binned_front_ves
 for ii = 1:numel(stain_names)
     % Iterate severities
     for j = 1:numel(stages)
-        %%% Frontal
+        % Frontal
         if isfield(stage_avg.(stain_names{ii}).(stages{j}), 'binned_front_ves')
-            fig = figure; set(fig,'Position',fig_size);
-            %%% Vessel
-            subplot(2,1,1)
-            tmp = stage_avg.(stain_names{ii}).(stages{j}).binned_front_ves;
-            f = stats.(stain_names{ii}).(stages{j}).front.ves.fit;
+            tmp = stage_avg.(stain_names{ii}).(stages{j}).binned_front;
+            f = stats.(stain_names{ii}).(stages{j}).front.fit;
             % Plot for frontal
-            scatter(tmp(:,1),tmp(:,2),[],'k','filled');
+            figure; scatter(tmp(:,1),tmp(:,2),[],'k','filled');
             hold on; p = plot(f);
             p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
             % Figure labels etc.
-            xlabel('Vessel SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
+            xlabel(xlab); ylabel(ylab); xlim(xlims); ylim(ylims);   
+            title([stain_names{ii},' ',stage_names{j}, ' frontal']);
             set(gca, 'fontsize',fsize)
-            %%% EPVS
-            subplot(2,1,2)
-            tmp = stage_avg.(stain_names{ii}).(stages{j}).binned_front_epvs;
-            f = stats.(stain_names{ii}).(stages{j}).front.epvs.fit;
-            % Plot for frontal
-            scatter(tmp(:,1),tmp(:,2),[],'k','filled');
-            hold on; p = plot(f);
-            p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
-            % Figure labels etc.
-            xlabel('EPVS SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
-            set(gca, 'fontsize',fsize)
-            %%% Save
-            sgtitle([stain_names{ii},' ',stage_names{j}, ' frontal']);
-            fname = strcat(stain_names{ii},'_',stages{j},'_frontal_',string(t));
+            fname = strcat(stain_names{ii},'_',stages{j},'_frontal');
             pause(1)
             saveas(gcf, fullfile(figdir, fname), 'jpg');
         end
 
-        %%% Occipital
+        % Occipital
         if isfield(stage_avg.(stain_names{ii}).(stages{j}), 'binned_occip_ves')
-            fig = figure; set(fig,'Position',fig_size);
-            %%% Vessel
-            subplot(2,1,1)
-            tmp = stage_avg.(stain_names{ii}).(stages{j}).binned_occip_ves;
-            f = stats.(stain_names{ii}).(stages{j}).occip.ves.fit;
+            tmp = stage_avg.(stain_names{ii}).(stages{j}).binned_occip;
+            f = stats.(stain_names{ii}).(stages{j}).occip.fit;
             % Plot for frontal
-            scatter(tmp(:,1),tmp(:,2),[],'k','filled');
+            figure; scatter(tmp(:,1),tmp(:,2),[],'k','filled');
             hold on; p = plot(f);
             p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
             % Figure labels etc.
-            xlabel('Vessel SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
+            xlabel(xlab); ylabel(ylab); xlim(xlims); ylim(ylims);   
+            title([stain_names{ii},' ',stage_names{j}, ' occip']);
             set(gca, 'fontsize',fsize)
-            %%% EPVS
-            subplot(2,1,2)
-            tmp = stage_avg.(stain_names{ii}).(stages{j}).binned_occip_epvs;
-            f = stats.(stain_names{ii}).(stages{j}).occip.epvs.fit;
-            % Plot for frontal
-            scatter(tmp(:,1),tmp(:,2),[],'k','filled');
-            hold on; p = plot(f);
-            p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
-            % Figure labels etc.
-            xlabel('EPVS SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
-            set(gca, 'fontsize',fsize)
-            %%% Save
-            sgtitle([stain_names{ii},' ',stage_names{j}, ' occipital']);
-            fname = strcat(stain_names{ii},'_',stages{j},'_occip_',string(t));
+            fname = strcat(stain_names{ii},'_',stages{j},'_occip');
             pause(1)
             saveas(gcf, fullfile(figdir, fname), 'jpg');
         end
         
-        %%% Combined
+        % Combined
         if isfield(stage_avg.(stain_names{ii}).(stages{j}), 'binned_combined_ves')
-            fig = figure; set(fig,'Position',fig_size);
-            %%% Vessel
-            subplot(2,1,1)
-            tmp = stage_avg.(stain_names{ii}).(stages{j}).binned_combined_ves;
-            f = stats.(stain_names{ii}).(stages{j}).comb.ves.fit;
+            tmp = stage_avg.(stain_names{ii}).(stages{j}).binned_combined;
+            f = stats.(stain_names{ii}).(stages{j}).comb.fit;
             % Plot for frontal
-            scatter(tmp(:,1),tmp(:,2),[],'k','filled');
+            figure; scatter(tmp(:,1),tmp(:,2),[],'k','filled');
             hold on; p = plot(f);
             p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
             % Figure labels etc.
-            xlabel('Vessel SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
+            xlabel(xlab); ylabel(ylab); xlim(xlims); ylim(ylims);   
+            title([stain_names{ii},' ',stage_names{j}, ' combined']);
             set(gca, 'fontsize',fsize)
-            %%% EPVS
-            subplot(2,1,2)
-            tmp = stage_avg.(stain_names{ii}).(stages{j}).binned_combined_epvs;
-            f = stats.(stain_names{ii}).(stages{j}).comb.epvs.fit;
-            % Plot for frontal
-            scatter(tmp(:,1),tmp(:,2),[],'k','filled');
-            hold on; p = plot(f);
-            p.LineWidth = 5; p.Color = 'r'; hold off; legend off;
-            % Figure labels etc.
-            xlabel('EPVS SWP'); ylabel(ylab); xlim(xlims); %ylim(ylims);
-            set(gca, 'fontsize',fsize)
-            %%% Save
-            sgtitle([stain_names{ii},' ',stage_names{j}, ' combined']);
-            fname = strcat(stain_names{ii},'_',stages{j},'_comb_',string(t));
+            fname = strcat(stain_names{ii},'_',stages{j},'_combined');
             pause(1)
             saveas(gcf, fullfile(figdir, fname), 'jpg');
         end

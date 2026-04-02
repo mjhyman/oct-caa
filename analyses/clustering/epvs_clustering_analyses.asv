@@ -42,7 +42,7 @@ for ii = 1:length(subids)
 end
 
 % Output directory
-figdir = '/projectnb/npbssmic/ns/CAA/figures/fig4_mus_swp_epvs/';
+figout = '/projectnb/npbssmic/ns/CAA/figures/fig4_mus_swp_epvs/';
 
 %% Plot subject/region separately
 
@@ -72,6 +72,13 @@ end
 
 
 %% Plot each severity (combined within region)
+% TODO:
+%{
+- take mean of SEM
+- plot each severity
+- choose axis limits
+- export to figures
+%}
 
 % Create struct for storing arrays for iterating
 pstruct = struct();
@@ -106,7 +113,7 @@ pstruct.sev.occip.avg = mean([caa22o_avg;caa25o_avg],1);
 pstruct.sev.occip.sem = mean([caa22o_sem;caa25o_sem],1);
 
 
-%% Plot each severity
+%%% Plot each severity
 severity = fields(pstruct);
 for ii = 1:numel(severity)
     % Front
@@ -120,36 +127,19 @@ for ii = 1:numel(severity)
 
     %%% Plot the occipital and overlay frontal if exist
     errorbar(1:length(oavg), oavg, osem, 'DisplayName',...
-            ['Occip - ' severity{ii}], 'LineWidth', 2,...
-            'Color','#1964B0');
+            ['Occip - ' severity{ii}], 'LineWidth', 1.5);
     % Plotting the average and SEM for the front region
     if isfield(pstruct.(severity{ii}),'front')
         hold on;
         errorbar(1:length(favg), favg, fsem, 'DisplayName',...
-                ['Front - ' severity{ii}], 'LineWidth', 2,...
-                'Color','#DB5829');
+                ['Front - ' severity{ii}], 'LineWidth', 1.5);
         hold off;
     end
+    legend show;
 
-    %%% Set figure properties
-    xlim([1,10]); ylim([0,8]);
-    xlabel('Distance (mm)');
-    ylabel('EPVS Density (count/mm^3)');
-    title(['Severity - ' severity{ii}]);
-    % legend show;
-    set(gca,'FontSize',30)
-
-    %%% Save output with high quality
+    %%% Save output
+    % Create filename output
+    fname = strcat('cluster_',severity{ii},'_scatterd')
     pause(1)
-    % Export as PNG
-    fname = strcat('epvs_cluster',fname2,'_',severity{ii},'.png');
-    fout = fullfile(figdir,fname);
-    exportgraphics(gcf, fout,"Resolution",600)
-    pause(1)
-    % Export as PDF
-    fname = strcat('epvs_cluster',fname2,'_',severity{ii},'.pdf');
-    fout = fullfile(figdir,fname);
-    exportgraphics(gcf, fout,"Resolution",600)
-    pause(1)
-    % close
+    
 end

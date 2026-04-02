@@ -5,7 +5,7 @@
 % CAA 22 front
 
 %% Prepare environment
-clear; clc; close all;
+% clear; clc; close all;
 % Add top-level directory + subdirectories
 parentDir = fileparts(pwd);
 fsDir = fullfile(parentDir, 'freesurfer');
@@ -63,7 +63,52 @@ subjects.caa26 = caa26;
 % Clear for memory
 clear caa6 caa17 caa22 caa26
 
-%% Downsample 
+%% Export vessel (masked with white matter)
+
+%%% Cell Arrays of subjects, regions, 
+subs = fields(subjects);
+regs = {'front','occip','front','front'};
+
+% output directory
+ddir = '/projectnb/npbssmic/ns/CAA/';
+
+%%% Iterate volumes
+for ii = 1:numel(subs)
+    fprintf('\nStarting subject %s\n',subs{ii})
+    % Load volume, mask, WM mask
+    ves = subjects.(subs{ii}).(regs{ii}).ves;
+    mask_wm = subjects.(subs{ii}).(regs{ii}).mask_wm;
+    
+    %%% Apply mask
+    fprintf('\nMasking vessel segmentation')
+    % Create copies for masking
+    mus_masked = mus;
+    mus_wm_masked = mus;
+    % Apply tissue mask    
+    mus_masked(~mask) = 0;
+    % Apply white matter mask
+    mus_wm_masked(~mask_wm) = 0;
+
+    %%% Downsample + convert to single
+    mus_masked = single(imresize3(mus_masked,1/ds,'Linear'));
+    mus_wm_masked = single(imresize3(mus_wm_masked,1/ds,'Linear'));
+
+    %%% Save as .nii.gz
+    % Create subfolder directory
+    subdir = fullfile(subs{ii}, regs{ii});
+    % Filenames of masked and WM masked
+    mask_fname = strcat('mus_ds',num2str(ds),'_masked.nii.gz');
+    wm_fname = strcat('mus_ds',num2str(ds),'_wm_masked.nii.gz');
+    % Create full file output
+    mask_out = fullfile(ddir,subdir,mask_fname);
+    wm_out = fullfile(ddir,subdir,wm_fname);
+    % Output as compressed NIFTI
+    fprintf('\nSaving Outputs')
+    save_mri(mus_masked,mask_out,vox2,'float',0);
+    save_mri(mus_wm_masked,wm_out,vox2,'float',0);
+end
+
+%% Downsample white matter mus and entire tissue mus
 % Downsample factor
 ds = 4;
 % initial voxel size (mm)
@@ -71,13 +116,46 @@ vox1 = [0.02,0.02,0.02];
 % Target voxel size (mm)
 vox2 = vox1 .* ds;
 
+%%% Cell Arrays of subjects, regions, 
+subs = fields(subjects);
+regs = {'front','occip','front','front'};
+
+% output directory
+ddir = '/projectnb/npbssmic/ns/CAA/';
+
 %%% Iterate volumes
-for ii = 1:numel(subjects)
-    % Load volume
-    mus = 
-    % Downsample + convert to single
-    v = single(imresize3(v,1/ds,'Linear'));
-    % Save as .nii.gz
-    fout = fullfile(ddir,subdir{ii},subout{ii});
-    save_mri(v,fout,vox2,'float',0);
+for ii = 1:numel(subs)
+    fprintf('\nStarting subject %s\n',subs{ii})
+    % Load volume, mask, WM mask
+    mus = subjects.(subs{ii}).(regs{ii}).mus;
+    mask = subjects.(subs{ii}).(regs{ii}).mask;
+    mask_wm = subjects.(subs{ii}).(regs{ii}).mask_wm;
+    
+    %%% Apply mask
+    fprintf('\nMasking and downsampling')
+    % Create copies for masking
+    mus_masked = mus;
+    mus_wm_masked = mus;
+    % Apply tissue mask    
+    mus_masked(~mask) = 0;
+    % Apply white matter mask
+    mus_wm_masked(~mask_wm) = 0;
+
+    %%% Downsample + convert to single
+    mus_masked = single(imresize3(mus_masked,1/ds,'Linear'));
+    mus_wm_masked = single(imresize3(mus_wm_masked,1/ds,'Linear'));
+
+    %%% Save as .nii.gz
+    % Create subfolder directory
+    subdir = fullfile(subs{ii}, regs{ii});
+    % Filenames of masked and WM masked
+    mask_fname = strcat('mus_ds',num2str(ds),'_masked.nii.gz');
+    wm_fname = strcat('mus_ds',num2str(ds),'_wm_masked.nii.gz');
+    % Create full file output
+    mask_out = fullfile(ddir,subdir,mask_fname);
+    wm_out = fullfile(ddir,subdir,wm_fname);
+    % Output as compressed NIFTI
+    fprintf('\nSaving Outputs')
+    save_mri(mus_masked,mask_out,vox2,'float',0);
+    save_mri(mus_wm_masked,wm_out,vox2,'float',0);
 end

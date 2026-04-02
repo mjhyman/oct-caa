@@ -13,7 +13,7 @@
 #$ -N hswp_batch
 
 # Launch a job for each stain to run in parallel (3 stains in total)
-#$ -t 2
+#$ -t 1-3
 
 # Entire node
 #$ -pe omp 28

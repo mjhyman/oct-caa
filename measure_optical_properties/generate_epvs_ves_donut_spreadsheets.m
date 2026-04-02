@@ -11,7 +11,7 @@ following cases:
 %}
 
 %% Prepare environment
-clear; clc; close all;
+% clear; clc; close all;
 
 %%% Add top-level to path
 % Get the current folder path
@@ -27,19 +27,19 @@ addpath(subDirs);
 fprintf('\nImporting Data!\n')
 % top level directory
 data_dir = '/projectnb/npbssmic/ns/CAA/';
+% Date string for the .MAT file
+dt = '5-Mar-2026';
 % load the parenchymal optical properties donuts matrix
 load(fullfile(data_dir, ...
-    'parenchyma_optical_properties_40um_thick_09Oct2025.mat'));
+    strcat('parenchyma_optical_properties_40um_thick_',dt,'.mat')));
 % Load median optical properties
 load(fullfile(data_dir,"median_white_matter_values_14-Nov-2025.mat"));
-% Output filename for spreadsheet
-dt = datetime('now','Format','dd-MM-yyyy');
 
 %%% standardize_flag (int):
 % 0 : do not change measurement
 % 1 : use the absolute change from median
 % 2 : use the percentage change from median
-standardize_flag = 1;
+standardize_flag = 2;
 if standardize_flag == 0
     spreadsheet_name = strcat('caa_all_radii_40um_donut_',...
                             string(dt),'.xlsx');
