@@ -1,13 +1,18 @@
 function results = fit_swp_psoct_gam(T, varargin)
 % FIT_SWP_PSOCT_GAM  Fit GAMs for scattering coefficient and retardance as
-%                    functions of vessel SWP and EPVS SWP, with a full 2D
-%                    interaction surface using MATLAB's fitrgam.
+%                    functions of vessel ves_swp and EPVS epv_swp, with a
+%                    full 2D interaction surface using MATLAB's fitrgam.
 %
 %   fitrgam uses gradient boosted regression trees - NOT splines.
-%   An explicit product interaction term (SWP * EPVS_SWP) is included so
+%   An explicit product interaction term (ves_swp * epv_swp) is included so
 %   that the effect of each proximity measure can vary continuously with
 %   the level of the other.  Predictions are evaluated on a full 2D
 %   meshgrid so the complete joint response surface is captured.
+%
+%   Marginal slice curves sweep EPV SWP at three vessel SWP quantile
+%   levels (10th, 50th, 90th percentile), so you can read off how
+%   scattering and retardance change with EPVS proximity for low,
+%   medium, and high vessel proximity separately.
 %
 % USAGE
 %   results = fit_swp_psoct_gam(T, 'TitleStr', 'MyData', 'dirout', '/path')
@@ -18,8 +23,8 @@ function results = fit_swp_psoct_gam(T, varargin)
 %   T : table with columns:
 %         'scattering'  - scattering coefficient (voxel-level)
 %         'retardance'  - optical retardance      (voxel-level)
-%         'SWP'         - vessel size-weighted proximity
-%         'EPVS_SWP'    - EPVS size-weighted proximity
+%         'ves_swp'     - vessel size-weighted proximity
+%         'epv_swp'     - EPVS size-weighted proximity
 %
 % REQUIRED NAME-VALUE PAIRS
 %   'TitleStr'      String used in figure title and output filename
@@ -33,42 +38,45 @@ function results = fit_swp_psoct_gam(T, varargin)
 %   'MaxSample'     Max voxels used for fitting (subsampling)         (default: 1e5)
 %   'PlotResults'   Show smooth effect plots                          (default: true)
 %   'Verbose'       Print model summaries to command window           (default: true)
-%   'BootstrapCI'   Compute bootstrap CIs on marginal slice curves   (default: true)
+%   'BootstrapCI'   Compute bootstrap CIs on marginal slice curves    (default: true)
 %   'NBootstrap'    Number of bootstrap resamples                     (default: 100)
 %   'CIAlpha'       Alpha level for CI (0.05 = 95% CI)               (default: 0.05)
 %   'MinDensity'    Min data count per cell to show surface (masking) (default: 5)
 %
 % OUTPUT  results struct with fields:
-%   .gam_scatter         - fitted GAM object for scattering
-%   .gam_retard          - fitted GAM object for retardance
-%   .swp_grid            - SWP axis vector (length NumGridPts)
-%   .epvs_grid           - EPVS_SWP axis vector (length NumGridPts)
-%   .SWP_mesh            - NumGridPts x NumGridPts meshgrid of SWP values
-%   .EPVS_mesh           - NumGridPts x NumGridPts meshgrid of EPVS values
-%   .pred_scatter_2d     - NumGridPts x NumGridPts predicted scattering surface
-%   .pred_retard_2d      - NumGridPts x NumGridPts predicted retardance surface
-%   .density_mask        - logical mask: true where data are too sparse
-%   .slice_epvs_levels   - EPVS quantile values used for marginal slices
-%   .slice_scatter_swp   - cell array of scattering curves at each EPVS slice
-%   .slice_retard_swp    - cell array of retardance curves at each EPVS slice
-%   .ci_slice_scatter    - cell array of Nx2 bootstrap CIs per EPVS slice
-%   .ci_slice_retard     - cell array of Nx2 bootstrap CIs per EPVS slice
-%   .T_fit               - (possibly subsampled) table used for fitting
+%   .gam_scatter          - fitted GAM object for scattering
+%   .gam_retard           - fitted GAM object for retardance
+%   .ves_swp_grid         - ves_swp axis vector (length NumGridPts)
+%   .epv_swp_grid         - epv_swp axis vector (length NumGridPts)
+%   .ves_swp_mesh         - NumGridPts x NumGridPts meshgrid of ves_swp values
+%   .epv_swp_mesh         - NumGridPts x NumGridPts meshgrid of epv_swp values
+%   .pred_scatter_2d      - NumGridPts x NumGridPts predicted scattering surface
+%   .pred_retard_2d       - NumGridPts x NumGridPts predicted retardance surface
+%   .pred_scatter_masked  - same but NaN in sparse data regions
+%   .pred_retard_masked   - same but NaN in sparse data regions
+%   .density_mask         - logical mask: true where data are too sparse
+%   .density              - NumGridPts x NumGridPts data point counts per cell
+%   .slice_ves_levels     - ves_swp quantile values used for marginal slices
+%   .slice_quantiles      - quantile fractions used [0.10, 0.50, 0.90]
+%   .slice_scatter_epv    - cell {3x1} scattering ~ epv_swp at each ves slice
+%   .slice_retard_epv     - cell {3x1} retardance ~ epv_swp at each ves slice
+%   .ci_slice_scatter     - cell {3x1} Nx2 [lower, upper] bootstrap CI
+%   .ci_slice_retard      - cell {3x1} Nx2 [lower, upper] bootstrap CI
+%   .T_fit                - (possibly subsampled) table used for fitting
 %
 % NOTES
 %   * The interaction is captured via an engineered product feature:
-%       SWP_EPVS = SWP .* EPVS_SWP
-%     The formula becomes:  outcome ~ SWP + EPVS_SWP + SWP_EPVS
-%   * Prediction tables always set SWP_EPVS = SWP .* EPVS_SWP so the
-%     interaction column is internally consistent with the main effects.
+%       ves_epv_swp = ves_swp .* epv_swp
+%     The formula becomes:  outcome ~ ves_swp + epv_swp + ves_epv_swp
+%   * Prediction tables always set ves_epv_swp = ves_swp .* epv_swp so
+%     the interaction column is internally consistent with the main effects.
 %   * The 2D surface evaluates predictions across the full joint space.
-%     Cells with fewer than MinDensity data points are masked (set to NaN)
-%     because predictions there are extrapolations.
-%   * Marginal slice plots show the SWP effect at low / median / high
-%     EPVS_SWP (10th, 50th, 90th percentiles) so interaction fanning is
-%     immediately visible.
-%   * Bootstrap CIs are computed on the marginal slices (not the full 2D
-%     surface, which would be prohibitively expensive).
+%     Cells with fewer than MinDensity data points are masked (NaN).
+%   * Marginal slice plots show the EPV SWP effect at low / median / high
+%     vessel SWP (10th, 50th, 90th percentiles).  Fanning of the three
+%     curves indicates a meaningful interaction between the two predictors.
+%   * Bootstrap CIs are computed on the marginal slices only (not the full
+%     2D surface, which would be prohibitively expensive).
 
     % =====================================================================
     % 1. Parse and validate inputs
@@ -88,14 +96,14 @@ function results = fit_swp_psoct_gam(T, varargin)
     addParameter(p, 'NBootstrap',    100,   @(x) isnumeric(x) && isscalar(x) && x >= 10);
     addParameter(p, 'CIAlpha',       0.05,  @(x) isnumeric(x) && isscalar(x) && x > 0 && x < 1);
     addParameter(p, 'MinDensity',    5,     @(x) isnumeric(x) && isscalar(x) && x >= 0);
-    addParameter(p, 'TitleStr',      '',    @ischar);
-    addParameter(p, 'dirout',        pwd,   @ischar);
+    addParameter(p, 'TitleStr',      '');
+    addParameter(p, 'dirout',        pwd);
 
     parse(p, T, varargin{:});
     opts = p.Results;
 
     % Check required columns exist
-    required_cols = {'scattering', 'retardance', 'SWP', 'EPVS_SWP'};
+    required_cols = {'scattering', 'retardance', 'ves_swp', 'epv_swp'};
     missing = required_cols(~ismember(required_cols, T.Properties.VariableNames));
     if ~isempty(missing)
         error('fit_swp_psoct_gam:missingColumns', ...
@@ -122,9 +130,9 @@ function results = fit_swp_psoct_gam(T, varargin)
     % =====================================================================
     % 2. Remove rows with NaN or Inf in any required column
     % =====================================================================
-    T_work   = T(:, required_cols);
-    arr      = table2array(T_work);
-    bad_rows = any(isnan(arr) | isinf(arr), 2);
+    T_work    = T(:, required_cols);
+    arr       = table2array(T_work);
+    bad_rows  = any(isnan(arr) | isinf(arr), 2);
     n_removed = sum(bad_rows);
     T_work(bad_rows, :) = [];
 
@@ -138,22 +146,24 @@ function results = fit_swp_psoct_gam(T, varargin)
     end
 
     % =====================================================================
-    % 3. Subsample if necessary (stratified by EPVS_SWP quantile)
+    % 3. Subsample if necessary (stratified by ves_swp quantile)
+    %    Stratify on ves_swp because it is the held predictor in the
+    %    marginal slices - preserving its distribution matters most.
     % =====================================================================
     N = height(T_work);
     if N > opts.MaxSample
         if opts.Verbose
-            fprintf('[fit_swp_psoct_gam] Subsampling %d -> %d voxels (stratified by EPVS SWP).\n', ...
+            fprintf('[fit_swp_psoct_gam] Subsampling %d -> %d voxels (stratified by ves_swp).\n', ...
                     N, round(opts.MaxSample));
         end
         n_strata   = 10;
-        edges      = quantile(T_work.EPVS_SWP, linspace(0, 1, n_strata + 1));
+        edges      = quantile(T_work.ves_swp, linspace(0, 1, n_strata + 1));
         edges(1)   = -Inf;
         edges(end) = Inf;
         n_per      = floor(opts.MaxSample / n_strata);
         keep_idx   = [];
         for s = 1:n_strata
-            in_stratum = find(T_work.EPVS_SWP > edges(s) & T_work.EPVS_SWP <= edges(s+1));
+            in_stratum = find(T_work.ves_swp > edges(s) & T_work.ves_swp <= edges(s+1));
             if isempty(in_stratum), continue; end
             n_draw   = min(n_per, numel(in_stratum));
             selected = in_stratum(randperm(numel(in_stratum), n_draw));
@@ -164,17 +174,16 @@ function results = fit_swp_psoct_gam(T, varargin)
 
     % =====================================================================
     % 4. Engineer interaction feature
-    %    SWP_EPVS = SWP .* EPVS_SWP
-    %    This product term allows the effect of SWP to vary continuously
-    %    with EPVS_SWP level (and vice versa) within the additive framework
-    %    of fitrgam.  The prediction table must always set:
-    %        SWP_EPVS = SWP_column .* EPVS_SWP_column
-    %    to remain internally consistent.
+    %    ves_epv_swp = ves_swp .* epv_swp
+    %    Allows the effect of epv_swp to vary continuously with ves_swp
+    %    level (and vice versa) within fitrgam's additive framework.
+    %    Every prediction table must set ves_epv_swp = ves_swp .* epv_swp
+    %    to remain internally consistent with the training formula.
     % =====================================================================
-    T_work.SWP_EPVS = T_work.SWP .* T_work.EPVS_SWP;
+    T_work.ves_epv_swp = T_work.ves_swp .* T_work.epv_swp;
 
-    formula_scatter = 'scattering ~ SWP + EPVS_SWP + SWP_EPVS';
-    formula_retard  = 'retardance ~ SWP + EPVS_SWP + SWP_EPVS';
+    formula_scatter = 'scattering ~ ves_swp + epv_swp + ves_epv_swp';
+    formula_retard  = 'retardance ~ ves_swp + epv_swp + ves_epv_swp';
 
     % =====================================================================
     % 5. Fit GAMs
@@ -210,22 +219,21 @@ function results = fit_swp_psoct_gam(T, varargin)
     % =====================================================================
     % 6. Build full 2D prediction grid
     %
-    %    meshgrid produces two n_pts x n_pts matrices:
-    %      SWP_mesh(i,j)  = swp_grid(j)    [SWP varies along columns]
-    %      EPVS_mesh(i,j) = epvs_grid(i)   [EPVS varies along rows]
+    %    meshgrid(ves_swp_grid, epv_swp_grid) produces:
+    %      ves_swp_mesh(i,j) = ves_swp_grid(j)   [ves_swp varies along columns]
+    %      epv_swp_mesh(i,j) = epv_swp_grid(i)   [epv_swp varies along rows]
     %    Predictions are reshaped back to n_pts x n_pts after predict().
-    %
-    %    The interaction column is set to SWP_mesh(:) .* EPVS_mesh(:) so
-    %    it is always the exact product of the two main effect columns.
+    %    The interaction column is always ves_swp_mesh(:) .* epv_swp_mesh(:).
     % =====================================================================
-    n_pts     = opts.NumGridPts;
-    swp_grid  = linspace(min(T_work.SWP),      max(T_work.SWP),      n_pts)';
-    epvs_grid = linspace(min(T_work.EPVS_SWP), max(T_work.EPVS_SWP), n_pts)';
+    n_pts        = opts.NumGridPts;
+    ves_swp_grid = linspace(min(T_work.ves_swp), max(T_work.ves_swp), n_pts)';
+    epv_swp_grid = linspace(min(T_work.epv_swp), max(T_work.epv_swp), n_pts)';
 
-    [SWP_mesh, EPVS_mesh] = meshgrid(swp_grid, epvs_grid);
+    [ves_swp_mesh, epv_swp_mesh] = meshgrid(ves_swp_grid, epv_swp_grid);
 
-    T_pred_2d = table(SWP_mesh(:), EPVS_mesh(:), SWP_mesh(:) .* EPVS_mesh(:), ...
-        'VariableNames', {'SWP', 'EPVS_SWP', 'SWP_EPVS'});
+    T_pred_2d = table(ves_swp_mesh(:), epv_swp_mesh(:), ...
+                      ves_swp_mesh(:) .* epv_swp_mesh(:), ...
+        'VariableNames', {'ves_swp', 'epv_swp', 'ves_epv_swp'});
 
     if opts.Verbose
         fprintf('[fit_swp_psoct_gam] Predicting over %d x %d = %d grid points...\n', ...
@@ -237,17 +245,15 @@ function results = fit_swp_psoct_gam(T, varargin)
 
     % =====================================================================
     % 7. Data density mask
-    %    Count observed data points in each grid cell and mask cells that
-    %    have fewer than MinDensity points (extrapolation regions).
+    %    Count data points per grid cell; mask cells below MinDensity.
+    %    histcounts2(row_var, col_var, row_edges, col_edges):
+    %      rows = epv_swp, cols = ves_swp  ->  matches meshgrid orientation.
     % =====================================================================
-    % Build bin edges that exactly bracket the grid axes
-    swp_edges  = [-Inf; (swp_grid(1:end-1)  + swp_grid(2:end))  / 2; Inf];
-    epvs_edges = [-Inf; (epvs_grid(1:end-1) + epvs_grid(2:end)) / 2; Inf];
+    swp_edges  = [-Inf; (ves_swp_grid(1:end-1) + ves_swp_grid(2:end)) / 2; Inf];
+    epvs_edges = [-Inf; (epv_swp_grid(1:end-1) + epv_swp_grid(2:end)) / 2; Inf];
 
-    % histcounts2: rows = EPVS bins, cols = SWP bins (matches meshgrid orientation)
-    density = histcounts2(T_work.EPVS_SWP, T_work.SWP, epvs_edges, swp_edges);
-
-    density_mask = density < opts.MinDensity;   % true where too sparse
+    density      = histcounts2(T_work.epv_swp, T_work.ves_swp, epvs_edges, swp_edges);
+    density_mask = density < opts.MinDensity;
 
     pred_scatter_masked = pred_scatter_2d;
     pred_retard_masked  = pred_retard_2d;
@@ -262,30 +268,34 @@ function results = fit_swp_psoct_gam(T, varargin)
 
     % =====================================================================
     % 8. Marginal slice predictions
-    %    Evaluate the SWP effect at three EPVS_SWP levels:
-    %    10th, 50th, and 90th percentiles.
-    %    This shows whether the SWP curve fans out (interaction) or stays
-    %    parallel (no interaction) across EPVS levels.
+    %
+    %    Sweep epv_swp across its full range while holding ves_swp fixed
+    %    at its 10th, 50th, and 90th percentiles.  This directly answers:
+    %    "How do scattering and retardance change with EPVS proximity,
+    %     for low / medium / high vessel proximity?"
+    %
+    %    The interaction column must equal ves_fixed .* epv_swp_grid at
+    %    every point to stay consistent with the training formula.
     % =====================================================================
-    slice_quantiles  = [0.10, 0.50, 0.90];
-    epvs_levels      = quantile(T_work.EPVS_SWP, slice_quantiles);
-    n_slices         = numel(epvs_levels);
+    slice_quantiles = [0.10, 0.50, 0.90];
+    ves_levels      = quantile(T_work.ves_swp, slice_quantiles);
+    n_slices        = numel(ves_levels);
 
-    slice_scatter_swp = cell(n_slices, 1);
-    slice_retard_swp  = cell(n_slices, 1);
+    slice_scatter_epv = cell(n_slices, 1);
+    slice_retard_epv  = cell(n_slices, 1);
 
     for sl = 1:n_slices
-        epvs_fixed = epvs_levels(sl) * ones(n_pts, 1);
-        T_sl = table(swp_grid, epvs_fixed, swp_grid .* epvs_fixed, ...
-            'VariableNames', {'SWP', 'EPVS_SWP', 'SWP_EPVS'});
-        slice_scatter_swp{sl} = predict(gam_scatter, T_sl);
-        slice_retard_swp{sl}  = predict(gam_retard,  T_sl);
+        ves_fixed = ves_levels(sl) * ones(n_pts, 1);   % ves_swp held constant per slice
+        T_sl = table(ves_fixed, epv_swp_grid, ves_fixed .* epv_swp_grid, ...
+            'VariableNames', {'ves_swp', 'epv_swp', 'ves_epv_swp'});
+        slice_scatter_epv{sl} = predict(gam_scatter, T_sl);
+        slice_retard_epv{sl}  = predict(gam_retard,  T_sl);
     end
 
     % =====================================================================
     % 9. Bootstrap CIs on marginal slices
-    %    Resamples rows with replacement, refits both GAMs, collects
-    %    predictions on the fixed SWP grid at each EPVS slice level.
+    %    Resample rows with replacement, refit both GAMs, collect
+    %    predictions on the fixed epv_swp grid at each ves_swp slice.
     %    Uses parfor if Parallel Computing Toolbox is available.
     % =====================================================================
     ci_slice_scatter = cell(n_slices, 1);
@@ -297,28 +307,29 @@ function results = fit_swp_psoct_gam(T, varargin)
                     opts.NBootstrap);
         end
 
-        B       = opts.NBootstrap;
-        n_fit   = height(T_work);
+        B        = opts.NBootstrap;
+        n_fit    = height(T_work);
         b_trees  = opts.NumTrees;
         b_splits = opts.MaxSplits;
         b_lr     = opts.LearnRate;
 
-        % boot arrays: rows = grid points, cols = bootstrap resamples,
-        % pages = EPVS slices
+        % Pre-allocate: rows = grid points, cols = bootstrap resamples,
+        % pages = ves_swp slices
         boot_scatter = zeros(n_pts, B, n_slices);
         boot_retard  = zeros(n_pts, B, n_slices);
+
+        % Pre-build slice prediction tables outside the bootstrap loop.
+        % Each table sweeps epv_swp with ves_swp held at one quantile level.
+        T_slices = cell(n_slices, 1);
+        for sl = 1:n_slices
+            ves_fixed    = ves_levels(sl) * ones(n_pts, 1);
+            T_slices{sl} = table(ves_fixed, epv_swp_grid, ves_fixed .* epv_swp_grid, ...
+                'VariableNames', {'ves_swp', 'epv_swp', 'ves_epv_swp'});
+        end
 
         use_par = ~isempty(ver('parallel'));
         if use_par && opts.Verbose
             fprintf('[fit_swp_psoct_gam] Parallel Computing Toolbox detected - using parfor.\n');
-        end
-
-        % Pre-build slice prediction tables for speed inside loop
-        T_slices = cell(n_slices, 1);
-        for sl = 1:n_slices
-            epvs_fixed = epvs_levels(sl) * ones(n_pts, 1);
-            T_slices{sl} = table(swp_grid, epvs_fixed, swp_grid .* epvs_fixed, ...
-                'VariableNames', {'SWP', 'EPVS_SWP', 'SWP_EPVS'});
         end
 
         if use_par
@@ -326,11 +337,11 @@ function results = fit_swp_psoct_gam(T, varargin)
                 idx_b = randi(n_fit, n_fit, 1);
                 T_b   = T_work(idx_b, :);
 
-                mdl_s = fitrgam(T_b, 'scattering ~ SWP + EPVS_SWP + SWP_EPVS', ...
+                mdl_s = fitrgam(T_b, 'scattering ~ ves_swp + epv_swp + ves_epv_swp', ...
                     'NumTreesPerPredictor',          b_trees,  ...
                     'MaxNumSplitsPerPredictor',      b_splits, ...
                     'InitialLearnRateForPredictors', b_lr);
-                mdl_r = fitrgam(T_b, 'retardance ~ SWP + EPVS_SWP + SWP_EPVS',  ...
+                mdl_r = fitrgam(T_b, 'retardance ~ ves_swp + epv_swp + ves_epv_swp', ...
                     'NumTreesPerPredictor',          b_trees,  ...
                     'MaxNumSplitsPerPredictor',      b_splits, ...
                     'InitialLearnRateForPredictors', b_lr);
@@ -352,11 +363,11 @@ function results = fit_swp_psoct_gam(T, varargin)
                 idx_b = randi(n_fit, n_fit, 1);
                 T_b   = T_work(idx_b, :);
 
-                mdl_s = fitrgam(T_b, 'scattering ~ SWP + EPVS_SWP + SWP_EPVS', ...
+                mdl_s = fitrgam(T_b, 'scattering ~ ves_swp + epv_swp + ves_epv_swp', ...
                     'NumTreesPerPredictor',          b_trees,  ...
                     'MaxNumSplitsPerPredictor',      b_splits, ...
                     'InitialLearnRateForPredictors', b_lr);
-                mdl_r = fitrgam(T_b, 'retardance ~ SWP + EPVS_SWP + SWP_EPVS',  ...
+                mdl_r = fitrgam(T_b, 'retardance ~ ves_swp + epv_swp + ves_epv_swp', ...
                     'NumTreesPerPredictor',          b_trees,  ...
                     'MaxNumSplitsPerPredictor',      b_splits, ...
                     'InitialLearnRateForPredictors', b_lr);
@@ -368,14 +379,13 @@ function results = fit_swp_psoct_gam(T, varargin)
             end
         end
 
-        % Percentile-based CIs per slice
+        % Percentile-based CIs per slice.
+        % Row vector [lo, hi] avoids ambiguous output shape in older MATLAB.
         alpha = opts.CIAlpha;
         lo    = 100 *  alpha / 2;
         hi    = 100 * (1 - alpha / 2);
 
         for sl = 1:n_slices
-            % Use row vector [lo, hi] for prctile — column vector [lo; hi]
-            % gives ambiguous output shape in some MATLAB versions.
             ci_slice_scatter{sl} = prctile(boot_scatter(:, :, sl), [lo, hi], 2);  % Nx2
             ci_slice_retard{sl}  = prctile(boot_retard(:,  :, sl), [lo, hi], 2);
         end
@@ -389,37 +399,46 @@ function results = fit_swp_psoct_gam(T, varargin)
     % 10. Plot
     % =====================================================================
     if opts.PlotResults
-        plot_2d_effects(swp_grid, epvs_grid, SWP_mesh, EPVS_mesh,       ...
-                        pred_scatter_masked,  pred_retard_masked,         ...
-                        pred_scatter_2d,      pred_retard_2d,             ...
-                        slice_scatter_swp,    slice_retard_swp,           ...
-                        ci_slice_scatter,     ci_slice_retard,            ...
-                        epvs_levels,          slice_quantiles,            ...
-                        opts.CIAlpha,         T_work,                    ...
-                        opts.TitleStr,        opts.dirout);
+        plot_2d_effects(ves_swp_grid,     epv_swp_grid,     ...
+                        ves_swp_mesh,     epv_swp_mesh,     ...
+                        pred_scatter_masked,                 ...
+                        pred_retard_masked,                  ...
+                        pred_scatter_2d,                     ...
+                        pred_retard_2d,                      ...
+                        slice_scatter_epv,                   ...
+                        slice_retard_epv,                    ...
+                        ci_slice_scatter,                    ...
+                        ci_slice_retard,                     ...
+                        ves_levels,                          ...
+                        slice_quantiles,                     ...
+                        opts.CIAlpha,                        ...
+                        T_work,                              ...
+                        opts.TitleStr,                       ...
+                        opts.dirout);
     end
 
     % =====================================================================
     % 11. Package results
     % =====================================================================
-    results.gam_scatter        = gam_scatter;
-    results.gam_retard         = gam_retard;
-    results.swp_grid           = swp_grid;
-    results.epvs_grid          = epvs_grid;
-    results.SWP_mesh           = SWP_mesh;
-    results.EPVS_mesh          = EPVS_mesh;
-    results.pred_scatter_2d    = pred_scatter_2d;       % unmasked
-    results.pred_retard_2d     = pred_retard_2d;        % unmasked
+    results.gam_scatter         = gam_scatter;
+    results.gam_retard          = gam_retard;
+    results.ves_swp_grid        = ves_swp_grid;
+    results.epv_swp_grid        = epv_swp_grid;
+    results.ves_swp_mesh        = ves_swp_mesh;
+    results.epv_swp_mesh        = epv_swp_mesh;
+    results.pred_scatter_2d     = pred_scatter_2d;      % unmasked
+    results.pred_retard_2d      = pred_retard_2d;       % unmasked
     results.pred_scatter_masked = pred_scatter_masked;  % NaN in sparse cells
     results.pred_retard_masked  = pred_retard_masked;
-    results.density_mask       = density_mask;
-    results.density            = density;
-    results.slice_epvs_levels  = epvs_levels;
-    results.slice_scatter_swp  = slice_scatter_swp;
-    results.slice_retard_swp   = slice_retard_swp;
-    results.ci_slice_scatter   = ci_slice_scatter;
-    results.ci_slice_retard    = ci_slice_retard;
-    results.T_fit              = T_work;
+    results.density_mask        = density_mask;
+    results.density             = density;
+    results.slice_ves_levels    = ves_levels;           % ves_swp quantiles used
+    results.slice_quantiles     = slice_quantiles;      % [0.10, 0.50, 0.90]
+    results.slice_scatter_epv   = slice_scatter_epv;    % scattering ~ epv_swp curves
+    results.slice_retard_epv    = slice_retard_epv;     % retardance ~ epv_swp curves
+    results.ci_slice_scatter    = ci_slice_scatter;     % Nx2 CIs per ves slice
+    results.ci_slice_retard     = ci_slice_retard;
+    results.T_fit               = T_work;
 
     if opts.Verbose
         fprintf('[fit_swp_psoct_gam] Done.\n');
@@ -444,50 +463,75 @@ end
 % =========================================================================
 % LOCAL FUNCTION: plot 2D surface effects + marginal slice curves
 %
-%   Layout (2 outcomes x 2 plot types = 4 panels per figure):
+%   Slice curves sweep EPV SWP (x-axis) at three vessel SWP levels so
+%   the reader sees how EPVS proximity affects each outcome depending on
+%   how close a voxel is to a vessel.
 %
-%   Figure 1 — Scattering
-%     Panel 1 (left):  heatmap of the 2D surface (SWP x EPVS)
-%     Panel 2 (right): marginal slice curves at 3 EPVS levels
+%   Figure 1 - Scattering
+%     Panel 1 (left):  heatmap of joint surface (ves_swp x epv_swp)
+%                      Vertical dashed lines mark the three ves_swp slices.
+%     Panel 2 (right): scattering ~ epv_swp at 3 ves_swp quantile levels
 %
-%   Figure 2 — Retardance
-%     Panel 1 (left):  heatmap of the 2D surface
-%     Panel 2 (right): marginal slice curves
+%   Figure 2 - Retardance  (same layout)
+%
+%   Figure 3 - 3D surface plots of both outcomes
 % =========================================================================
-function plot_2d_effects(swp_grid, epvs_grid, SWP_mesh, EPVS_mesh,   ...
-                         pred_scatter_masked, pred_retard_masked,       ...
-                         pred_scatter_2d,     pred_retard_2d,           ...
-                         slice_scatter_swp,   slice_retard_swp,         ...
-                         ci_slice_scatter,    ci_slice_retard,          ...
-                         epvs_levels,         slice_quantiles,          ...
-                         ci_alpha,            T_work,                   ...
-                         tstr,                dirout)
+function plot_2d_effects(ves_swp_grid, epv_swp_grid,  ...
+                         ves_swp_mesh, epv_swp_mesh,  ...
+                         pred_scatter_masked,          ...
+                         pred_retard_masked,           ...
+                         pred_scatter_2d,              ...
+                         pred_retard_2d,               ...
+                         slice_scatter_epv,            ...
+                         slice_retard_epv,             ...
+                         ci_slice_scatter,             ...
+                         ci_slice_retard,              ...
+                         ves_levels,                   ...
+                         slice_quantiles,              ...
+                         ci_alpha,                     ...
+                         T_work,                       ...
+                         tstr,                         ...
+                         dirout)
 
-    % has_ci must check the *content* of the first cell, not the cell array
-    % itself.  When BootstrapCI=false the cell array is non-empty but every
-    % cell contains [].  ~isempty(ci_slice_scatter) would incorrectly return
-    % true in that case and pass [] into fill_ci_ax, causing an index error.
-    has_ci  = ~isempty(ci_slice_scatter) && ~isempty(ci_slice_scatter{1});
-    ci_pct  = 100 * (1 - ci_alpha);
-    n_slices = numel(epvs_levels);
+    % has_ci checks cell *content*, not the cell array wrapper.
+    % When BootstrapCI=false every cell holds [] — must look inside.
+    has_ci   = ~isempty(ci_slice_scatter) && ~isempty(ci_slice_scatter{1});
+    ci_pct   = 100 * (1 - ci_alpha);
+    n_slices = numel(ves_levels);
 
-    % Colours for the three EPVS slices: low=blue, mid=grey, high=red
-    slice_colors = [0.20 0.45 0.80;   % low EPVS (10th pct)
-                    0.50 0.50 0.50;   % mid EPVS (50th pct)
-                    0.80 0.20 0.20];  % high EPVS (90th pct)
+    % Colours for the vessel SWP slices.
+    % Derived dynamically from n_slices so adding more quantiles never
+    % causes an out-of-bounds index into a hardcoded 3-row matrix.
+    % Interpolates from blue (low ves_swp) through grey to red (high ves_swp).
+    base_colors  = [0.20 0.45 0.80;   % blue  — low
+                    0.50 0.50 0.50;   % grey  — mid
+                    0.80 0.20 0.20];  % red   — high
+    if n_slices == 3
+        slice_colors = base_colors;
+    else
+        % Interpolate across the base palette for arbitrary n_slices
+        t            = linspace(0, 1, n_slices)';
+        t_base       = [0, 0.5, 1]';
+        slice_colors = interp1(t_base, base_colors, t, 'linear');
+    end
 
     % Rug subsample for data density overlay on heatmaps
-    n_rug   = min(3000, height(T_work));
-    rug_idx = randperm(height(T_work), n_rug);
-    rug_swp  = T_work.SWP(rug_idx);
-    rug_epvs = T_work.EPVS_SWP(rug_idx);
+    n_rug    = min(3000, height(T_work));
+    rug_idx  = randperm(height(T_work), n_rug);
+    rug_swp  = T_work.ves_swp(rug_idx);
+    rug_epvs = T_work.epv_swp(rug_idx);
 
-    % ------------------------------------------------------------------
-    % Shared colour limits: use the unmasked surface so masked NaNs do
-    % not distort the colour axis.
-    % ------------------------------------------------------------------
+    % Shared colour limits from unmasked surfaces — NaNs must not distort axis.
+    % Guard against degenerate case where min == max (constant prediction):
+    % MATLAB requires CLim(1) < CLim(2) and will error if they are equal.
     clim_scatter = [min(pred_scatter_2d(:)), max(pred_scatter_2d(:))];
     clim_retard  = [min(pred_retard_2d(:)),  max(pred_retard_2d(:))];
+    if clim_scatter(1) == clim_scatter(2)
+        clim_scatter = clim_scatter + [-1, 1];
+    end
+    if clim_retard(1) == clim_retard(2)
+        clim_retard = clim_retard + [-1, 1];
+    end
 
     % ==================================================================
     % Figure 1: Scattering
@@ -498,50 +542,54 @@ function plot_2d_effects(swp_grid, epvs_grid, SWP_mesh, EPVS_mesh,   ...
 
     % --- Panel 1: 2D heatmap ---
     ax1 = subplot(1, 2, 1);
-    imagesc(ax1, swp_grid, epvs_grid, pred_scatter_masked);
+    imagesc(ax1, ves_swp_grid, epv_swp_grid, pred_scatter_masked);
     set(ax1, 'YDir', 'normal');
-    set(ax1, 'CLim', clim_scatter);   % clim() syntax requires R2022a+; set() is cross-version safe
+    set(ax1, 'CLim', clim_scatter);  % set() is cross-version safe; clim() needs R2022a+
     colormap(ax1, parula);
     cb1 = colorbar(ax1);
     cb1.Label.String = 'Predicted scattering';
     hold(ax1, 'on');
-    % Overlay rug to show data density
-    scatter(ax1, rug_swp, rug_epvs, 2, 'w', 'filled', ...
-            'MarkerFaceAlpha', 0.08);
-    % Mark the three slice levels as horizontal dashed lines
+    scatter(ax1, rug_swp, rug_epvs, 2, 'w', 'filled', 'MarkerFaceAlpha', 0.08);
+    % Vertical dashed lines mark each ves_swp slice on the x-axis.
+    % 'Label' name-value on xline requires R2021a+; use text() instead
+    % so the code runs on older toolbox versions.
     for sl = 1:n_slices
-        yline(ax1, epvs_levels(sl), '--', ...
-              'Color', slice_colors(sl,:), 'LineWidth', 1.2, ...
-              'Label', sprintf('p%d', round(slice_quantiles(sl)*100)), ...
-              'LabelHorizontalAlignment', 'left', ...
-              'FontSize', 7);
+        xline(ax1, ves_levels(sl), '--', ...
+              'Color',     slice_colors(sl, :), ...
+              'LineWidth', 1.2);
+        text(ax1, ves_levels(sl), max(epv_swp_grid), ...
+             sprintf('p%d', round(slice_quantiles(sl)*100)), ...
+             'Color',                slice_colors(sl, :), ...
+             'FontSize',             7,                   ...
+             'VerticalAlignment',    'top',               ...
+             'HorizontalAlignment',  'center');
     end
     hold(ax1, 'off');
     xlabel(ax1, 'Vessel SWP');
     ylabel(ax1, 'EPVS SWP');
-    title(ax1, 'Scattering: joint response surface');
+    title(ax1,  'Scattering: joint response surface');
     subtitle(ax1, 'NaN (grey) = sparse data region', ...
              'FontSize', 8, 'Color', [.5 .5 .5]);
     grid(ax1, 'off'); box(ax1, 'on');
 
-    % --- Panel 2: Marginal slice curves ---
+    % --- Panel 2: Marginal slice curves (scattering ~ epv_swp) ---
     ax2 = subplot(1, 2, 2);
     hold(ax2, 'on');
     for sl = 1:n_slices
         col = slice_colors(sl, :);
-        lbl = sprintf('EPVS SWP = %.3f (p%d)', ...
-                      epvs_levels(sl), round(slice_quantiles(sl)*100));
+        lbl = sprintf('Vessel SWP = %.3f (p%d)', ...
+                      ves_levels(sl), round(slice_quantiles(sl)*100));
         if has_ci
-            fill_ci_ax(ax2, swp_grid, ci_slice_scatter{sl}, col);
+            fill_ci_ax(ax2, epv_swp_grid, ci_slice_scatter{sl}, col);
         end
-        plot(ax2, swp_grid, slice_scatter_swp{sl}, '-', ...
+        plot(ax2, epv_swp_grid, slice_scatter_epv{sl}, '-', ...
              'Color', col, 'LineWidth', 2.2, 'DisplayName', lbl);
     end
     hold(ax2, 'off');
     legend(ax2, 'Location', 'best', 'FontSize', 8);
-    xlabel(ax2, 'Vessel SWP');
+    xlabel(ax2, 'EPVS SWP');
     ylabel(ax2, 'Predicted scattering');
-    title(ax2, 'Scattering ~ f(SWP) at 3 EPVS levels');
+    title(ax2,  'Scattering ~ f(EPVS SWP) at 3 vessel SWP levels');
     sub2 = 'Fanning = interaction present';
     if has_ci
         sub2 = sprintf('%s  |  %g%% CI', sub2, ci_pct);
@@ -549,10 +597,9 @@ function plot_2d_effects(swp_grid, epvs_grid, SWP_mesh, EPVS_mesh,   ...
     subtitle(ax2, sub2, 'FontSize', 8, 'Color', [.5 .5 .5]);
     grid(ax2, 'on'); box(ax2, 'off');
 
-    sgtitle(fig1, sprintf('GAM Scattering — %s', tstr), ...
+    sgtitle(fig1, sprintf('GAM Scattering - %s', tstr), ...
             'FontSize', 13, 'FontWeight', 'bold');
-
-    save_figure(fig1, dirout, sprintf('GAM_Scatter_2D_%s', strrep(tstr,' ','_')));
+    save_figure(fig1, dirout, sprintf('GAM_Scatter_2D_%s', strrep(tstr, ' ', '_')));
 
     % ==================================================================
     % Figure 2: Retardance
@@ -563,48 +610,53 @@ function plot_2d_effects(swp_grid, epvs_grid, SWP_mesh, EPVS_mesh,   ...
 
     % --- Panel 1: 2D heatmap ---
     ax3 = subplot(1, 2, 1);
-    imagesc(ax3, swp_grid, epvs_grid, pred_retard_masked);
+    imagesc(ax3, ves_swp_grid, epv_swp_grid, pred_retard_masked);
     set(ax3, 'YDir', 'normal');
-    set(ax3, 'CLim', clim_retard);    % clim() syntax requires R2022a+; set() is cross-version safe
+    set(ax3, 'CLim', clim_retard);   % set() is cross-version safe
     colormap(ax3, parula);
     cb3 = colorbar(ax3);
     cb3.Label.String = 'Predicted retardance';
     hold(ax3, 'on');
-    scatter(ax3, rug_swp, rug_epvs, 2, 'w', 'filled', ...
-            'MarkerFaceAlpha', 0.08);
+    scatter(ax3, rug_swp, rug_epvs, 2, 'w', 'filled', 'MarkerFaceAlpha', 0.08);
+    % Vertical dashed lines mark each ves_swp slice on the x-axis.
+    % 'Label' name-value on xline requires R2021a+; use text() instead.
     for sl = 1:n_slices
-        yline(ax3, epvs_levels(sl), '--', ...
-              'Color', slice_colors(sl,:), 'LineWidth', 1.2, ...
-              'Label', sprintf('p%d', round(slice_quantiles(sl)*100)), ...
-              'LabelHorizontalAlignment', 'left', ...
-              'FontSize', 7);
+        xline(ax3, ves_levels(sl), '--', ...
+              'Color',     slice_colors(sl, :), ...
+              'LineWidth', 1.2);
+        text(ax3, ves_levels(sl), max(epv_swp_grid), ...
+             sprintf('p%d', round(slice_quantiles(sl)*100)), ...
+             'Color',                slice_colors(sl, :), ...
+             'FontSize',             7,                   ...
+             'VerticalAlignment',    'top',               ...
+             'HorizontalAlignment',  'center');
     end
     hold(ax3, 'off');
     xlabel(ax3, 'Vessel SWP');
     ylabel(ax3, 'EPVS SWP');
-    title(ax3, 'Retardance: joint response surface');
+    title(ax3,  'Retardance: joint response surface');
     subtitle(ax3, 'NaN (grey) = sparse data region', ...
              'FontSize', 8, 'Color', [.5 .5 .5]);
     grid(ax3, 'off'); box(ax3, 'on');
 
-    % --- Panel 2: Marginal slice curves ---
+    % --- Panel 2: Marginal slice curves (retardance ~ epv_swp) ---
     ax4 = subplot(1, 2, 2);
     hold(ax4, 'on');
     for sl = 1:n_slices
         col = slice_colors(sl, :);
-        lbl = sprintf('EPVS SWP = %.3f (p%d)', ...
-                      epvs_levels(sl), round(slice_quantiles(sl)*100));
+        lbl = sprintf('Vessel SWP = %.3f (p%d)', ...
+                      ves_levels(sl), round(slice_quantiles(sl)*100));
         if has_ci
-            fill_ci_ax(ax4, swp_grid, ci_slice_retard{sl}, col);
+            fill_ci_ax(ax4, epv_swp_grid, ci_slice_retard{sl}, col);
         end
-        plot(ax4, swp_grid, slice_retard_swp{sl}, '-', ...
+        plot(ax4, epv_swp_grid, slice_retard_epv{sl}, '-', ...
              'Color', col, 'LineWidth', 2.2, 'DisplayName', lbl);
     end
     hold(ax4, 'off');
     legend(ax4, 'Location', 'best', 'FontSize', 8);
-    xlabel(ax4, 'Vessel SWP');
+    xlabel(ax4, 'EPVS SWP');
     ylabel(ax4, 'Predicted retardance');
-    title(ax4, 'Retardance ~ f(SWP) at 3 EPVS levels');
+    title(ax4,  'Retardance ~ f(EPVS SWP) at 3 vessel SWP levels');
     sub4 = 'Fanning = interaction present';
     if has_ci
         sub4 = sprintf('%s  |  %g%% CI', sub4, ci_pct);
@@ -612,63 +664,59 @@ function plot_2d_effects(swp_grid, epvs_grid, SWP_mesh, EPVS_mesh,   ...
     subtitle(ax4, sub4, 'FontSize', 8, 'Color', [.5 .5 .5]);
     grid(ax4, 'on'); box(ax4, 'off');
 
-    sgtitle(fig2, sprintf('GAM Retardance — %s', tstr), ...
+    sgtitle(fig2, sprintf('GAM Retardance - %s', tstr), ...
             'FontSize', 13, 'FontWeight', 'bold');
-
-    save_figure(fig2, dirout, sprintf('GAM_Retard_2D_%s', strrep(tstr,' ','_')));
+    save_figure(fig2, dirout, sprintf('GAM_Retard_2D_%s', strrep(tstr, ' ', '_')));
 
     % ==================================================================
-    % Figure 3: 3D surface plots (optional visual for presentations)
+    % Figure 3: 3D surface plots
     % ==================================================================
     fig3 = figure('Name',     'GAM 3D Surfaces', ...
                   'Position', [120, 60, 1300, 520], ...
                   'Color',    'w');
 
     ax5 = subplot(1, 2, 1);
-    surf(ax5, SWP_mesh, EPVS_mesh, pred_scatter_masked, ...
+    surf(ax5, ves_swp_mesh, epv_swp_mesh, pred_scatter_masked, ...
          'EdgeAlpha', 0.0, 'FaceAlpha', 0.9);
     colormap(ax5, parula);
     colorbar(ax5);
     xlabel(ax5, 'Vessel SWP');
     ylabel(ax5, 'EPVS SWP');
     zlabel(ax5, 'Scattering');
-    title(ax5, 'Scattering: 3D response surface');
-    shading(ax5, 'flat');    % 'interp' would interpolate across NaN-masked cells, filling the gaps
+    title(ax5,  'Scattering: 3D response surface');
+    shading(ax5, 'flat');  % flat preserves NaN boundaries; interp would fill masked gaps
     view(ax5, -35, 30);
     grid(ax5, 'on');
 
     ax6 = subplot(1, 2, 2);
-    surf(ax6, SWP_mesh, EPVS_mesh, pred_retard_masked, ...
+    surf(ax6, ves_swp_mesh, epv_swp_mesh, pred_retard_masked, ...
          'EdgeAlpha', 0.0, 'FaceAlpha', 0.9);
     colormap(ax6, parula);
     colorbar(ax6);
     xlabel(ax6, 'Vessel SWP');
     ylabel(ax6, 'EPVS SWP');
     zlabel(ax6, 'Retardance');
-    title(ax6, 'Retardance: 3D response surface');
-    shading(ax6, 'flat');    % 'interp' would interpolate across NaN-masked cells, filling the gaps
+    title(ax6,  'Retardance: 3D response surface');
+    shading(ax6, 'flat');
     view(ax6, -35, 30);
     grid(ax6, 'on');
 
-    sgtitle(fig3, sprintf('GAM 3D Surfaces — %s', tstr), ...
+    sgtitle(fig3, sprintf('GAM 3D Surfaces - %s', tstr), ...
             'FontSize', 13, 'FontWeight', 'bold');
-
-    save_figure(fig3, dirout, sprintf('GAM_3D_%s', strrep(tstr,' ','_')));
+    save_figure(fig3, dirout, sprintf('GAM_3D_%s', strrep(tstr, ' ', '_')));
 end
 
 
 % =========================================================================
 % LOCAL FUNCTION: shaded CI band on a specified axes
-%   Caller is responsible for hold(ax,'on') before calling this function
-%   and hold(ax,'off') after the plotting loop completes.  This function
-%   deliberately does NOT call hold() itself so that an error mid-loop
-%   cannot leave hold permanently enabled on the axes.
+%   Caller must call hold(ax,'on') before this and hold(ax,'off') after
+%   the loop.  This function omits hold() calls deliberately so that a
+%   mid-loop error cannot leave hold permanently enabled on the axes.
 % =========================================================================
 function fill_ci_ax(ax, x, ci, col)
     x_patch = [x;       flipud(x)];
     y_patch = [ci(:,1); flipud(ci(:,2))];
-    fill(ax, x_patch, y_patch, col, ...
-         'FaceAlpha', 0.15, 'EdgeColor', 'none');
+    fill(ax, x_patch, y_patch, col, 'FaceAlpha', 0.15, 'EdgeColor', 'none');
     plot(ax, x, ci(:,1), '-', 'Color', [col, 0.30], 'LineWidth', 0.8);
     plot(ax, x, ci(:,2), '-', 'Color', [col, 0.30], 'LineWidth', 0.8);
 end
@@ -681,6 +729,8 @@ function save_figure(fig, dirout, fname)
     if ~isfolder(dirout)
         mkdir(dirout);
     end
+    % Strip any trailing underscore that results from an empty TitleStr
+    fname = regexprep(fname, '_+$', '');
     saveas(fig, fullfile(dirout, [fname, '.fig']));
     saveas(fig, fullfile(dirout, [fname, '.png']));
 end

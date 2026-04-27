@@ -6,7 +6,7 @@
 % Column 2 = y-axis = Vessel SWP
 
 %% Initialization
-clearvars -except caa6 caa17 caa22 caa25 caa26 swp_struct
+clearvars -except caa caa6 caa17 caa22 caa25 caa26 swp_struct
 clc; close all;
 % Print current working directory
 mydir  = pwd;
@@ -43,6 +43,9 @@ flag_load_caa_structs = true;
 
 %%% Number of bins for the x-axis along SWP
 nbin = 100;
+
+%%% Voxel size (isotropic)
+vox_size = (20).^3;
 
 %%% Plot Labels
 xlab = 'EPVS SWP';
@@ -114,18 +117,18 @@ if flag_load_caa_structs
     caa.caa26 = caa26.caa26;
 end
 
-%% Create 2D arrays of EPVS SWP vs. Vessel SWP
+%% Create Pairs [EPVS-SWP, Ves-SWP]
 % 2xN Matrix for each optical property:
 %   - column 1 = EPVS SWP from heatmap
 %   - column 2 = Vessel SWP from heatmap
 %   - row = pairwise observations from same tissue volume
-
 fprintf('Creating 2D arrays of EPVS SWP vs. vessel SWP\n')
 
 % struct for storing pairs
 heat_pairs = struct();
 
 % Iterate subjects
+subs = fields(subjects);
 for ii = 1:numel(fields(subjects))
     sub = subs{ii};
     regs = fields(subjects.(sub));
@@ -155,26 +158,232 @@ for ii = 1:numel(fields(subjects))
         heat_pairs.(sub).(reg) = swp_pair;
     end
 end
-fprintf('Finished making 2D arrays of EPVS density vs. optical prop\n')
+fprintf('Finished making 2D arrays of SWP\n')
 
-%%% Combine subjects, split regions
+%% Box/whisker plots: epv-swp, ves-swp, EPVS+vessel volume
+% Each array will the following order for the rows:
+%   EPVS
+%   Vessel
+
+%%% Iterate subjects and measure EPVS size and vessel size (um^3)
+% Subjects to iterate
+subs = {'caa26','caa6','caa17','caa22','caa25'};
+% Initialize cell arrays for storing SWP data
+front_swp = cell(6,1);
+occip_swp = cell(8,1);
+% Initialize cell arrays for storing size
+front_size = cell(6,1);
+occip_size = cell(8,1);
+% Initialize counters
+front_cnt = 1;
+occip_cnt = 1;
+for ii = 1:numel(subs)
+    fprintf('\nSubject %s\n',subs{ii})
+    % Iterate regions
+    regs = fields(caa.(subs{ii}));
+    for j = 1:numel(regs)
+        fprintf('\tRegion %s\n',regs{j})
+        %%% Retrieve SWP and segmentation
+        % Retrieve SWP vectors [epv_swp, ves_swp]
+        epv_swp = heat_pairs.(subs{ii}).(regs{j})(:,1);
+        ves_swp = heat_pairs.(subs{ii}).(regs{j})(:,2);
+        % Retrieve vessel segmentation and epvs
+        ves = caa.(subs{ii}).(regs{j}).seg;
+        epvs = caa.(subs{ii}).(regs{j}).epvs;
+        % Remove vessels from epvs
+        epvs(ves) = 0;
+        
+        %%% Measure volume of each vessel and EPVS
+        % Find connected components (continuous vessels) for each
+        epv_cc = bwconncomp(epvs,26);
+        ves_cc = bwconncomp(ves,26);   
+        % Calculate the volume of each vessel and EPVS
+        epvs_vol = cellfun(@numel, epv_cc.PixelIdxList);
+        ves_vol = cellfun(@numel, ves_cc.PixelIdxList);
+        epvs_vol = epvs_vol .* vox_size;
+        ves_vol = ves_vol .* vox_size;
+        
+        %%% Add to cell array
+        % Combine CAA22 and CAA 25 (severe)
+        if strcmp(subs{ii},'caa25')
+            if strcmp(regs{j},'front')
+                % Volume: Append current volumes to the existing vectors in the cells
+                front_size{front_cnt-2} = [front_size{front_cnt-2}(:); epvs_vol(:)];
+                front_size{front_cnt-1} = [front_size{front_cnt-1}(:); ves_vol(:)];
+                % SWP: Append current SWP data to the existing vectors
+                front_swp{front_cnt-2}  = [front_swp{front_cnt-2}(:); epv_swp(:)];
+                front_swp{front_cnt-1}  = [front_swp{front_cnt-1}(:); ves_swp(:)];
+                continue
+            elseif strcmp(regs{j},'occip')
+                % Volume
+                occip_size{occip_cnt-2} = [occip_size{occip_cnt-2}(:); epvs_vol(:)];
+                occip_size{occip_cnt-1} = [occip_size{occip_cnt-1}(:); ves_vol(:)];
+                % SWP
+                occip_swp{occip_cnt-2}  = [occip_swp{occip_cnt-2}(:); epv_swp(:)];
+                occip_swp{occip_cnt-1}  = [occip_swp{occip_cnt-1}(:); ves_swp(:)];
+                continue
+            end
+        end
+        % New row in cell array for all other subjects
+        if strcmp(regs{j},'front')
+            % Volume
+            front_size{front_cnt} = epvs_vol;
+            front_size{front_cnt+1} = ves_vol;
+            % SWP
+            front_swp{front_cnt} = epv_swp;
+            front_swp{front_cnt+1} = ves_swp;
+            % Increment counter for next subject/region
+            front_cnt = front_cnt + 2;
+        else
+            % Volume
+            occip_size{occip_cnt} = epvs_vol;
+            occip_size{occip_cnt+1} = ves_vol;
+            % SWP
+            occip_swp{occip_cnt} = epv_swp;
+            occip_swp{occip_cnt+1} = ves_swp;
+            % Increment counter for next subject/region
+            occip_cnt = occip_cnt + 2;
+        end
+    end
+end
+
+%%% Create labels
+clc
+% Define Main Groups and Subgroups for frontal
+front_groups = {'Control';'Control';'Mild';'Mild';'Severe';'Severe'};
+front_subgroup = {'EPVS';'Ves';'EPVS';'Ves';'EPVS';'Ves'};
+% Define Main Groups and Subgroups for occipital
+occip_groups = {'Control';'Control';'Mild';'Mild';'Moderate';'Moderate';...
+                'Severe';'Severe'};
+occip_subgroup = {'EPVS';'vessel';'EPVS';'vessel';'EPVS';'vessel';...
+                  'EPVS';'vessel'};
+% Define colors (EPVS = orange, vessel = dark blue)
+epvs_ves_colors = {'#F4a637', '#1964B0'};
+
+%%% Boxplot for each grouping
+% Front SWP
+boxplot_cluster(front_swp, front_groups,front_subgroup,...
+                epvs_ves_colors,true,'Unitless',15);
+title('Frontal SWP Distributions');
+% Occip SWP
+boxplot_cluster(occip_swp, occip_groups,occip_subgroup,...
+                epvs_ves_colors,true,'Unitless',15);
+title('Occipital SWP Distributions');
+% Front Size
+boxplot_cluster(front_size, front_groups,front_subgroup,...
+                epvs_ves_colors,true,'Size (\mum^3)',15);
+title('Frontal Size Distributions');
+% Occip Size
+boxplot_cluster(occip_size, occip_groups,occip_subgroup,...
+                epvs_ves_colors,true,'Size (\mum^3)',15);
+title('Occipital Size Distributions');
+
+%% Find # of EPVS and vessels
+% Initialize vectors for storing counts
+front_nepv = zeros(4,1);
+front_nves = zeros(4,1);
+occip_nepv = zeros(5,1);
+occip_nves = zeros(5,1);
+% counters
+fcount = 1;
+ocount = 1;
+% Iterate subjects
+for ii = 1:numel(subs)
+    fprintf('\nSubject %s\n',subs{ii})
+    % Iterate regions
+    regs = fields(caa.(subs{ii}));
+    for j = 1:numel(regs)
+        fprintf('\tRegion %s\n',regs{j})
+        %%% Retrieve SWP and segmentation
+        % Retrieve SWP vectors [epv_swp, ves_swp]
+        epv_swp = heat_pairs.(subs{ii}).(regs{j})(:,1);
+        ves_swp = heat_pairs.(subs{ii}).(regs{j})(:,2);
+        % Retrieve vessel segmentation and epvs
+        ves = caa.(subs{ii}).(regs{j}).seg;
+        epvs = caa.(subs{ii}).(regs{j}).epvs;
+        % Remove vessels from epvs
+        epvs(ves) = 0;
+        
+        %%% Count # of each
+        % Threshold for connected components
+        N = 100;
+        % Find connected components
+        epv_cc = bwconncomp(epvs, 26);
+        ves_cc = bwconncomp(ves, 26); 
+
+        % 1. Calculate the number of pixels/voxels in each object
+        epv_stats = regionprops(epv_cc, 'Area');
+        ves_stats = regionprops(ves_cc, 'Area');
+        
+        % 2. Identify objects that meet the threshold
+        % We use [stats.Area] to turn the struct array into a numeric vector
+        keep_epv = [epv_stats.Area] > N;
+        keep_ves = [ves_stats.Area] > N;
+        
+        % 3. Filter the PixelIdxList to keep only the large objects
+        epv_cc.PixelIdxList = epv_cc.PixelIdxList(keep_epv);
+        epv_cc.NumObjects = sum(keep_epv);
+        
+        ves_cc.PixelIdxList = ves_cc.PixelIdxList(keep_ves);
+        ves_cc.NumObjects = sum(keep_ves);
+        
+        % 4. (Optional) Create a new binary mask from the filtered components
+        epvs_filtered = labelmatrix(epv_cc) > 0;
+        ves_filtered = labelmatrix(ves_cc) > 0;
+        
+        % Update counts
+        nepv = epv_cc.NumObjects;
+        nves = ves_cc.NumObjects;
+
+        %%% Store count in vector
+        if strcmp(regs{j},'front')
+            front_nepv(fcount) = nepv;
+            front_nves(fcount) = nves;
+            fcount = fcount + 1;
+        else
+            occip_nepv(ocount) = nepv;
+            occip_nves(ocount) = nves;
+            ocount = ocount + 1;
+        end
+    end
+end
+
+%%% Scatterplot
+% x-axis
+f_xaxis = [1,2,3,4];
+o_xaxis = [1,2,3,4,5];
+% x-axis labels
+f_xlabs = {'control','mild','moderate','severe'};
+o_xlabs = {'control','mild','moderate','severe','severe'};
+figure;
+plot(front_nepv,'k'); hold on;
+plot(front_nves,'r'); hold off;
+xlabel(f_xlabs); title('Frontal')
+figure;
+plot(occip_nepv,'k'); hold on;
+plot(occip_nves,'r'); hold off;
+xlabel(o_xlabs); title('Occipital')
+
+
+%% Bin each subject and region, then combine regions
 region_data = combine_subjects(heat_pairs);
-
-%%% plotting properties
 % struct for storing binned vectors
 binned = struct();
 
 %%% Separate the frontal and occipital
 % Iterate subjects
-for ii = 1:length(subs)
+for ii = 1:2
+% for ii = 3:length(subs)
     % Retrieve regions for this subject
     regs = fields(heat_pairs.(subs{ii}));
     % iterate over regions
     for j = 1:length(regs)
         % Print to console
         fprintf('\nBinning subject %s region %s',subs{ii},regs{j})
-        % Retrieve mus and retardance LOG10 pairs
+        % Retrieve epvs-swp and ves-swp pairs
         pair = heat_pairs.(subs{ii}).(regs{j});
+        % remove any row that contains NaN
+        pair = pair(~any(isnan(pair), 2), :);
         % scattering coefficient
         [xy,se] = bin_swp(pair, nbin);
         binned.(subs{ii}).(regs{j}).pair = xy;
@@ -200,7 +409,7 @@ for ii = 1:length(subs)
     binned.(subs{ii}).comb_se   = comb_se;
 end
 
-% Combine CAA22 or CAA25 for severe
+%% Combine CAA22 or CAA25 for severe
 heat_pairs.sev.front = [heat_pairs.caa22.front; heat_pairs.caa25.front];
 heat_pairs.sev.occip = [heat_pairs.caa22.occip; heat_pairs.caa25.occip];
 
@@ -218,12 +427,11 @@ binned.comb_se = se;
 fprintf('Finished binning for front + occip\n')
 
 %% 2D Joint Density Heatmap
-% TODO: finish this
 
 % Settings
 groups = {'caa26','caa6','caa17','sev'};
 severities = {'control', 'mild', 'moderate', 'severe'};
-n_bins     = 100;
+n_bins     = 150;
 
 %%% Find histogram edges for epvs-swp and ves-swp (front, occip separate)
 % lims.ves.front = [0,5];
@@ -245,39 +453,45 @@ n_bins     = 100;
 %         pause(1)
 %     end
 % end
-% % Calculate edges
-% type = {'ves','epv'}; regs = {'front','occip'};
-% % iterate ves/epvs
-% for ii = 1:2
-%     % iterate front/occip
-%     for j = 1:2
-%         edges.(type{ii}).(regs{j}) = linspace(min(lims.(type{ii}).(regs{j})),...
-%                                               max(lims.(type{ii}).(regs{j})),...
-%                                               n_bins+1);
-%     end
-% end
+% Manually set large limits ves=150, epv = 400
+lims.ves.front = [0,100];
+lims.ves.occip = [0,100];
+lims.epv.front = [0,400];
+lims.epv.occip = [0,400];
+% Iterate ves/epvs and front/occip and create edges
+type = {'ves','epv'}; regs = {'front','occip'};
+for ii = 1:2
+    for j = 1:2
+        edges.(type{ii}).(regs{j}) = linspace(min(lims.(type{ii}).(regs{j})),...
+                                              max(lims.(type{ii}).(regs{j})),...
+                                              n_bins+1);
+    end
+end
 
-%%% Edges based on visual inspection
+%%% Hard coded zoomed-in limits for inset figures
 % control = [0,50] for both ves,epvs for front/occip
 % mild = [0,50] for both ves,epvs for front/occip
 % moderate
-%   epvs = [0,150] + ves = [0,100]
+%   epvs = [0,100] + ves = [0,50]
 % severe
-%   front: epvs = [0,500] + ves = [0,100]
-%   occip: epvs = [0,100] + ves = [0,100]
-low_lim = 25;
-edges.epv.caa26.front = linspace(0,low_lim,n_bins+1);
-edges.epv.caa26.occip = linspace(0,low_lim,n_bins+1);
-edges.ves.caa26.front = linspace(0,low_lim,n_bins+1);
-edges.ves.caa26.occip = linspace(0,low_lim,n_bins+1);
-edges.epv.caa6 = edges.epv.caa26;
-edges.ves.caa6 = edges.ves.caa26;
-edges.epv.caa17.occip = linspace(0,100,n_bins+1);
-edges.ves.caa17.occip = linspace(0,50,n_bins+1);
-edges.epv.sev.front = linspace(0,400,n_bins+1);
-edges.epv.sev.occip = linspace(0,50,n_bins+1);
-edges.ves.sev.front = linspace(0,50,n_bins+1);
-edges.ves.sev.occip = linspace(0,50,n_bins+1);
+%   front: epvs = [0,50] + ves = [0,50]
+%   occip: epvs = [0,50] + ves = [0,50]
+% Control
+lims.caa26.front.ves = [0,50];
+lims.caa26.front.epv = [0,50];
+lims.caa26.occip = lims.caa26.front;
+% Mild
+lims.caa6.front.ves = [0,50];
+lims.caa6.front.epv = [0,50];
+lims.caa6.occip = lims.caa6.front;
+% Moderate
+lims.caa17.occip.ves = [0,50];
+lims.caa17.occip.epv = [0,100];
+% Severe
+lims.sev.front.ves = [0,50];
+lims.sev.front.epv = [0,50];
+lims.sev.occip.ves = [0,50];
+lims.sev.occip.epv = [0,50];
 
 %%% Iterate severities
 for ii = 1:length(groups)
@@ -286,24 +500,114 @@ for ii = 1:length(groups)
     for j = 1:length(regs)
         % Retrieve [epv, ves] pairs and limits
         epv_ves = heat_pairs.(groups{ii}).(regs{j});
-        epv_edge = edges.epv.(groups{ii}).(regs{j});
-        ves_edge = edges.ves.(groups{ii}).(regs{j});
-        
+        epv_edge = edges.epv.(regs{j});
+        ves_edge = edges.ves.(regs{j});
         % Create 2D histogram (X = epv-swp, Y = ves-swp)
         histo = histcounts2(epv_ves(:,1), epv_ves(:,2),epv_edge,ves_edge,...
                             'Normalization','percentage');
-        
+        % Generate figure of histogram
+        figure;
+        imagesc(epv_edge, ves_edge, histo'); set(gca,'YDir','normal');
+        colorbar; clim([0,0.5])
+        xlabel('EPVS SWP'); ylabel('Vessel SWP');
+        title(sprintf('%s %s',severities{ii}, regs{j}));
+        set(gca,'FontName','Arial'); set(gca,'FontSize',20);
+        % Export graphics
+        ax = gca;
+        fname = sprintf('ves-swp_vs_epv-swp_%s_%s',groups{ii},regs{j});
+        fname_pdf = strcat(fname,'.pdf');
+        fname_png = strcat(fname,'.png');
+        exportgraphics(ax,fullfile(plt_dir,fname_pdf),...
+            'ContentType','vector','Resolution',600);
+        exportgraphics(ax,fullfile(plt_dir,fname_png),...
+            'Resolution',600);
+
+        %%% Zoom in region and export graphics
+        ves_lim = lims.(groups{ii}).(regs{j}).ves;
+        epv_lim = lims.(groups{ii}).(regs{j}).epv;
+        xlim(epv_lim); ylim(ves_lim);
+        fname = sprintf('ves-swp_vs_epv-swp_%s_%s_zoom',groups{ii},regs{j});
+        fname_pdf = strcat(fname,'.pdf');
+        fname_png = strcat(fname,'.png');
+        exportgraphics(ax,fullfile(plt_dir,fname_pdf),...
+            'ContentType','vector','Resolution',600);
+        exportgraphics(ax,fullfile(plt_dir,fname_png),...
+            'Resolution',600);
+        pause(0.5); close;
+    end
+end
+
+
+%%% Rerun with zoomed edges for subfigures
+% control = [0,50] for both ves,epvs for front/occip
+% mild = [0,50] for both ves,epvs for front/occip
+% moderate
+%   epvs = [0,100] + ves = [0,50]
+% severe
+%   front: epvs = [0,50] + ves = [0,50]
+%   occip: epvs = [0,50] + ves = [0,50]
+
+% Set upper limit for edges
+up_lim = 50;
+n_bins = 100;
+% iterate epv/ves
+for ii = 1:2
+    % Iterate severity
+    for j = 1:length(groups)
+        % Iterate regions
+        for k = 1:length(regs)
+            % Set all edges to be the same
+            edges.(type{ii}).(groups{j}).(regs{k}) = linspace(0,up_lim,n_bins+1);
+            % Set the EPV edges for CAA17 to go up to 100
+            if strcmp(type{ii},'epv') & strcmp(groups{j},'caa17')
+                edges.(type{ii}).(groups{j}).(regs{k}) =...
+                        linspace(0,100,n_bins+1);
+            end
+            % Set the EPV edges for CAA22 front to 400
+            if strcmp(type{ii},'epv') & strcmp(groups{j},'sev') &...
+                    strcmp(regs{k},'front')
+                        edges.(type{ii}).(groups{j}).(regs{k}) =...
+                                linspace(0,400,n_bins+1);
+            end
+        end
+    end
+end
+
+% Iterate severities
+for ii = 4:length(groups)
+    % Find number of regions
+    regs = fields(heat_pairs.(groups{ii}));
+    for j = 1:length(regs)
+        % Retrieve [epv, ves] pairs and limits
+        epv_ves = heat_pairs.(groups{ii}).(regs{j});
+        epv_edge = edges.epv.(groups{ii}).(regs{j});
+        ves_edge = edges.ves.(groups{ii}).(regs{j});
+        % Create 2D histogram (X = epv-swp, Y = ves-swp)
+        histo = histcounts2(epv_ves(:,1), epv_ves(:,2),epv_edge,ves_edge,...
+                            'Normalization','percentage');
         % Generate figure of histogram
         figure;
         imagesc(epv_edge, ves_edge, histo'); set(gca,'YDir','normal');
         colorbar; clim([0,0.15])
         xlabel('EPVS SWP'); ylabel('Vessel SWP');
         title(sprintf('%s %s',severities{ii}, regs{j}));
+        set(gca,'FontName','Arial'); set(gca,'FontSize',20);
+        % Export graphics with high quality
+        ax = gca;
+        fname = sprintf('ves-swp_vs_epv-swp_%s_%s',groups{ii},regs{j});
+        fname_pdf = strcat(fname,'_zoom_rescaled.pdf');
+        fname_png = strcat(fname,'_zoom_rescaled.png');
+        exportgraphics(ax,fullfile(plt_dir,fname_pdf),...
+            'ContentType','vector','Resolution',600);
+        exportgraphics(ax,fullfile(plt_dir,fname_png),...
+            'Resolution',600);
+        pause(0.5); close;
     end
 end
-% sgtitle('Joint distribution of SWP and EPVS SWP by severity');
+%}
 
-%% ALL SUBJECTS - Bin Frontal and Occipital separately
+%% COMBINE SUBJECTS - Bin Frontal and Occipital separately
+%{
 %%% Frontal
 fprintf('Binning for front\n')
 % Scattering
@@ -340,8 +644,8 @@ end
 xlims = [xmin,ceil(xmax)];
 ylims = [ceil(ymin), ceil(ymax)];
 
-%% Plot combined, frontal, occipital
-%%% Initialize the labels
+%%% Plot combined, frontal, occipital
+% Initialize the labels
 ylab = 'Vessel SWP';
 xlab = 'EPVS SWP';
 
@@ -373,7 +677,7 @@ fname = strcat('occip_ves_swp_vs_epvs_swp');
 swp_scatterplot_subject(xy, xlab, ylab, tit, plt_dir, fname);
 fname = strcat('occip_ves_swp_vs_epvs_swp_errorbar');
 swp_scatterplot_errorbars(xy, se, xlab, ylab, tit, xlims, ylims, plt_dir, fname);
-
+%}
 
 %% Export EPVS-SWP/Vessel-SWP pairs to spreadsheets
 %{
@@ -414,52 +718,15 @@ for idx = 1:length(field_names)
 end
 %}
 
-%% STAGING: plot each stage / region
-
+%% Spearman's Rho: each stage / region
 % Map subject to severity
 binned.ctl = binned.caa26;
 binned.mld = binned.caa6;
 binned.mod = binned.caa17;
+binned.sev = binned.caa22;
 
-%%% Severe: combine CAA22 and CAA25 to 
-% Frontal
-x1 = binned.caa22.front.pair(:,1);
-x2 = binned.caa25.front.pair(:,1);
-x = mean([x1,x2],2);
-y1 = binned.caa22.front.pair(:,2);
-y2 = binned.caa25.front.pair(:,2);
-y = mean([y1,y2],2);
-y1_se = binned.caa22.front.se;
-y2_se = binned.caa25.front.se;
-y_se = mean([y1_se,y2_se],2);
-% Frontal - place into struct
-binned.sev.front.pair = [x,y];
-binned.sev.front.se = y_se;
-% Occipital
-x1 = binned.caa22.occip.pair(:,1);
-x2 = binned.caa25.occip.pair(:,1);
-x = mean([x1,x2],2);
-y1 = binned.caa22.occip.pair(:,2);
-y2 = binned.caa25.occip.pair(:,2);
-y = mean([y1,y2],2);
-y1_se = binned.caa22.occip.se;
-y2_se = binned.caa25.occip.se;
-y_se = mean([y1_se,y2_se],2);
-% Frontal - place into struct
-binned.sev.occip.pair = [x,y];
-binned.sev.occip.se = y_se;
-
-%%% Set the min/max values across all binned matrices
-% x-axis = EPVS SWP
-% y-axis = Vessel SWP
-xlims.front = [0,450];
-xlims.occip = [0,300];
-ylims.front = [0,25];
-ylims.occip = [0,42];
-
-%%% Plot each severity
-sevs = {'ctl','mld','mod','sev'};
-% Iterate severities
+%%% Measure speaman's rho
+sp = struct();
 for ii = 1:length(sevs)
     % Check which regions are present
     if isfield(binned.(sevs{ii}),'front')
@@ -469,21 +736,98 @@ for ii = 1:length(sevs)
     end
     % Iterate regions
     for j = 1:length(regs)
-        % Retrieve xy pair
         xy = binned.(sevs{ii}).(regs{j}).pair;
-        % set limits
-        xl = xlims.(regs{j});
-        yl = ylims.(regs{j});
-        % Plot
-        tstr = strcat(sevs{ii},' ',regs{j});
-        fname = strcat(sevs{ii},'_',regs{j},'__ves_swp_vs_epvs_swp');
-        swp_scatterplot(xy,xlab,ylab,tstr,xl,yl,plt_dir,fname);
+        % Measure spearman's rho
+        [rho, p] = corr(xy(:,1), xy(:,2), 'Type', 'Spearman');
+        % Add spearman's rho to struct
+        sp.(sevs{ii}).(regs{j}).rho = rho;
+        sp.(sevs{ii}).(regs{j}).p = p;
     end
 end
 
+% Build table rows from sp struct
+rows = {};
+sevsList = fieldnames(sp);
+for i = 1:numel(sevsList)
+    sev = sevsList{i};
+    regs = fieldnames(sp.(sev));
+    for j = 1:numel(regs)
+        reg = regs{j};
+        rho = sp.(sev).(reg).rho;
+        pval = sp.(sev).(reg).p;
+        rows(end+1,:) = {sev, reg, rho, pval}; %#ok<SAGROW>
+    end
+end
+
+% Create table with appropriate variable names
+T = cell2table(rows, 'VariableNames', {'severity','region','rho','p'});
+
+% Ensure target directory exists
+if ~exist(plt_dir, 'dir')
+    error('plt_dir does not exist: %s', plt_dir);
+end
+
+% Write CSV
+outFile = fullfile(plt_dir, 'spearmans.csv');
+writetable(T, outFile);
+
+% Optional: display path
+disp(['Wrote spearmans to: ' outFile]);
+
+
+%% Plot each severity and overlay regions
+% Set binned.sev to just caa22 because CAA22 and CAA25 have vastly
+% different ranges and averaging doesn't work here.
+binned.sev = binned.caa22;
+
+% Initialization Settings
+sevs = {'ctl','mld','mod','sev'};
+
+
+for ii = 1:length(sevs)
+    % Handle CAA17 (which only has occipital)
+    if strcmp(sevs{ii},'mod')
+        % Retrieve data
+        occip = binned.(sevs{ii}).occip.pair;
+        xy_cell = {occip};
+        % Retrieve standard error
+        occip_se = binned.(sevs{ii}).occip.se;
+        se_cell = {occip_se};
+        % Set plotting properties for just occip
+        labels = {'occip'};
+        colors = {'#1964B0'};
+    else
+        % Retrieve each region
+        front = binned.(sevs{ii}).front.pair;
+        occip = binned.(sevs{ii}).occip.pair;
+        xy_cell = {front, occip};
+        % Retrieve standard error
+        front_se = binned.(sevs{ii}).front.se;
+        occip_se = binned.(sevs{ii}).occip.se;
+        se_cell = {front_se, occip_se};
+        % Set plotting properties for both front + occip
+        labels = {'front','occip'};
+        colors = {'#DB5829','#1964B0'};
+    end
+    % Set limits
+    if strcmp(sevs{ii},'ctl') | strcmp(sevs{ii},'mld')
+        yl = [0,20];
+    elseif strcmp(sevs{ii},'sev')
+        yl = [0,25];
+    else
+        yl = [0, ceil(max([front(:,2); occip(:,2)]) + 2)];
+    end
+    xl = [0, ceil(max([front(:,1); occip(:,1)]))];    
+    % plot
+    tstr = sevs{ii};
+    fname = strcat(sevs{ii},'__ves_swp_vs_epvs_swp__scatterplot_overlay');
+    swp_scatterplot_overlay(xy_cell, se_cell, labels, colors,...
+                            xlab, ylab, tstr,...
+                            xl, yl, plt_dir, fname)
+end
 
 %% SUBJECT: plot "binned" subset separately
-
+%{
 % Iterate subjects
 for ii = 1:length(subs)
     % Retrieve regions for this subject
@@ -514,13 +858,15 @@ for ii = 1:length(subs)
     fout = strcat(subs{ii},'_comb_ves_swp_vs_epvs_swp');
     swp_scatterplot_subject(pair, xlab, ylab, tit,plt_dir,fout)
 end
+%}
 
 %% SUBJECT: overlay all subjects
+%{
 % Define Labels (legend) and Colors
 labels = struct();
 colors = struct();
 % Frontal (no CAA 17)
-labels.front = {'CAA26 (Control)','CAA6 (Control)',...
+labels.front = {'CAA26 (Control)','CAA6 (Mild)',...
                'CAA 25 (Severe)','CAA 22 (Severe)'};
 colors.front = {
     [0.3010 0.7450 0.9330];   % Cyan
@@ -572,6 +918,7 @@ tit = 'Combined: Vessel SWP vs. EPVS SWP';
 fname = strcat('overlay_combined_ves_swp_vs_epvs_swp');
 swp_scatterplot_overlay(xy_cell, labels.occip, colors.occip, xlab,...
                         ylab, tit, xlims, ylims, plt_dir, fname)
+%}
 
 %% Combine across all sujects/regions
 function [comb] = combine_subjects_regions(heat_pairs)
@@ -665,4 +1012,65 @@ function region_data = combine_subjects(heat_pairs)
             region_data.(region)(start_idx:end_idx, :) = pair;
         end
     end
+end
+
+%% Average the binned arrays
+function [x_out, y_out, y_se_out] = average_bins(x1, y1, y1_se, x2, y2, y2_se, tolerance)
+% AVERAGECLOSEPOINTS - Merge the shorter-range array into the longer-range array
+%                      where they overlap within tolerance.
+%
+% Inputs:
+%   x1, y1, y1_se - First x, y, and y standard error values
+%   x2, y2, y2_se - Second x, y, and y standard error values
+%   tolerance     - Maximum distance in x to consider two points "close"
+%
+% Outputs:
+%   x_out    - Output x values (same range as primary array)
+%   y_out    - Output y values (averaged where secondary contributed, primary elsewhere)
+%   y_se_out - Output standard errors (propagated where merged, primary SE elsewhere)
+
+    % --- Auto-detect primary array by x range ---
+    range1 = max(x1) - min(x1);
+    range2 = max(x2) - min(x2);
+
+    if range1 >= range2
+        xp = x1(:);  yp = y1(:);  yp_se = y1_se(:);
+        xs = x2(:);  ys = y2(:);  ys_se = y2_se(:);
+        fprintf('Primary array: x1 (range %.2f vs %.2f)\n', range1, range2);
+    else
+        xp = x2(:);  yp = y2(:);  yp_se = y2_se(:);
+        xs = x1(:);  ys = y1(:);  ys_se = y1_se(:);
+        fprintf('Primary array: x2 (range %.2f vs %.2f)\n', range2, range1);
+    end
+
+    x_out    = xp;
+    y_out    = yp;
+    y_se_out = yp_se;
+
+    used_s = false(size(xs));
+
+    merged_p = false(size(xp));  % track primary points that received a merge
+    
+    for i = 1:length(xp)
+        in_range = abs(xp(i) - xs) <= tolerance & ~used_s;
+    
+        if any(in_range)
+            all_y  = [yp(i);    ys(in_range)];
+            all_se = [yp_se(i); ys_se(in_range)];
+            n      = length(all_y);
+    
+            x_out(i)    = xp(i);
+            y_out(i)    = mean(all_y);
+            y_se_out(i) = sqrt(sum(all_se.^2)) / n;
+    
+            used_s(in_range) = true;
+            merged_p(i)      = true;  % mark this primary point as merged
+        end
+    end
+    
+    % --- Summary ---
+    fprintf('Primary points merged with secondary : %d\n', sum(merged_p));
+    fprintf('Primary points unchanged             : %d\n', sum(~merged_p));
+    fprintf('Secondary points used                : %d\n', sum(used_s));
+    fprintf('Secondary points not used            : %d\n', sum(~used_s));
 end

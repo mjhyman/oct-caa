@@ -143,16 +143,12 @@ fout = fullfile(ddir, 'epvs_lumen_overlay.png');
 exportgraphics(f,fout,'Resolution', 600); pause(0.5);
 
 %% Overlays (Donuts)
-% Vessel and EPVS Segmentation color for center of figure
-cseg = validatecolor('#E9DC6D') .* 255;
 
 %%% Iterate donuts
 for ii = 1:numel(donuts)
     % Create Donut overlays
-    ves_don_overlay = donut_mask_overlay(ves, ves_seg,...
-        donuts(ii).ves_donut, cseg, cves, alpha);
-    epvs_don_overlay = donut_mask_overlay(epvs, epvs_seg,...
-        donuts(ii).epvs_donut, cseg, cepv, alpha);
+    ves_don_overlay = mask_overlay(ves, donuts(ii).ves_donut, cves, alpha);
+    epvs_don_overlay = mask_overlay(epvs, donuts(ii).epvs_donut, cepv, alpha);
     
     %%% Donut subfigures
     % vessel
@@ -223,27 +219,24 @@ end
 
 %% Overlays for donuts
 function rgb_overlay = donut_mask_overlay(grayImg, center, donut,...
-                                          center_color, donut_color, alpha)
+    center_color, donut_color, alpha)
     % grayImg: 8-bit grayscale image (MxN)
     % center: binary mask of segmentation (MxN)
     % donut: binary mask of donut (MxN)
     % center_color: [R G B] in [0 255] for center segmentation
-    % donut_color: [R G B] in [0 255] for donut
+    % donut_color: [R G B] in [0 255] for center segmentation
     % alpha: transparency (0 = original, 1 = full color)
     
-    % Image validation
     grayImg = uint8(grayImg); % Ensure format
-    center = center > 0; % Logical
-    donut = donut > 0; % Logical
+    mask = mask > 0; % Logical
     
     % Start with grayscale converted to RGB
     rgb_overlay = double(repmat(grayImg,1,1,3));
     
     for c = 1:3
-        rgb_overlay(:,:,c) = rgb_overlay(:,:,c) .* (~(center | donut)) + ...
-                             (1-alpha) * rgb_overlay(:,:,c) .* (center | donut) + ...
-                             alpha * center_color(c) * center + ...
-                             alpha * donut_color(c) * donut;
+        rgb_overlay(:,:,c) = rgb_overlay(:,:,c) .* (~mask) + ...
+                             (1-alpha) * rgb_overlay(:,:,c) .* mask + ...
+                             alpha * overlay_color(c) * mask;
     end
     rgb_overlay = uint8(rgb_overlay);
 end

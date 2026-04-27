@@ -1,0 +1,158 @@
+%% Scatter plot of mus + ret vs. distance
+% Use the raw means of the data set
+% Use Bayesian statistical model for standard deviations
+clear; clc; close all;
+
+%% Directories and Data
+% Input directories
+data_dir = '/projectnb/npbssmic/ns/CAA/';
+beta_dir = '/projectnb/npbssmic/ns/CAA/beta_stats/';
+% Directory to store csv
+fig_out = '/projectnb/npbssmic/ns/CAA/figures/fig3_op_vs_dist/';
+% Directoies w/ standard deviation tables for each method
+per_dir = 'caa_all_radii_percentage_diff_40um_donut_5-Mar-2026';
+% Save output
+save_flag = true;
+% Current date/time for figure outputs
+t = datetime("now",'TimeZone','local','Format','dd-MMM-yyyy');
+
+%% Import Std Dev. CSVs for all three methods
+% TODO:
+%{
+- iterate each stage
+- import the CSV of Bayesian stats
+- import the CSV of the raw data
+    - compute the mean for each distance
+- add both to struct
+%}
+% summary statistics struct
+ss = struct();
+% posterior distribution struct
+pd = struct();
+% cells for iterating
+stages = {'stage0','stage1','stage2','stage3'};
+op = {'mus','ret'};
+op_names = {'scattering','retardance'};
+regs = {'front','occip'};
+
+% Iterate stages (severity, 0-3)
+for ii = 1:numel(stages)
+    % Iterate optical property
+    for j = 1:2
+        % Iterate region
+        for k = 1:2           
+            % Generate filename and path
+            fname = strcat(per_dir,'__',op_names{j},'_',stages{ii},'_',...
+                           regs{k},'_posterior.csv');
+            fullpath = fullfile(beta_dir,per_dir,stages{ii},...
+                                strcat(stages{ii},'_',regs{k}),fname);
+            % Import summary stats
+            try
+                ss.(stages{ii}).(op{j}).(regs{k}) = readtable(fullpath);
+            catch
+                fprintf('\tSkipping %s %s S\n',stages{ii},regs{k})
+            end
+        end
+    end
+end
+
+%%% Measure average at each distance (epvs, ves separate)
+% TODO: update import
+% Extract unique distances
+distances = unique(raw_mus.distance);
+% Create struct for storing averages
+avg = struct();
+f = fields(data);
+op = {'mus','ret'};
+regs = {'front','occip'};
+grp = {'exp','ctl'};
+% Iterate over optical properties
+for j = 1:numel(op)
+    % Iterate regions
+    for k = 1:numel(regs)
+        % Iterate experimental + control
+        for w = 1:numel(grp)
+            %% Import CSVs for all three methods
+            % Import percentage difference CSV
+            per_mus = readtable(fullfile(data_dir, per),"Sheet",'scattering');
+            per_ret = readtable(fullfile(data_dir, per),"Sheet",'retardance');
+            
+            %% Extract front and occipital lobes for each dataset
+            
+            % Create structs for raw, med, per
+            data = struct();
+            % Percentage change
+            per_mus_front = per_mus(strcmp(per_mus.Region, 'front'), :);
+            per_mus_occip = per_mus(strcmp(per_mus.Region, 'occip'), :);
+            per_ret_front = per_ret(strcmp(per_ret.Region, 'front'), :);
+            per_ret_occip = per_ret(strcmp(per_ret.Region, 'occip'), :);
+            data.per.mus.front.exp = per_mus_front(strcmp(per_mus_front.Groups,'experimental'),:);
+            data.per.mus.front.ctl = per_mus_front(strcmp(per_mus_front.Groups,'control'),:);
+            data.per.mus.occip.exp = per_mus_occip(strcmp(per_mus_occip.Groups,'experimental'),:);
+            data.per.mus.occip.ctl = per_mus_occip(strcmp(per_mus_occip.Groups,'control'),:);
+            data.per.ret.front.exp = per_ret_front(strcmp(per_ret_front.Groups,'experimental'),:);
+            data.per.ret.front.ctl = per_ret_front(strcmp(per_ret_front.Groups,'control'),:);
+            data.per.ret.occip.exp = per_ret_occip(strcmp(per_ret_occip.Groups,'experimental'),:);
+            data.per.ret.occip.ctl = per_ret_occip(strcmp(per_ret_occip.Groups,'control'),:);
+
+            
+            % Extract table
+            tmp = data.(op{j}).(regs{k}).(grp{w});
+            % Take mean across distances
+            tmp_avg = arrayfun(@(d) mean(tmp.OpticalProperty( ...
+                                        tmp.distance == d)), distances);
+            avg.(op{j}).(regs{k}).(grp{w}) = tmp_avg;
+        end
+    end
+end
+
+%% Scatterplots with ribbon for std error
+
+% Title Strings
+op_title = {'\mu_s','Retardance'};
+reg_title = {'Frontal','Occipital'};
+
+% y-axis limits
+ylims = [-8, 10; -15, 5];
+
+% scatterplot and errorbar sizes
+dot_size = 100;
+lw = 4;
+% Font size
+fsize = 30;
+
+% Iterate over optical properties
+for j = 1:numel(op)
+    % Iterate regions
+    for k = 1:numel(regs)        
+        % Extract experimental and control vectors
+        exp = avg.per.(op{j}).(regs{k}).exp;
+        ctl = avg.per.(op{j}).(regs{k}).ctl;
+        
+        % Extract standard deviations
+        exp_sd = ss.per.(op{j}).(regs{k}).exp_sd;
+        ctl_sd = ss.per.(op{j}).(regs{k}).ctrl_sd;
+        
+        % Ribbon scatter plot
+        figure;
+        tstr = sprintf('%s %s', op_title{j}, reg_title{k});
+        mean_std_plot(distances, exp, exp_sd, ctl, ctl_sd, ylims(j,:),tstr)
+        
+        % Figure properties
+        set(gca,'fontsize',fsize)
+        set(gca,'fontname','Arial');
+        set(gca,'XColor','k','YColor','k');
+        set(gca,'TickLength',[0.04,0.04]);
+        pause(1)
+
+        % Save as .PDF and .FIG
+        if save_flag
+            saveas(gcf, fullfile(beta_dir, per_dir,...
+                                sprintf('percentage_diff_%s_%s_scatterplot',...
+                                op{j}, regs{k})), 'pdf');
+            saveas(gcf, fullfile(beta_dir, per_dir,...
+                        sprintf('percentage_diff_%s_%s_scatterplot',...
+                        op{j}, regs{k})), 'fig');
+        end
+    end
+end

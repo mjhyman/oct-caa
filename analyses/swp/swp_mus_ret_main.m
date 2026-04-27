@@ -4,14 +4,10 @@
 % Bin the data points along x-axis and y-axis
 %   x-axis = EPVS SWP
 %   y-axis = Optical Property
-%{
-TODO:
-- 
-%}
 
 
 %% Initialization
-clearvars -except caa6 caa17 caa22 caa25 caa26 swp_struct
+clearvars -except caa caa6 caa17 caa22 caa25 caa26 swp_struct
 clc; close all;
 % Print current working directory
 mydir  = pwd;
@@ -129,16 +125,6 @@ load(fullfile(mat_dir, "median_white_matter_values_14-Nov-2025.mat"));
 
 % struct for storing pairs
 swp_op = struct();
-
-% Nest for implementation
-if ~exist('caa','var')
-    caa.caa6 = caa6.caa6;
-    caa.caa17 = caa17.caa17;
-    caa.caa22 = caa22.caa22;
-    caa.caa25 = caa25.caa25;
-    caa.caa26 = caa26.caa26;
-end
-
 % Iterate subjects
 fprintf('Creating 4xN matrices\n')
 subs = fields(subjects);
@@ -200,7 +186,7 @@ swp_op_region_pdif = combine_subjects(swp_op.pdif);
 fprintf('Finished combining regions\n')
 
 %%% Convert to tables
-vnames = {'scattering','retardance','SWP','EPVS_SWP'};
+vnames = {'scattering','retardance','ves_swp','epv_swp'};
 % Raw
 T_front_raw = array2table(swp_op_region_raw.front,'VariableNames',vnames);
 T_occip_raw = array2table(swp_op_region_raw.occip,'VariableNames',vnames);
@@ -216,6 +202,7 @@ T.pdif.occip = T_occip_pdif;
 %% Create table for each subject/region
 % Iterate subjects
 fprintf('Creating 4xN matrices\n')
+vnames = {'scattering','retardance','ves_swp','epv_swp'};
 subs = fields(subjects);
 for ii = 1:numel(fields(subjects))
     sub = subs{ii};
@@ -328,7 +315,7 @@ gam = struct();
 % Set maximum number of samples
 n_max = 1e6;
 % Set learning parameters (avoid over fitting)
-ntrees = 100;
+ntrees = 500;
 max_splits = 4;
 learn_rate = 0.05;
 % Set learning parameters (sharper contrast near EPVS)
@@ -374,16 +361,20 @@ for ii = 1:numel(fields(subjects))
                             'MaxSample',n_max,'NBootstrap',nbootstrap,...
                             'CIAlpha',ci_alpha,'TitleStr',tstr,...
                             'dirout',subdir);
+            pause(1);
+            close all;
         end
     end
 end
 pause(1); close all;
 % Save GAM
-full_fout = fullfile(fig_dir,'GAM_struct_subjects.mat');
+dt = datetime("now",'TimeZone','local','Format','dd-MMM-yyyy');
+fout = strcat('GAM_struct_subjects_',string(dt),'.mat');
+full_fout = fullfile(fig_dir,fout);
 sprintf('Saving GAM data structs to %s\n',full_fout)
 save(full_fout,'gam','-v7.3');
 
-%%% Gausian Mixture Model (GMM) Clustering - By Subject/Region
+%% Gausian Mixture Model (GMM) Clustering - By Subject/Region
 % Initialize struct for GMM
 gmm = struct();
 

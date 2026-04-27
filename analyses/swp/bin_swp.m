@@ -23,10 +23,11 @@ IQR = Q3 - Q1;       % Interquartile range
 lower_bound = Q1 - 1.5 * IQR; % Lower bound
 upper_bound = Q3 + 1.5 * IQR; % Upper bound
 
-% Remove outliers
+% Remove zeroes and outliers
+y = y(y ~= 0);
 valid_pts = (y >= lower_bound) & (y <= upper_bound);
 x = x(valid_pts);
-y = y(valid_pts);
+y = y(valid_pts);    
 
 % Retrieve maximum of x-axis data
 xmin = min(x);
@@ -60,7 +61,6 @@ end
 % Remove data outside bin range (bin==0)
 valid_pts = bin > 0;
 bin = bin(valid_pts);
-x = x(valid_pts);
 y = y(valid_pts);
 
 % Compute mean y for each bin using accumarray
@@ -71,19 +71,23 @@ y_bin_mean = accumarray(bin(:), y(:), [N 1], @mean, single(0));
 y_bin_std = accumarray(bin(:), y(:), [N 1], @std, single(0));
 % number of samples
 y_bin_count = accumarray(bin(:), 1, [N 1], @sum);
+
+% Replace NaN std (from single-point bins) with 0
+y_bin_std(isnan(y_bin_std)) = 0;
+
 % standard error
 y_bin_se = y_bin_std ./ sqrt(y_bin_count);
 
-% Remove bins with no points (NaN means no data in that bin)
-valid_bins = ~isnan(y_bin_mean);
+%%% Process bin mid points
+% Remove bins with zero mean (no points)
+y_bin_mean = y_bin_mean(y_bin_mean ~= 0);
 
-% Calculate midpoints of the bins for the x-axis points
+% Build valid_bins mask and apply consistently to mean, se, and midpoints
+valid_bins = ~isnan(y_bin_mean) & y_bin_count > 0;
+
 bin_midpoints = (edges(1:end-1) + edges(2:end)) / 2;
 
-% Construct output with midpoints for x values
 xy_out = [bin_midpoints(valid_bins)', y_bin_mean(valid_bins)];
-
-% Standard Error output
 se_out = y_bin_se(valid_bins);
 
 end

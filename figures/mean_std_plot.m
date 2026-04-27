@@ -21,8 +21,8 @@ ctl_sd = ctl_sd(:);
 
 %% Set plotting parameters
 % Set the experimental and control colors
-exp_color = [1 0 0];
-ctl_color = [0 0 1];
+exp_color = validatecolor('#DB5829');
+ctl_color = validatecolor('#1964B0');
 % Set the transparency level (0-1)
 alpha = 0.3;
 
@@ -44,8 +44,12 @@ ylabel('Percentage Change');
 ylim(ylims)
 xlim([0,500]);
 xlabel('Distance (\mum)')
-title(tstr);
+% Add title and move higher
+t = title(tstr);
+pos = get(t,'Position');
+set(t, 'Position', [pos(1), pos(2) + 1, pos(3)]);
 hold off;
+grid on;
 
 %% Create Ribbon
     function ribbon(x, mu, sigma, color, alpha)      

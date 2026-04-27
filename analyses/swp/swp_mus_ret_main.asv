@@ -11,7 +11,7 @@ TODO:
 
 
 %% Initialization
-clearvars -except caa6 caa17 caa22 caa25 caa26 swp_struct
+clearvars -except caa caa6 caa17 caa22 caa25 caa26 swp_struct
 clc; close all;
 % Print current working directory
 mydir  = pwd;
@@ -42,9 +42,9 @@ ves_fbase = '_swp_voxelwise_ves_radius_500_exp_2_interpolated_heatmap.mat';
 
 %%% Flags for importing data
 % Flag for SWP structs
-flag_load_swp_structs = true;
+flag_load_swp_structs = false;
 % Flag for importing .MAT structs
-flag_load_caa_structs = true;
+flag_load_caa_structs = false;
 
 %%% Number of bins for the x-axis along SWP
 nbin = 100;
@@ -129,16 +129,6 @@ load(fullfile(mat_dir, "median_white_matter_values_14-Nov-2025.mat"));
 
 % struct for storing pairs
 swp_op = struct();
-
-% Nest for implementation
-if ~exist('caa','var')
-    caa.caa6 = caa6.caa6;
-    caa.caa17 = caa17.caa17;
-    caa.caa22 = caa22.caa22;
-    caa.caa25 = caa25.caa25;
-    caa.caa26 = caa26.caa26;
-end
-
 % Iterate subjects
 fprintf('Creating 4xN matrices\n')
 subs = fields(subjects);
@@ -213,7 +203,7 @@ T.raw.occip = T_occip_raw;
 T.pdif.front = T_front_pdif;
 T.pdif.occip = T_occip_pdif;
 
-%%% Create table for each subject/region
+%% Create table for each subject/region
 % Iterate subjects
 fprintf('Creating 4xN matrices\n')
 subs = fields(subjects);
@@ -224,11 +214,14 @@ for ii = 1:numel(fields(subjects))
         %%% Retrieve region and optical properties        
         reg = regs{j};
         fprintf('\tSubject %s region %s\n',sub,reg)
-        % 
-
+        % Raw data
+        tmp = array2table(swp_op.raw.(sub).(reg),'VariableNames',vnames);
+        T.raw.(sub).(reg) = tmp;
+        % PDiff data
+        tmp = array2table(swp_op.pdif.(sub).(reg),'VariableNames',vnames);
+        T.pdif.(sub).(reg) = tmp;
     end
 end
-
 
 %% Generalized Additive Model (GAM) - By Region (combined subjects)
 %{
@@ -317,11 +310,7 @@ sprintf('Saving GMM data structs to %s\n',full_fout)
 save(full_fout,'gmm','-v7.3');
 %}
 
-%% Create table for each subject/region
-
-
 %% Generalized Additive Model (GAM) - By Subject/Region
-
 % Initialize GAM output struct
 gam = struct();
 
@@ -340,30 +329,51 @@ learn_rate = 0.05;
 nbootstrap = 100;
 ci_alpha = 0.05;
 
-%%% Iterate over raw/pdif and front/occip
+% Initialize data type (raw/pdif)
 dtype = {'raw','pdif'};
-regs = {'front','occip'};
-% Iterate raw/pdif
-for ii = 1:2
-    % Iterate front/occip
-    for j = 1:2
-        % Select data type and region
-        d = dtype{ii};
+% Iterate subjects
+subs = fields(subjects);
+for ii = 1:numel(fields(subjects))
+    sub = subs{ii};
+    regs = fields(subjects.(sub));
+    % Update output directory with subject name sub directory
+    subdir = fullfile(fig_dir, sub);
+    if ~exist(subdir,'dir'); mkdir(subdir); end
+    % Iterate regions
+    for j = 1:numel(regs)
         reg = regs{j};
-        % Create title substring from data type and region
-        tstr = string(sprintf('%s %s',string(d),string(reg)));
-        fprintf('Running GAM for %s %s\n',d,reg)
-        gam.(d).(reg) = fit_swp_psoct_gam(T.(d).(reg),'NumTrees',ntrees,...
-                        'MaxSplits',max_splits,'LearnRate',learn_rate,...
-                        'MaxSample',n_max,'NBootstrap',nbootstrap,...
-                        'CIAlpha',ci_alpha,'TitleStr',tstr,...
-                        'dirout',fig_dir);
+        for k = 1:numel(dtype)
+            %%% Retrieve optical properties        
+            fprintf('\tSubject %s region %s\n',sub,reg)
+            d = dtype{k};
+            % Create title substring from data type and region
+            tstr = string(sprintf('%s %s %s',string(d),string(sub),...
+                                  string(reg)));
+            % set z-score normalization boolean
+            if strcmp(d,'raw')
+                zscore = true;
+            else
+                zscore = false;
+            end            
+            % Run GMM clustering
+            t = T.(d).(sub).(reg);
+            fprintf('Running GAM for %s %s %s\n',d,sub,reg)
+            gam.(d).(sub).(reg) = fit_swp_psoct_gam(t,...
+                            'NumTrees',ntrees,...
+                            'MaxSplits',max_splits,'LearnRate',learn_rate,...
+                            'MaxSample',n_max,'NBootstrap',nbootstrap,...
+                            'CIAlpha',ci_alpha,'TitleStr',tstr,...
+                            'dirout',subdir);
+        end
     end
 end
-save(fullfile(fig_dir,'GAM_struct.mat'),'gam','-v7.3');
-%}
+pause(1); close all;
+% Save GAM
+full_fout = fullfile(fig_dir,'GAM_struct_subjects.mat');
+sprintf('Saving GAM data structs to %s\n',full_fout)
+save(full_fout,'gam','-v7.3');
 
-%% Gausian Mixture Model (GMM) Clustering - By Subject/Region
+%%% Gausian Mixture Model (GMM) Clustering - By Subject/Region
 % Initialize struct for GMM
 gmm = struct();
 
@@ -373,35 +383,46 @@ n_quantile = 4;
 % Maximum number of samples per GMM
 n_max = 1e6;
 
-%%% Iterate over raw/pdif and front/occip
+% Initialize data type (raw/pdif)
 dtype = {'raw','pdif'};
-regs = {'front','occip'};
-% Iterate raw/pdif
-for ii = 1:2
-    % Iterate front/occip
-    for j = 1:2
-        % Select data type and region
-        d = dtype{ii};
+% Iterate subjects
+subs = fields(subjects);
+for ii = 1:numel(fields(subjects))
+    sub = subs{ii};
+    regs = fields(subjects.(sub));
+    % Update output directory with subject name sub directory
+    subdir = fullfile(fig_dir, sub);
+    if ~exist(subdir,'dir'); mkdir(subdir); end
+    % Iterate regions
+    for j = 1:numel(regs)
         reg = regs{j};
-        % Create title substring from data type and region
-        tstr = string(sprintf('%s %s',string(d),string(reg)));
-        % set z-score normalization boolean
-        if strcmp(d,'raw')
-            zscore = true;
-        else
-            zscore = false;
+        for k = 1:numel(dtype)
+            %%% Retrieve optical properties        
+            fprintf('\tSubject %s region %s\n',sub,reg)
+            d = dtype{k};
+            % Create title substring from data type and region
+            tstr = string(sprintf('%s %s %s',string(d),string(sub),...
+                                  string(reg)));
+            % set z-score normalization boolean
+            if strcmp(d,'raw')
+                zscore = true;
+            else
+                zscore = false;
+            end
+            % Run GMM clustering
+            t = T.(d).(sub).(reg);
+            gmm.(d).(sub).(reg) = cluster_psoct_gmm(t,...
+                                             'NQuantileBins',n_quantile,...
+                                             'MaxSample',n_max,...
+                                             'ZScore',zscore,...
+                                             'TitleStr',tstr,...
+                                             'dirout',subdir);
         end
-        % Run GMM clustering
-        gmm.(d).(reg) = cluster_psoct_gmm(T_front_raw,...
-                                         'NQuantileBins',n_quantile,...
-                                         'MaxSample',n_max,'ZScore',zscore,...
-                                         'TitleStr',tstr,...
-                                         'dirout',fig_dir);
     end
 end
 
 % Save GMM
-full_fout = fullfile(fig_dir,'GMM_struct.mat');
+full_fout = fullfile(fig_dir,'GMM_struct_subjects.mat');
 sprintf('Saving GMM data structs to %s\n',full_fout)
 save(full_fout,'gmm','-v7.3');
 

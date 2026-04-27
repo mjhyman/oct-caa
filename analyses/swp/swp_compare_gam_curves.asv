@@ -1,0 +1,131 @@
+function swp_compare_gam_curves(gam_struct, severities, dirout)
+% COMPARE_GAM_SURFACES_MATRIX  Matrix of pairwise 2D surface differences.
+%   Upper triangle shows severe-minus-milder differences.
+%   Diagonal is blank.  Lower triangle mirrors upper (negated).
+%   One figure per outcome.
+
+    n_groups = numel(severities);
+    outcomes = {'scatter', 'retard'};
+    titles   = {'Scattering', 'Retardance'};
+
+    % Build common grid from union of all group grids
+    all_swp_min  = min(cellfun(@(g) min(gam_struct.(g).ves_swp_grid),  severities));
+    all_swp_max  = max(cellfun(@(g) max(gam_struct.(g).ves_swp_grid),  severities));
+    all_epvs_min = min(cellfun(@(g) min(gam_struct.(g).epv_ves_grid),  severities));
+    all_epvs_max = max(cellfun(@(g) max(gam_struct.(g).epv_ves_grid),  severities));
+
+    n_pts    = 100;
+    swp_com  = linspace(all_swp_min,  all_swp_max,  n_pts);
+    epvs_com = linspace(all_epvs_min, all_epvs_max, n_pts);
+
+    [SWP_com, EPVS_com] = meshgrid(swp_com, epvs_com);
+    T_common = table(SWP_com(:), EPVS_com(:), SWP_com(:) .* EPVS_com(:), ...
+        'VariableNames', {'ves_swp', 'epv_swp', 'ves_epv_swp'});
+
+    % Pre-predict all groups on the common grid
+    pred = struct();
+    for g = 1:n_groups
+        grp = severities{g};
+        pred.(grp).scatter = reshape( ...
+            predict(gam_struct.(grp).gam_scatter, T_common), n_pts, n_pts);
+        pred.(grp).retard  = reshape( ...
+            predict(gam_struct.(grp).gam_retard,  T_common), n_pts, n_pts);
+    end
+
+    for o = 1:2
+        fig = figure('Position', [60, 60, 320*n_groups, 280*n_groups], 'Color', 'w');
+        outcome = outcomes{o};
+    
+        % 1. Force the Figure to use the Red-Blue map immediately
+        cmap_256 = redblue_cmap(256);
+        colormap(fig, cmap_256); 
+    
+        % 2. Calculate Symmetric Limits
+        max_val = max(abs(all_diffs(:)), [], 'omitnan');
+        if max_val == 0 || isnan(max_val), max_val = 1e-5; end % Prevent [0,0]
+        clim_diff = [-max_val, max_val];
+    
+        panel = 0;
+        for row = 1:n_groups
+            for col = 1:n_groups
+                panel = panel + 1;
+                ax = subplot(n_groups, n_groups, panel);
+    
+                if row == col
+                    % Diagonal — show group label only
+                    text(ax, 0.5, 0.5, upper(severities{row}), ...
+                         'HorizontalAlignment', 'center', ...
+                         'FontSize', 12, 'FontWeight', 'bold', ...
+                         'Units', 'normalized');
+                    axis(ax, 'off');
+
+                else
+                    % Off-diagonal — show difference surface
+                    g1   = severities{row};
+                    g2   = severities{col};
+                    diff_data = pred.(g2).(outcome) - pred.(g1).(outcome);
+
+                    imagesc(ax, swp_com, epvs_com, diff_data);
+                    set(ax,'YDir','normal');
+                    set(ax,'CLim',clim_diff);
+
+                    % Labels only on edges to avoid clutter
+                    if row == n_groups
+                        xlabel(ax, 'Vessel SWP', 'FontSize', 7);
+                    else
+                        set(ax, 'XTickLabel', []);
+                    end
+                    if col == 1
+                        ylabel(ax, 'EPVS SWP', 'FontSize', 7);
+                    else
+                        set(ax, 'YTickLabel', []);
+                    end
+
+                    title(ax, sprintf('%s - %s', ...
+                                      upper(severities{col}), ...
+                                      upper(severities{row})), ...
+                          'FontSize', 8);
+                end
+            end
+        end
+
+        % Single shared colorbar
+        cb = colorbar(ax,'Position', [0.93, 0.1, 0.02, 0.8]);
+        cb.Label.String = sprintf('%s difference', titles{o});
+        cb.Limits = clim_diff;
+        % Force corlobar to explicitly use figure panels' colormap
+        cb.Colormap = fig_cmap;
+
+        sgtitle(fig, sprintf('%s GAM surface differences', titles{o}), ...
+                'FontSize', 13, 'FontWeight', 'bold');
+
+        fname = sprintf('GAM_surface_matrix_%s', outcome);
+        saveas(fig, fullfile(dirout, [fname, '.fig']));
+        saveas(fig, fullfile(dirout, [fname, '.png']));
+        fprintf('Saved: %s\n', fname);
+    end
+end
+
+
+% =========================================================================
+% LOCAL HELPER: red-blue diverging colormap centred at zero
+% =========================================================================
+function cmap = redblue_cmap(n)
+    % n: number of colors (e.g., 256)
+    m = floor(n/2);
+    
+    % Blue to White (Negative side)
+    % Red and Green increase from 0 to 1, Blue stays at 1
+    blue_to_white = [linspace(0, 1, m)', linspace(0, 1, m)', ones(m, 1)];
+    
+    % White to Red (Positive side)
+    % Green and Blue decrease from 1 to 0, Red stays at 1
+    white_to_red = [ones(m, 1), linspace(1, 0, m)', linspace(1, 0, m)'];
+    
+    if mod(n, 2) == 0
+        cmap = [blue_to_white; white_to_red];
+    else
+        % Include a true white pixel for the exact center
+        cmap = [blue_to_white; [1 1 1]; white_to_red];
+    end
+end
