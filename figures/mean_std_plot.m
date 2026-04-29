@@ -21,8 +21,8 @@ ctl_sd = ctl_sd(:);
 
 %% Set plotting parameters
 % Set the experimental and control colors
-exp_color = validatecolor('#DB5829');
-ctl_color = validatecolor('#1964B0');
+ctl_color = validatecolor('#DB5829'); % control (vessel) = vermillion
+exp_color = validatecolor('#1964B0'); % experimental (epvs) = dark blue 
 % Set the transparency level (0-1)
 alpha = 0.3;
 

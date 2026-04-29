@@ -1,7 +1,8 @@
 %% Scatter plot of mus + ret vs. distance
 % Use the raw means of the data set
 % Use Bayesian statistical model for standard deviations
-clear; clc; close all;
+% clear;
+clc; close all;
 
 %% Directories and Data
 % Input directories
@@ -17,14 +18,6 @@ save_flag = true;
 t = datetime("now",'TimeZone','local','Format','dd-MMM-yyyy');
 
 %% Import Averages and Std Dev. from "summary_stats" CSVs
-% TODO:
-%{
-- iterate each stage
-- import the CSV of Bayesian stats
-- import the CSV of the raw data
-    - compute the mean for each distance
-- add both to struct
-%}
 % summary statistics struct
 ss = struct();
 % posterior distribution struct
