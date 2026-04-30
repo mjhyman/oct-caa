@@ -35,14 +35,14 @@ fsize = 30;
 %% Import stains
 
 % % Import LHE
-% lhe = load(fullfile(hdir, lhe_fname));
-% lhe = lhe.lhe;
-% % Import GFAP
-% gfap = load(fullfile(hdir, gfap_fname));
-% gfap = gfap.gfap;
-% % Import CD68
-% cd68 = load(fullfile(hdir, cd68_fname));
-% cd68 = cd68.cd68;
+lhe = load(fullfile(hdir, lhe_fname));
+lhe = lhe.lhe;
+% Import GFAP
+gfap = load(fullfile(hdir, gfap_fname));
+gfap = gfap.gfap;
+% Import CD68
+cd68 = load(fullfile(hdir, cd68_fname));
+cd68 = cd68.cd68;
 
 % Add all stains to the struct "stain"
 stains = struct();
