@@ -6,7 +6,6 @@ clc; close all;
 
 %% Directories and Data
 % Input directories
-data_dir = '/projectnb/npbssmic/ns/CAA/';
 beta_dir = '/projectnb/npbssmic/ns/CAA/beta_stats/';
 % Directory to store csv
 fig_out = '/projectnb/npbssmic/ns/CAA/figures/fig3_op_vs_dist/';
@@ -14,8 +13,6 @@ fig_out = '/projectnb/npbssmic/ns/CAA/figures/fig3_op_vs_dist/';
 per_dir = 'caa_all_radii_percentage_diff_40um_donut_5-Mar-2026';
 % Save output
 save_flag = true;
-% Current date/time for figure outputs
-t = datetime("now",'TimeZone','local','Format','dd-MMM-yyyy');
 
 %% Import Averages and Std Dev. from "summary_stats" CSVs
 % summary statistics struct

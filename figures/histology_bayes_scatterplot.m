@@ -1,0 +1,159 @@
+%% Plot the Bayesian Statistics calcualted Mean + SD per distance
+%{
+The bayesian statistical model was used because the data failed the
+linearity criteria for the general linear mixed effects model (GLME).
+The Bayesian statistical model computed the posterior then sampled it and
+calcualted the mean of the posterior at each distance for the control
+(vessel) and experimental (EPVS).
+
+This script will plot the mean +/- SD at each distance for control and
+experimental separately.
+%}
+
+%% Top-level settings
+clear; clc; close all;
+% Input directories
+beta_dir = '/projectnb/npbssmic/ns/CAA/histology/stats/';
+% Directory containing the summary stats for each stage / region
+summary_stats = 'bayesian_stats_histo_2026-05-06_13-56-13';
+input_filename = 'histogram_matched_donuts_2026-May-05';
+% Directory to store csv
+fig_out = '/projectnb/npbssmic/ns/CAA/histology/figures/bayesian_stats/';
+fig_out = fullfile(fig_out, summary_stats);
+if ~exist(fig_out,"dir")
+    mkdir(fig_out)
+end
+% Save output
+save_flag = true;
+
+%% Import Averages and Std Dev. from "summary_stats" CSVs
+% summary statistics struct
+ss = struct();
+% posterior distribution struct
+pd = struct();
+% cells for iterating
+stages = {'stage0','stage1','stage2','stage3'};
+stains = {'lhe','gfap','cd68'};
+regs = {'front','occip'};
+
+% Iterate stages (severity, 0-3)
+for ii = 1:numel(stages)
+    % Iterate optical property
+    for j = 1:numel(stains)
+        % Iterate region
+        for k = 1:numel(regs)
+            % Generate filename and path
+            fname = strcat(input_filename,'__',stains{j},'_',stages{ii},'_',...
+                           regs{k},'_summary_stats.csv');
+            fullpath = fullfile(beta_dir,summary_stats,stages{ii},...
+                                strcat(stages{ii},'_',regs{k}),fname);
+            % Import summary stats
+            try
+                tmp = readtable(fullpath);
+            catch
+                fprintf('\tSkipping %s %s %s\n',stages{ii},regs{k}, stains{j})
+                continue
+            end
+            % Extract the standard deviation for control and experimental
+            ss.(stages{ii}).(stains{j}).(regs{k}).ctl_mu = tmp.ctrl_mean;
+            ss.(stages{ii}).(stains{j}).(regs{k}).exp_mu = tmp.exp_mean;
+            ss.(stages{ii}).(stains{j}).(regs{k}).ctl_sd = tmp.ctrl_sd;
+            ss.(stages{ii}).(stains{j}).(regs{k}).exp_sd = tmp.exp_sd;
+        end
+    end
+end
+% Extract distances from last spreadsheet
+distances = tmp.distance;
+
+%% Scatterplots with ribbon for std error
+% Title Strings
+stain_title = stains;
+reg_title = {'Frontal','Occipital'};
+% scatterplot and errorbar sizes
+dot_size = 100;
+lw = 4;
+% Font size
+fsize = 30;
+ylims = [-0.5, 0.5; -0.5, 0.5; -0.5, 0.5];
+
+%%% Find Global Y-Limits for all scatterplots for consistency
+% ylims = zeros(numel(stains), 2); 
+% for j = 1:numel(stains)
+%     min_val = inf;
+%     max_val = -inf;
+%     for ii = 1:numel(stages)
+%         for k = 1:numel(regs)
+%             try
+%                 % Extract data for this iteration
+%                 c_mu = ss.(stages{ii}).(stains{j}).(regs{k}).ctl_mu;
+%                 e_mu = ss.(stages{ii}).(stains{j}).(regs{k}).exp_mu;
+%                 c_sd = ss.(stages{ii}).(stains{j}).(regs{k}).ctl_sd;
+%                 e_sd = ss.(stages{ii}).(stains{j}).(regs{k}).exp_sd;
+% 
+%                 % Calculate the floor and ceiling of the ribbons
+%                 % Use (:) to ensure we are looking at all elements in the arrays
+%                 local_min = min([c_mu - c_sd; e_mu - e_sd], [], 'all');
+%                 local_max = max([c_mu + c_sd; e_mu + e_sd], [], 'all');
+% 
+%                 % Update global trackers
+%                 if local_min < min_val, min_val = local_min; end
+%                 if local_max > max_val, max_val = local_max; end
+%             catch
+%                 continue
+%             end
+%         end
+%     end
+% 
+%     % Apply a 5% buffer so the data doesn't touch the top/bottom axis
+%     range_val = max_val - min_val;
+%     ylims(j, :) = [min_val - 0.05*range_val, max_val + 0.05*range_val];
+% end
+% % Apply floor and ceiling for whole numbers for limits
+% ylims(:,1) = floor(ylims(:,1));
+% ylims(:,2) = ceil(ylims(:,2));
+% ylims(:,3) = ceil(ylims(:,3));
+
+%%% Scatter / Ribbon for each
+% Iterate stages
+for ii = 1:numel(stages)
+    % Iterate over optical properties
+    for j = 1:numel(stains)
+        % Iterate regions
+        for k = 1:numel(regs)                    
+            % Extract experimental and control
+            try
+                ctl_mu = ss.(stages{ii}).(stains{j}).(regs{k}).ctl_mu;
+                exp_mu = ss.(stages{ii}).(stains{j}).(regs{k}).exp_mu;
+                ctl_sd = ss.(stages{ii}).(stains{j}).(regs{k}).ctl_sd;
+                exp_sd = ss.(stages{ii}).(stains{j}).(regs{k}).exp_sd;        
+            catch
+                continue
+            end
+            
+            % Ribbon scatter plot
+            figure;
+            tstr = sprintf('%s %s %s',stages{ii},stain_title{j},reg_title{k});
+            histo_mean_std_plot(distances, exp_mu, exp_sd, ctl_mu, ctl_sd,...
+                          ylims(j,:),tstr)
+            
+            % Figure properties
+            set(gca,'fontsize',fsize)
+            set(get(gca,'Title'),'FontSize',10);
+            set(gca,'fontname','Arial');
+            set(gca,'XColor','k','YColor','k');
+            set(gca,'TickLength',[0.04,0.04]);
+            pause(1)
+    
+            % Save as .PDF .PND and .FIG
+            if save_flag
+                % Define filename
+                fname = fullfile(fig_out,...
+                                sprintf('%s_%s_%s_zscore_scatter_ribbon',...
+                                        stages{ii}, stains{j}, regs{k}));
+                saveas(gcf, fname, 'pdf');
+                saveas(gcf, fname, 'png');
+                saveas(gcf, fname, 'fig');
+            end
+        end
+    end
+end

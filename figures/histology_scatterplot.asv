@@ -63,57 +63,32 @@ fcode = "_1";
 ocode = "_7";
 
 %%% LHE
+% calculate for front and occipital
 [lhe_front] = average_within_region(lhe, fcode, "rad40");
 [lhe_occip] = average_within_region(lhe, ocode, "rad40");
-ylims = [-0.2, 0.3];
-% Frontal
-tstr = 'LHE Frontal'; figure;
-histo_mean_std_plot(radii_sm, lhe_front.mean_epvs, lhe_front.std_epvs,...
-              lhe_front.mean_ves, lhe_front.std_ves, ylims, tstr)
-fname = fullfile(figdir,'lhe_frontal_ribbon');
-saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
-% Occipital
-tstr = 'LHE Occipital'; figure;
-histo_mean_std_plot(radii_sm, lhe_occip.mean_epvs, lhe_occip.std_epvs,...
-              lhe_occip.mean_ves, lhe_occip.std_ves, ylims, tstr)
-fname = fullfile(figdir,'lhe_occipital_ribbon');
-saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
+% Errorbar scatterplots
+exp_mu = lhe_front.mean_epvs;
+exp_
+mean_std_plot(radii_sm, exp_mu, exp_sd, ctl_mu, ctl_sd, ylims, tstr)
+
+stain_errorbar(lhe_front, [], radii_sm, [], 'LHE_front', figdir)
+stain_errorbar(lhe_occip, [], radii_sm, [], 'LHE_occip', figdir)
 
 %%% GFAP
+% calculate for front and occipital
 [gfap_front] = average_within_region(gfap, fcode, "rad40");
 [gfap_occip] = average_within_region(gfap, ocode, "rad40");
-ylims = [-0.2, 0.5];
-% Frontal
-tstr = 'GFAP Frontal'; figure;
-histo_mean_std_plot(radii_sm, gfap_front.mean_epvs, gfap_front.std_epvs,...
-              gfap_front.mean_ves, gfap_front.std_ves, ylims, tstr)
-fname = fullfile(figdir,'gfap_frontal_ribbon');
-saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
-% Occipital
-tstr = 'GFAP Occipital'; figure;
-histo_mean_std_plot(radii_sm, gfap_occip.mean_epvs, gfap_occip.std_epvs,...
-              gfap_occip.mean_ves, gfap_occip.std_ves, ylims, tstr)
-fname = fullfile(figdir,'gfap_occipital_ribbon');
-saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
+% Errorbar scatterplots
+stain_errorbar(gfap_front, [], radii_sm, [], 'GFAP_front', figdir)
+stain_errorbar(gfap_occip, [], radii_sm, [], 'GFAP_occip', figdir)
 
 %%% CD68
+% calculate for front and occipital
 [cd68_front] = average_within_region(cd68, fcode, "rad40");
 [cd68_occip] = average_within_region(cd68, ocode, "rad40");
-ylims = [-0.2, 0.2];
-% Frontal
-tstr = 'CD68 Frontal'; figure;
-histo_mean_std_plot(radii_sm, cd68_front.mean_epvs, cd68_front.std_epvs,...
-              cd68_front.mean_ves, cd68_front.std_ves, ylims, tstr)
-fname = fullfile(figdir,'cd68_frontal_ribbon');
-saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
-% Occipital
-tstr = 'CD68 Occipital'; figure;
-histo_mean_std_plot(radii_sm, cd68_occip.mean_epvs, cd68_occip.std_epvs,...
-              cd68_occip.mean_ves, cd68_occip.std_ves, ylims, tstr)
-fname = fullfile(figdir,'cd68_occipital_ribbon');
-saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
-
-
+% Errorbar scatterplots
+stain_errorbar(cd68_front, [], radii_sm, [], 'CD68_front', figdir)
+stain_errorbar(cd68_occip, [], radii_sm, [], 'CD68_occip', figdir)
 
 %% AVERAGE within subjects -- scatterplot of histology vs. distance
 close all;
