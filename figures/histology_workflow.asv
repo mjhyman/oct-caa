@@ -52,15 +52,14 @@ zmax = 2;
 
 %%% Scale bar properties
 slen = 2000; % scale bar length in microns
-slen_zoom = 100; % scale bar length (um) for zoomed subfigure
 sth = 25;   % scale bar thickness in line width units
 
 %%% Font size for color bar
 fsize = 40; % Set font size for figures
 
 %%% Define bounds for cropping
-x1 = 2500; x2 = x1+500;
-y1 = 5900; y2 = y1+500;
+x1 = 2500; x2 = 2900;
+y1 = 5950; y2 = 6450;
 
 %% Create figure of stain deconvolved
 % stain
@@ -68,7 +67,8 @@ stain = lhe(2).stain;
 mask = lhe(2).mask;
 stain(~mask) = -4;
 % Apply crop
-% stain = stain(y1:y2,x1:x2);
+stain = stain()
+
 % Create figure
 figure('Position', [100 100 1500 1000]);
 imagesc(stain); clim([smin, smax]); c = colorbar;
@@ -78,7 +78,7 @@ title('Stain')
 set(gca,'XTick',[]); set(gca,'YTick',[])
 set(gca,'FontSize',fsize)
 % Add scale bar (microns)
-sbar(slen_zoom, sth, pix, stain)
+sbar(slen, sth, pix, stain)
 % Save figure
 fout = fullfile(figdir, 'stain_deconv');
 saveas(gca,fout,'png');
@@ -206,7 +206,7 @@ c.Label.String = 'z-score';
 set(gca,'FontSize',fsize)
 
 %%% Add scale bar
-sbar(slen_zoom, 20, pix, zstainCropped)
+sbar(100, 20, pix, zstainCropped)
 
 %%% Save figure
 fout = fullfile(figdir, 'histogram_matched_stain_z_score_overlay_donuts_zoom');

@@ -4,6 +4,9 @@
 % Bin the data points along x-axis and y-axis
 %   x-axis = EPVS SWP
 %   y-axis = Optical Property
+% TODO:
+% - combine just CAA22 + CAA25 (severe)
+% - run GAM for severe
 
 
 %% Initialization
@@ -200,7 +203,7 @@ T.pdif.front = T_front_pdif;
 T.pdif.occip = T_occip_pdif;
 
 %% Combine severe (CAA22 + CAA25)
-% This will be used for training a model on the combined severe
+% Extract just severe from swp_op raw and pdif
 
 % Create copy of raw and pdif
 swp_op_raw = swp_op.raw;
@@ -210,11 +213,13 @@ keepFields = {'caa22', 'caa25'};
 % Remove all other fields
 swp_op_raw_severe = rmfield(swp_op_raw, setdiff(fieldnames(swp_op_raw), keepFields));
 swp_op_pdif_severe = rmfield(swp_op_pdif, setdiff(fieldnames(swp_op_raw), keepFields));
-% Combine caa22 and caa25
+
+
 swp_op_raw_severe = combine_subjects(swp_op_raw_severe);
 swp_op_pdif_severe = combine_subjects(swp_op_pdif_severe);
 
 %% Create table for each subject/region
+% TODO: Add table entry for combined severe
 
 fprintf('Creating 4xN matrices\n')
 vnames = {'scattering','retardance','ves_swp','epv_swp'};
@@ -236,59 +241,10 @@ for ii = 1:numel(fields(subjects))
         T.pdif.(sub).(reg) = tmp;
     end
 end
-% Add the combined severe
-fprintf('\tAdding the combined severe to the table\n')
-T.raw.sev.front = array2table(swp_op_raw_severe.front,'VariableNames',vnames);
-T.raw.sev.occip = array2table(swp_op_raw_severe.occip,'VariableNames',vnames);
-T.pdif.sev.front = array2table(swp_op_pdif_severe.front,'VariableNames',vnames);
-T.pdif.sev.occip = array2table(swp_op_pdif_severe.occip,'VariableNames',vnames);
-
-%% Generalized Additive Model (GAM) - Combined Severe
-%%% Sampling and Learning
-% Set maximum number of samples
-n_max = 1e6;
-% Set learning parameters (avoid over fitting)
-ntrees = 500;
-max_splits = 4;
-learn_rate = 0.05;
-% Set learning parameters (sharper contrast near EPVS)
-% ntrees = 200;
-% max_splits = 10;
-% learn_rate = 0.1;
-%%% Plotting confidence intervals settings
-nbootstrap = 100;
-ci_alpha = 0.05;
-regs = {'front','occip'};
-%%% Retrieve optical properties        
-for ii = 1:numel(regs)
-    % Create title substring from data type and region
-    reg = regs{ii};
-    tstr = string(sprintf('pdif severe %s',string(reg)));
-    % Run GMM clustering
-    t = T.pdif.sev.(reg);
-    fprintf('Running GAM for pdif severe %s\n',reg)
-    gam.pdif.sev.(reg) = fit_swp_psoct_gam(t,...
-                    'NumTrees',ntrees,...
-                    'MaxSplits',max_splits,'LearnRate',learn_rate,...
-                    'MaxSample',n_max,'NBootstrap',nbootstrap,...
-                    'CIAlpha',ci_alpha,'TitleStr',tstr,...
-                    'dirout','severe_combined');
-    pause(1);
-    close all;
-end
-% Save GAM
-dt = datetime("now",'TimeZone','local','Format','dd-MMM-yyyy');
-fout = strcat('GAM_struct_severe_combined_',string(dt),'.mat');
-full_fout = fullfile(fig_dir,fout);
-sprintf('Saving GAM data structs to %s\n',full_fout)
-save(full_fout,'gam','-v7.3');
-
 
 %% Generalized Additive Model (GAM) - By Subject/Region
-%{
-% Add severe to the subjects struct
-subjects.sev.front = [];
-subjects.sev.occip = [];
+% TODO:
+% - add logic for combined severe
 
 % Initialize GAM output struct
 gam = struct();
@@ -355,7 +311,6 @@ fout = strcat('GAM_struct_subjects_',string(dt),'.mat');
 full_fout = fullfile(fig_dir,fout);
 sprintf('Saving GAM data structs to %s\n',full_fout)
 save(full_fout,'gam','-v7.3');
-%}
 
 %% Generalized Additive Model (GAM) - By Region (combined subjects)
 %{

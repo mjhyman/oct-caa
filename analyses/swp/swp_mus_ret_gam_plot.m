@@ -32,10 +32,12 @@ fig_dir = '/projectnb/npbssmic/ns/CAA/figures/swp_gam_gmm/gam_comparison/';
 
 %%% Import GAM
 % Filename of GAM struct
-fname = 'GAM_struct_subjects.mat';
+fname = 'GAM_struct_subjects_23-Apr-2026.mat';
 % Load the GAM struct from the specified file
 fprintf('\n----Loading GAM struct----\n')
 load(fullfile(swp_dir, fname));
+% Load the severe GAM
+sev = load(fullfile(swp_dir,'GAM_struct_severe_combined_30-Apr-2026.mat'));
 
 %% Map subjectID to severities
 % CAA26 = control
@@ -52,6 +54,7 @@ gam_front.ctl = gam.pdif.caa26.front;
 gam_front.mld = gam.pdif.caa6.front;
 gam_front.sev1 = gam.pdif.caa22.front;
 gam_front.sev2 = gam.pdif.caa25.front;
+gam_front.sev = sev.gam.pdif.sev.front;
 
 % Assign occip structs
 gam_occip.ctl = gam.pdif.caa26.occip;
@@ -59,21 +62,30 @@ gam_occip.mld = gam.pdif.caa6.occip;
 gam_occip.mod = gam.pdif.caa17.occip;
 gam_occip.sev1 = gam.pdif.caa22.occip;
 gam_occip.sev2 = gam.pdif.caa25.occip;
+gam_occip.sev = sev.gam.pdif.sev.occip;
 
 % Create severity cell array for front + occip
-front_sevs = {'ctl','mld','sev1','sev2'};
-occip_sevs = {'ctl','mld','mod','sev1','sev2'};
+front_sevs = {'ctl','mld','sev1','sev2','sev'};
+occip_sevs = {'ctl','mld','mod','sev1','sev2','sev'};
 
 %% Compare slices
+% Set percentage difference to true
+pdif_flag = true;
 fprintf('\n----Running GAM slice comparison----\n')
 % Create output directory
 dirout = fullfile(fig_dir,'slices');
+xlims = [0,75];
+ylims = [-30,30];
 % Frontal
 fprintf('\tGAM slice comparison for frontal\n')
-swp_compare_gam_slices(gam_front, front_sevs, fullfile(dirout,'front'))
+swp_compare_gam_slices(gam_front, front_sevs, pdif_flag, 'front',...
+                       xlims, ylims,...
+                       fullfile(dirout,'front'))
 % Occip
 fprintf('\tGAM slice comparison for occip\n')
-swp_compare_gam_slices(gam_occip, occip_sevs, fullfile(dirout,'occip'))
+swp_compare_gam_slices(gam_occip, occip_sevs, pdif_flag, 'occip',...
+                       xlims, ylims,...
+                       fullfile(dirout,'occip'))
 
 %% Compare joint distributions b/w groups
 fprintf('\n----Running GAM curve comparison----\n')

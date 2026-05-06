@@ -1,10 +1,8 @@
-%% Measure size-weighted proximity (SWP) of stains
-% Purpose: plot stain vs. log(SWP) for each section and average
+%% Create a GAM for each stain/section
 % Overview:
 %{
 - import each stain's SWP struct
-- plot stain vs. SWP (EPVS and vessel) for each stain
-- average for each subject
+- Generate GAM
 %}
 
 %% Top-level settings
@@ -106,7 +104,7 @@ for ii = 1:numel(stain_names)
     % Get the current stain name
     stain = stains.(stain_names{ii});
     % print stain name to console
-    fprintf('\nRunning stain %s',stain_names{ii})
+    fprintf('Running stain %s\n',stain_names{ii})
 
     %%% Find sections for each subject/region
     % Retrieve all sections
@@ -117,11 +115,11 @@ for ii = 1:numel(stain_names)
     caa25f_txt = {'CAA25_1','CAA_25_1'};
     caa25o_txt = {'CAA25_7','CAA_25_7'};
     % Find matching cell
-    idx_22f = find(strcmpi(section_names, caa22f_txt));
-    idx_25f = find(strcmpi(section_names, caa25f_txt));
+    idx_22f = find(contains(lower(section_names),lower(caa22f_txt)));
+    idx_25f = find(contains(lower(section_names),lower(caa25f_txt)));
     % Find matching cell
-    idx_22o = find(strcmpi(section_names, caa22o_txt));
-    idx_25o = find(strcmpi(section_names, caa25o_txt));
+    idx_22o = find(contains(lower(section_names),lower(caa22o_txt)));
+    idx_25o = find(contains(lower(section_names),lower(caa25o_txt)));
     
     %%% Combine Frontal
     % Retrieve 22_front and 25_front
@@ -198,7 +196,7 @@ for ii = 1:numel(stain_names)
         % Define title string (which is also filename)
         tstr = strcat(stain_names{ii},'_',section_names{j});
         % Run GAM
-        histo_gam.(stain).(section) = fit_swp_histo_gam(...
+        histo_gam.(stain_names{ii}).(section_names{j}) = fit_swp_histo_gam(...
                     T.(stain_names{ii}).(section_names{j}),...
                     'NumTrees',ntrees,...
                     'MaxSplits',max_splits,'LearnRate',learn_rate,...

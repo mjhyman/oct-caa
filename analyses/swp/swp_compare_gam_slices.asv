@@ -1,5 +1,4 @@
-function swp_compare_gam_slices(results_struct, severities, pdif, reg,...
-                                xlims, ylims, dirout)
+function swp_compare_gam_slices(results_struct, severities, pdif, dirout)
 % COMPARE_GAM_ALL_SEVERITIES  Pairwise pointwise difference plots for all
 %                              severity combinations in a single figure.
 %
@@ -12,9 +11,6 @@ function swp_compare_gam_slices(results_struct, severities, pdif, reg,...
 %                  scaled by 100 to be a percentage. This GAM currently has
 %                  values from [0,1]
 %                  false = this does not need to be scaled.
-%   reg (str): brain region string
-%   xlims (vector): x-axis limits
-%   ylims (vector): y-axis limits
 %   dirout         : output directory for saved figures
 %
 % EXAMPLE
@@ -40,8 +36,7 @@ ylabels      = {'Scattering difference', 'Retardance difference'};
 for o = 1:2
     % Iterate pairs
     for p = 1:n_pairs
-        fig = figure('Units','Normalized','Position',[0, 0, 1.2, 2],...
-                     'Resize','off');
+        fig = figure('Units','Normalized','Position',[0, 0, 1.2, 2]);
         g1  = pairs(p, 1);
         g2  = pairs(p, 2);
         r1  = results_struct.(severities{g1});
@@ -52,8 +47,6 @@ for o = 1:2
         n2 = numel(r2.epv_swp_grid);
         % If # elements is equivalent, choose smallest range
         if n1 == n2
-            % Set the number of points (either n1, n2 work)
-            n_pts = n1;
             n1_max = max([r1.epv_swp_grid]);
             n2_max = max([r2.epv_swp_grid]);
             if n1_max < n2_max
@@ -61,19 +54,18 @@ for o = 1:2
             else
                 idx = 2;
             end
-        % If not equivalent, then find array with fewer elements
+        % If not equivalent, then find array with fe
         else
-            % Find minimum # elements
-            [n_pts, idx] = min([n1, n2]);
-        end
-        % Select the appropriate SWP grid and # slices
+        [n_pts, idx] = min([n1, n2]);
+        
+        % Select the grid with the fewest elements
         if idx == 1
             swp = r1.epv_swp_grid(1:n_pts);
             n_slices = numel(r1.slice_ves_levels);
         else
             swp = r2.epv_swp_grid(1:n_pts);
-            n_slices = numel(r2.slice_ves_levels);
-        end        
+            n_slices = numel(r1.slice_ves_levels);
+        end
 
         % Create baseline dashed line (control)
         yline(0, 'k--', 'LineWidth', 1, 'Alpha', 0.4);
@@ -128,11 +120,8 @@ for o = 1:2
                  'LineWidth',   2,        ...
                  'DisplayName', sprintf('EPVS %s', slice_labels{sl}));
         end
-        
-        % Disable Hold and set y-axis limits
+
         hold off;
-        xlim(xlims);
-        ylim(ylims);
 
         % Only show legend on first panel to save space
         lstr = {'Baseline','','10th Percentile','','50th Percentile',...
@@ -144,8 +133,7 @@ for o = 1:2
         % x-axis + y-axis labels
         xlabel('EPVS SWP');
         ylabel(ylabels{o}, 'FontSize', 8);
-        tstr = sprintf('%s: %s  minus  %s',...
-                        reg,...
+        tstr = sprintf('%s  minus  %s',...
                         capitalize(severities{g2}),...
                         capitalize(severities{g1}));
         title(tstr,'FontSize', 10);
