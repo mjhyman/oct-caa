@@ -192,6 +192,8 @@ prop = {'mus','ret'};
 tstr = {'White Matter','Gray Matter'};
 % Y-axis label
 ylabs = {'\mu_s (mm^-^1)','Retardance (\circ)'};
+% Flag for keeping moderate
+keep_mod = false;
 
 % Iterate WM/GM
 for ii = 1:2
@@ -201,13 +203,19 @@ for ii = 1:2
         for k=1:2
             fprintf('Starting %s %s %s\n',wm_gm{ii},regs{j},prop{k})
             %%% box/whisker plot x-labels
-            % x-axis label
-            if strcmp(regs{j},'front')
+            % if keeping moderate for occipital
+            if keep_mod
+                if strcmp(regs{j},'front')
+                    xticklabs = {'Control','Mild','Severe'};
+                    ngroups = 3;
+                else
+                    xticklabs = {'Control','Mild','Moderate','Severe'};
+                    ngroups = 4;
+                end
+            % Otherwise exclude moderate
+            else
                 xticklabs = {'Control','Mild','Severe'};
                 ngroups = 3;
-            else
-                xticklabs = {'Control','Mild','Moderate','Severe'};
-                ngroups = 4;
             end
             
             %%% Compute Box/Whisker stats for each group
@@ -215,13 +223,16 @@ for ii = 1:2
             stats_cell = nan(ngroups,5);
             stats_cell(1,:) = compute_box_stats(stages.ctl.(regs{j}).(wm_gm{ii}).(prop{k}));
             stats_cell(2,:) = compute_box_stats(stages.mild.(regs{j}).(wm_gm{ii}).(prop{k}));
+            stats_cell(3,:) = compute_box_stats(stages.severe.(regs{j}).(wm_gm{ii}).(prop{k}));
             % If frontal, then do not retrieve from moderate (CAA17 only has
             % occipital)
-            if strcmp(regs{j},'front')
-                stats_cell(3,:) = compute_box_stats(stages.severe.(regs{j}).(wm_gm{ii}).(prop{k}));
-            else
-                stats_cell(3,:) = compute_box_stats(stages.mod.(regs{j}).(wm_gm{ii}).(prop{k}));
-                stats_cell(4,:) = compute_box_stats(stages.severe.(regs{j}).(wm_gm{ii}).(prop{k}));
+            if keep_mod
+                if strcmp(regs{j},'front')
+                    stats_cell(3,:) = compute_box_stats(stages.severe.(regs{j}).(wm_gm{ii}).(prop{k}));
+                else
+                    stats_cell(3,:) = compute_box_stats(stages.mod.(regs{j}).(wm_gm{ii}).(prop{k}));
+                    stats_cell(4,:) = compute_box_stats(stages.severe.(regs{j}).(wm_gm{ii}).(prop{k}));
+                end
             end
             % Convert to cell array
             stats_cell = num2cell(stats_cell, 2);
