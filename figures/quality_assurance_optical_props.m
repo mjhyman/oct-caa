@@ -181,7 +181,7 @@ severe_subs = {'caa22','caa25'};
 stages.severe = raw;
 
 %% Box/Whisker by severity (WM, GM separately)
-
+% TODO: exclude moderate from main fig. Move this script to /figures/
 % string for wm / gm
 wm_gm = {'wm','gm'};
 % Brain regions
@@ -191,7 +191,7 @@ prop = {'mus','ret'};
 % Title string
 tstr = {'White Matter','Gray Matter'};
 % Y-axis label
-ylabs = {'\mu_s','Retardance (\circ)'};
+ylabs = {'\mu_s (mm^-^1)','Retardance (\circ)'};
 
 % Iterate WM/GM
 for ii = 1:2
@@ -226,9 +226,9 @@ for ii = 1:2
             % Convert to cell array
             stats_cell = num2cell(stats_cell, 2);
             
-            %% Create box/whisker plot
+            %%% Create box/whisker plot
             % Create box/whisker plot from function
-            bw_ttl = strcat(tstr{ii},' ', regs{j}, ' ', prop{k});
+            bw_ttl = strjoin({tstr{ii},regs{j},prop{k}});
             draw_boxplots_from_stats(stats_cell,...
                 'GroupNames',xticklabs,...
                 'YLabel',ylabs{k},...
@@ -242,7 +242,7 @@ for ii = 1:2
             fout = fullfile(fig_out,fname);
             saveas(gcf,fout,'jpeg');
             saveas(gcf,fout,'fig');
-            exportgraphics(gcf,strcat(fout,'svg'),'ContentType','vector');
+            exportgraphics(gcf,strcat(fout,'.svg'),'ContentType','vector');
             close;
             % Update console
             fprintf('Finished %s %s %s\n',wm_gm{ii},regs{j},prop{k})

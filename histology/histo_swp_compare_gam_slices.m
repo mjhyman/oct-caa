@@ -1,5 +1,5 @@
 function histo_swp_compare_gam_slices(gam, stain_name, reg,...
-                                      ylims, dirout)
+                                      xlims, ylims, dirout)
 % COMPARE_GAM_ALL_SEVERITIES  Pairwise pointwise difference plots for all
 %                              severity combinations in a single figure.
 %                              The values of the stain pixels are z scores
@@ -22,7 +22,7 @@ slice_labels = {'p10', 'p50', 'p90'};
 % 10% = dark blue, 50% = dark teal, 90% = vermillion
 colors = {'#1964b0','#882d71','#DB5829'};
 colors = validatecolor(colors,"multiple");
-ylab = 'Stain Intensity (Unitless)';
+ylab = 'Stain Z Score';
 
 % ==================================================================
 % Iterate the severity combinations
@@ -117,6 +117,7 @@ for p = 1:n_pairs
     % Disable Hold and set y-axis limits
     hold off;
     ylim(ylims);
+    xlim(xlims);
 
     % Only show legend on first panel to save space
     lstr = {'Baseline','','10th Percentile','','50th Percentile',...
@@ -137,7 +138,7 @@ for p = 1:n_pairs
 
     % Shade zero-crossing reference
     grid on; box on;
-    set(gca,'Fontsize',20)
+    set(gca,'Fontsize',30)
     pause(0.5)
 
     % Save output

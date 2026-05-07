@@ -100,7 +100,8 @@ end
 % Retrieve stain names
 stains = fields(gam_remapped);
 regions = fields(gam_remapped.cd68);
-ylims = [-1,1];
+ylims = [-1.5,1.5];
+xlims = [0,15];
 
 % Iterate Stains
 for ii = 1:numel(fields(gam_remapped))
@@ -114,6 +115,7 @@ for ii = 1:numel(fields(gam_remapped))
             gam_remapped.(stains{ii}).(regions{j}),...
                           stains{ii},...
                           regions{j},...
+                          xlims,...
                           ylims, dirout);
     end
 end

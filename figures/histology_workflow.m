@@ -1,18 +1,11 @@
-%% Import downsampled stains
+%% Subfigures for histopathology workflow
 %{
-These are the stains that our collaborator performed. The grayscale images
-can be directly used to compute the stain density surrounding the EPVS
-because there is no counterstain. The deconvolved images had a
-counterstain and therefore had to be deconvolved to extract the target
-stain.
 
-The purpose of this script is to create the images for the histology
-workflow
 
 %}
 
 %% Top-level settings
-clearvars -except caa6 caa17 caa22 caa25 caa26 swp_struct lhe
+clearvars -except caa6 caa17 caa22 caa25 caa26 swp_struct lhe cd68 gfap
 clc; close all;
 % Get the current folder
 currentFolder = pwd;
@@ -59,18 +52,19 @@ sth = 25;   % scale bar thickness in line width units
 fsize = 40; % Set font size for figures
 
 %%% Define bounds for cropping
-x1 = 2500; x2 = x1+500;
-y1 = 5900; y2 = y1+500;
+x1 = 2274; x2 = x1+300;
+y1 = 1585; y2 = y1+300;
 
 %% Create figure of stain deconvolved
 % stain
 stain = lhe(2).stain;
 mask = lhe(2).mask;
 stain(~mask) = -4;
-% Apply crop
-% stain = stain(y1:y2,x1:x2);
+% Apply crop and rotate
+stain = stain(y1:y2,x1:x2);
+stain = flipud(stain');
 % Create figure
-figure('Position', [100 100 1500 1000]);
+figure('Position', [500 500 1000 1000]);
 imagesc(stain); clim([smin, smax]); c = colorbar;
 c.Label.String = 'Stain Density (a.u.)';
 % Title, remove tick marks, colorbar
@@ -89,7 +83,7 @@ ref = lhe(1).stain;
 mask = lhe(1).mask;
 ref(~mask) = -4;
 % Create figure for the reference stain
-figure('Position', [100 100 1500 1000]);
+figure('Position', [500 500 1000 1000]);
 imagesc(ref);
 % clim([lmin, lmax]);
 title('Reference Stain - CAA 17 Occipital');
@@ -111,8 +105,11 @@ saveas(gca,fout,'png');
 stain = lhe(2).stain_matched;
 mask = lhe(2).mask;
 stain(~mask) = -4;
+% Apply crop and rotate
+stain = stain(y1:y2,x1:x2);
+stain = flipud(stain');
 % Create figure
-figure('Position', [100 100 1500 1000]);
+figure('Position', [500 500 1000 1000]);
 imagesc(stain); clim([rmin, rmax]); c = colorbar;
 c.Label.String = 'Stain Density (a.u.)';
 % Title, remove tick marks, colorbar
@@ -120,7 +117,7 @@ title('Stain Histogram Matched')
 set(gca,'XTick',[]); set(gca,'YTick',[])
 set(gca,'FontSize',fsize)
 % Add scale bar (microns)
-sbar(slen, sth, pix, stain)
+sbar(slen_zoom, sth, pix, stain)
 % Save figure
 fout = fullfile(figdir, 'histogram_matched');
 saveas(gca,fout,'png');
@@ -130,8 +127,11 @@ saveas(gca,fout,'png');
 zstain = lhe(2).z_stain;
 mask = lhe(2).mask;
 zstain(~mask) = -4;
+% Apply crop and rotate
+zstain = zstain(y1:y2,x1:x2);
+zstain = flipud(zstain');
 % Create figure
-figure('Position', [100 100 1500 1000]);
+figure('Position', [500 500 1000 1000]);
 imagesc(zstain); clim([zmin, zmax]); c = colorbar;
 c.Label.String = 'z-score';
 % Title, remove tick marks, colorbar
@@ -139,76 +139,85 @@ title('Z-score Stain')
 set(gca,'XTick',[]); set(gca,'YTick',[])
 set(gca,'FontSize',fsize)
 % Add scale bar (microns)
-sbar(slen, sth, pix, zstain)
+sbar(slen_zoom, sth, pix, zstain)
 % Save figure
 fout = fullfile(figdir, 'histogram_matched_stain_z_score');
 saveas(gca,fout,'png');
 
 %% Create figure overlaying z-score with donuts
 
-%%% Take EPVS annotation and create overlay
+%%% Create EPVS and Vessel annotations
+% EPVS
 epvs = lhe(2).epvs;
 se1 = strel('disk',0);
 se2 = strel('disk',rad_sm);
-inner = imdilate(epvs,se1);
-outter = imdilate(epvs,se2);
-annot = xor(inner, outter);
-% Overlay EPVS onto z_stain
-overlay = cat(3, ones(size(zstain)), zeros(size(zstain)), zeros(size(zstain)));
+inner_e = imdilate(epvs,se1);
+outter_e = imdilate(epvs,se2);
+epvs_annot = xor(inner_e, outter_e);
+epvs_annot = epvs_annot(y1:y2,x1:x2);
+epvs_annot = flipud(epvs_annot');
+% Vessel
+ves = lhe(2).ves;
+se1_v = strel('disk',0);
+se2_v = strel('disk',rad_sm);
+inner_v = imdilate(ves,se1_v);
+outter_v = imdilate(ves,se2_v);
+ves_annot = xor(inner_v, outter_v);
+ves_annot = ves_annot(y1:y2,x1:x2);
+ves_annot = flipud(ves_annot');
+
+% 1. Create Vermillion overlay for vessel [0.89, 0.26, 0.20]
+overlay_ves = cat(3, ones(size(zstain)) * 0.89, ... 
+                      ones(size(zstain)) * 0.26, ... 
+                      ones(size(zstain)) * 0.20);
+
+% 2. Create Light Blue overlay for EPVS [0.68, 0.85, 0.90]
+overlay_epvs = cat(3, ones(size(zstain)) * 211/255, ... 
+                     ones(size(zstain)) * 211/255, ... 
+                     ones(size(zstain)) * 211/255);
 
 %%% Plot z-stain and then overlay donuts
-% z-stain
-figure('Position', [100 100 1500 1000]);
+figure('Position', [500 500 1000 1000]);
 imagesc(zstain); hold on;
-% Overlay with annotation
-h = imagesc(overlay);
-set(h,'AlphaData',annot * 0.5);
-set(gca,'XTick',[]); set(gca,'YTick',[])
-c = colorbar; clim([zmin,zmax]);
+
+% Plot EPVS Overlay (Vermillion)
+h1 = imagesc(overlay_epvs);
+set(h1, 'AlphaData', epvs_annot * 0.5); % 50% transparency [cite: 5]
+
+% Plot Vessel Overlay (Light Blue)
+h2 = imagesc(overlay_ves);
+set(h2, 'AlphaData', ves_annot * 0.5); % 50% transparency [cite: 5]
+
+set(gca, 'XTick', []); set(gca, 'YTick', []);
+c = colorbar; clim([zmin, zmax]);
 c.Label.String = 'z-score';
-set(gca,'FontSize',fsize)
-
-%%% Add scale bar (microns)
-sbar(slen, sth, pix, zstain)
-
-%%% Save figure
-fout = fullfile(figdir, 'histogram_matched_stain_z_score_overlay_donuts');
-saveas(gca,fout,'png');
-
-%% Overlay z-score w/ donuts (cropped)
+set(gca, 'FontSize', fsize);
 
 %%% Take EPVS annotation and create overlay
-epvs = lhe(2).epvs;
-se1 = strel('disk',0);
-se2 = strel('disk',rad_sm);
-inner = imdilate(epvs,se1);
-outter = imdilate(epvs,se2);
-annot = xor(inner, outter);
-% Overlay EPVS onto z_stain
-overlay = cat(3, ones(size(zstain)), zeros(size(zstain)), zeros(size(zstain)));
+% epvs = lhe(2).epvs;
+% se1 = strel('disk',0);
+% se2 = strel('disk',rad_sm);
+% inner = imdilate(epvs,se1);
+% outter = imdilate(epvs,se2);
+% epvs_annot = xor(inner, outter);
+% % Overlay EPVS onto z_stain
+% overlay = cat(3, ones(size(zstain)), zeros(size(zstain)), zeros(size(zstain)));
+% 
+% %%% Plot z-stain and then overlay donuts
+% % z-stain
+% figure('Position', [500 500 1000 1000]);
+% imagesc(zstain); hold on;
+% % Overlay with annotation
+% h = imagesc(overlay);
+% set(h,'AlphaData',epvs_annot * 0.5);
+% set(gca,'XTick',[]); set(gca,'YTick',[])
+% c = colorbar; clim([zmin,zmax]);
+% c.Label.String = 'z-score';
+% set(gca,'FontSize',fsize)
 
-%%% Crop image to desired ROI
-% Crop zstain and overlay
-zstainCropped = zstain(y1:y2, x1:x2);
-overlayCropped = overlay(y1:y2, x1:x2, :);
-annot = annot(y1:y2, x1:x2, :);
-
-%%% Plot z-stain and then overlay
-% z-stain
-figure('Position', [100 100 1500 1000]);
-imagesc(zstainCropped); hold on;
-% Overlay with annotation
-h = imagesc(overlayCropped);
-set(h,'AlphaData',annot * 0.5);
-set(gca,'XTick',[]); set(gca,'YTick',[])
-c = colorbar; clim([zmin,zmax]);
-c.Label.String = 'z-score';
-set(gca,'FontSize',fsize)
-
-%%% Add scale bar
-sbar(slen_zoom, 20, pix, zstainCropped)
+%%% Add scale bar (microns)
+sbar(slen_zoom, sth, pix, zstain)
 
 %%% Save figure
 fout = fullfile(figdir, 'histogram_matched_stain_z_score_overlay_donuts_zoom');
 saveas(gca,fout,'png');
-

@@ -37,21 +37,35 @@ cd68 = load(fullfile(hdir,'cd68_rings_21-Nov-2025.mat')); cd68 = cd68.cd68;
 radii_sm = [40, 81, 121, 162, 202, 243, 283, 324, 364, 405, 445, 486];
 radii_lg = [100, 201, 301, 402, 503];
 
-%% AVERAGE across combined subjects and regions
-%{
+%% COMBINED AVERAGE across subjects and regions
 close all;
 
-% LHE
-[sm, lg] = mean_std_stain(lhe);
-stain_errorbar(sm, lg, radii_sm, radii_lg, 'LHE', figdir)
+%%% LHE combined
+[sm, ~] = mean_std_stain(lhe);
+ylims = [-0.2, 0.3];
+tstr = 'LHE Combined'; figure;
+histo_mean_std_plot(radii_sm, sm.mean_epvs, sm.std_epvs,...
+                    sm.mean_ves, sm.std_ves, ylims, tstr)
+fname = fullfile(figdir,'lhe_combined_ribbon');
+saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
 
-% GFAP
-[sm, lg] = mean_std_stain(gfap);
-stain_errorbar(sm, lg, radii_sm, radii_lg, 'GFAP', figdir)
+%%% GFAP combined
+[sm, ~] = mean_std_stain(gfap);
+ylims = [-0.2, 0.5];
+tstr = 'GFAP Combined'; figure;
+histo_mean_std_plot(radii_sm, sm.mean_epvs, sm.std_epvs,...
+                    sm.mean_ves, sm.std_ves, ylims, tstr)
+fname = fullfile(figdir,'gfap_combined_ribbon');
+saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
 
-% CD68
-[sm, lg] = mean_std_stain(cd68);
-stain_errorbar(sm, lg, radii_sm, radii_lg, 'CD68', figdir)
+%%% CD68 combined
+[sm, ~] = mean_std_stain(cd68);
+ylims = [-0.2, 0.2];
+tstr = 'CD68 Combined'; figure;
+histo_mean_std_plot(radii_sm, sm.mean_epvs, sm.std_epvs,...
+                    sm.mean_ves, sm.std_ves, ylims, tstr)
+fname = fullfile(figdir,'cd68_combined_ribbon');
+saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
 %}
 
 %% AVERAGE within brain region -- scatterplot of histology vs. distance
@@ -281,26 +295,60 @@ function [sm, lg] = mean_std_stain(stain)
     %   std_ves (vector): std Ves
     
     % Measure number of radii measurements for radius type (40 or 100 um)
+    % nrad = length(fields(stain(1).(rad_size)));
+    % % Initialize vectors
+    % mean_epvs = zeros(nrad,1);
+    % std_epvs = zeros(nrad,1);
+    % mean_ves = zeros(nrad,1);
+    % std_ves = zeros(nrad,1);
+    % % Retrieve names of the fields of small radii
+    % rad_name = fields(stain(1).(rad_size));
+    % % Iterate over the radii
+    % for ii = 1:nrad
+    %     % EPVS
+    %     epvs = arrayfun(@(s) s.(rad_size).(rad_name{ii}).exp_hmatched_mean, stain);
+    %     % Vessels
+    %     ves = arrayfun(@(s) s.(rad_size).(rad_name{ii}).ctl_hmatched_mean, stain);
+    %     % Take mean & std dev across subjects
+    %     mean_epvs(ii) = mean(epvs);
+    %     std_epvs(ii) = std(epvs);
+    %     mean_ves(ii) = mean(ves);
+    %     std_ves(ii) = std(ves);
+    % end
+
+    %%% % TODO (revise) Initialize variables
+    % subject names of each section in stain
+    subs = {stain(:).baseName};
+    % Count total number of subjects within region
+    nsubs = numel(subs);
+    % Measure number of radii measurements for radius type (40 or 100 um)
     nrad = length(fields(stain(1).(rad_size)));
     % Initialize vectors
-    mean_epvs = zeros(nrad,1);
-    std_epvs = zeros(nrad,1);
-    mean_ves = zeros(nrad,1);
-    std_ves = zeros(nrad,1);
+    mean_epvs = zeros(nrad,nsubs);
+    mean_ves = zeros(nrad,nsubs);
     % Retrieve names of the fields of small radii
-    rad_name = fields(stain(1).(rad_size));
-    % Iterate over the radii
-    for ii = 1:nrad
-        % EPVS
-        epvs = arrayfun(@(s) s.(rad_size).(rad_name{ii}).exp_hmatched_mean, stain);
-        % Vessels
-        ves = arrayfun(@(s) s.(rad_size).(rad_name{ii}).ctl_hmatched_mean, stain);
-        % Take mean & std dev across subjects
-        mean_epvs(ii) = mean(epvs);
-        std_epvs(ii) = std(epvs);
-        mean_ves(ii) = mean(ves);
-        std_ves(ii) = std(ves);
+    rad_name = fields(stain(1).(rad_size));   
+    
+    %%% Iterate subjects and radii
+    % Iterate subjects
+    for s = 1:length(subs)
+        % Iterate over the radii
+        for ii = 1:nrad
+            % EPVS
+            epvs = stain(s).(rad_size).(rad_name{ii}).exp;
+            % Vessels
+            ves = stain(s).(rad_size).(rad_name{ii}).ctl;
+            % Take mean & std dev within subject
+            mean_epvs(ii,s) = mean(epvs,'omitnan');
+            mean_ves(ii,s) = mean(ves,'omitnan');
+        end
     end
+    
+    % Average across subjects
+    std_epvs = std(mean_epvs,0,2,'omitnan');
+    mean_epvs = mean(mean_epvs,2,'omitnan');
+    std_ves = std(mean_ves,0,2,'omitnan');
+    mean_ves = mean(mean_ves,2,'omitnan');    
     end
 end
 
@@ -417,9 +465,8 @@ for s = 1:length(subs)
 end
 
 % Average across subjects
-stats.mean_epvs = mean(mean_epvs,2,'omitnan');
 stats.std_epvs = std(mean_epvs,0,2,'omitnan');
-stats.mean_ves = mean(mean_ves,2,'omitnan');
+stats.mean_epvs = mean(mean_epvs,2,'omitnan');
 stats.std_ves = std(mean_ves,0,2,'omitnan');
-
+stats.mean_ves = mean(mean_ves,2,'omitnan');
 end
