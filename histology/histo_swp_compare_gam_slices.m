@@ -19,7 +19,7 @@ n_pairs  = size(pairs, 1);            % 6 for 4 groups
 % Labels for each vessel-swp slice
 slice_labels = {'p10', 'p50', 'p90'};
 % Colors for each vessel-swp slice
-% 10% = dark blue, 50% = dark teal, 90% = vermillion
+% 10% = dark blue, 50% = dark purple, 90% = vermillion
 colors = {'#1964b0','#882d71','#DB5829'};
 colors = validatecolor(colors,"multiple");
 ylab = 'Stain Z Score';
@@ -29,8 +29,7 @@ ylab = 'Stain Z Score';
 % ==================================================================
 % Iterate pairs
 for p = 1:n_pairs
-    fig = figure('Units','Normalized','Position',[0, 0, 0.5, 0.9],...
-                 'Resize','off');
+    fig = figure('Position',[100,100,1000,1000]);
     % Extract pairs
     g1  = pairs(p, 1);
     g2  = pairs(p, 2);
@@ -145,7 +144,8 @@ for p = 1:n_pairs
     fname = sprintf('GAM_pairwise_%s_%s_minus_%s',...
                     stain_name,severities{g2},severities{g1});
     saveas(fig, fullfile(dirout, [fname, '.fig']));
-    saveas(fig, fullfile(dirout, [fname, '.png']));
+    exportgraphics(fig,fullfile(dirout, [fname,'.png']),'Resolution',600);
+    exportgraphics(fig,fullfile(dirout, [fname,'.svg']),'Resolution',600);
     fprintf('Saved: %s\n', fname);
     pause(0.5)
     close all;

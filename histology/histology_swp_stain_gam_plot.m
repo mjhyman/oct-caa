@@ -30,6 +30,7 @@ ddir='/projectnb/npbssmic/ns/CAA/histology/gam';
 figdir = '/projectnb/npbssmic/ns/CAA/figures/histology_gam/';
 
 %%% Import GAM
+fprintf('\nImporting histology GAM struct\n')
 gam = load(fullfile(ddir,'GAM_histo_01-May-2026.mat'));
 gam = gam.histo_gam;
 
@@ -42,9 +43,10 @@ fsize = 30;
 %% Rename sections to severity
 % CAA26 = control
 % CAA6 = mild
-% CAA17 = mild
+% CAA17 = moderate
 % CAA22/25 = sever
 % The second number: 1 = frontal, 7 = occipital
+fprintf('\nRenaming sections for clarity\n')
 
 % 1. Get the top-level stains (cd68, gfap, lhe)
 stains = fieldnames(gam);
@@ -96,12 +98,13 @@ for i = 1:numel(stains)
 end
 
 %% Compare the GAM slices for each stain + region separately
+fprintf('\nCreating histo vs SWP GAM figures\n')
 
 % Retrieve stain names
 stains = fields(gam_remapped);
 regions = fields(gam_remapped.cd68);
 ylims = [-1.5,1.5];
-xlims = [0,15];
+xlims = [0,10];
 
 % Iterate Stains
 for ii = 1:numel(fields(gam_remapped))
@@ -119,3 +122,5 @@ for ii = 1:numel(fields(gam_remapped))
                           ylims, dirout);
     end
 end
+
+fprintf('\nDone, go graduate and get a real job.\n')

@@ -1,4 +1,5 @@
-function histo_mean_std_plot(x, exp_mu, exp_sd, ctl_mu, ctl_sd, ylims, tstr)
+function histo_mean_std_plot(x, exp_mu, exp_sd, ctl_mu, ctl_sd,...
+                             ylims, ytick, tstr)
 % mean_std_plot: Create a Mean ± Standard Deviation plot.
 %   The STD will be a translucent ribbon surrounding the mean.
 % 
@@ -44,7 +45,10 @@ ylabel('Z-Score');
 ylim(ylims)
 xlim([0,500]);
 xlabel('Distance (\mum)')
-% Add title and move higher
+% Add y-axis ticks
+yticks(ytick);
+ytickformat('%.2f'); 
+% Add title
 t = title(tstr);
 hold off;
 grid on;

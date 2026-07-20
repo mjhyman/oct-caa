@@ -1,0 +1,257 @@
+function stats_table = violin_box_whisker(data, glabels, tstr, ylims, ystr, colors)
+% violin_box_whisker - Violin plots with embedded boxplots and statistical comparisons
+%
+% Inputs:
+%   data        - cell array of data vectors, one per group
+%   glabels     - cell array of strings for x-axis labels
+%   titleStr    - string for plot title
+%   ylims       - y-axis limits [min max]
+%   ystr        - string for y-axis label
+%
+% Output:
+%   stats_table - MATLAB table with KW and pairwise results; export with:
+%                 writetable(stats_table, 'results.csv')
+%
+% Example:
+%   data = {randn(1e6,1), randn(1e6,1)+1, randn(1e6,1)+0.5};
+%   T = violin_box_whisker(data, {'Control','Mild','Severe'}, 'Test', [0 5], 'Value');
+%   writetable(T, 'results.csv');
+
+if ~exist('tiedrank', 'file')
+    error('violin_box_whisker requires the Statistics and Machine Learning Toolbox (tiedrank missing).');
+end
+
+nGroups     = numel(data);
+violinWidth = 0.35;
+nKDE        = 512;
+maxN        = 100000;
+
+figure;
+set(gcf, 'Units', 'inches', 'Position', [0, 0, 6, 5]);
+set(gcf, 'PaperUnits', 'inches', 'PaperSize', [6, 5], 'PaperPosition', [0, 0, 6, 5]);
+hold on;
+
+%% -----------------------------------------------------------------------
+%  1. DRAW VIOLINS
+%% -----------------------------------------------------------------------
+yMax = -Inf;
+yMin =  Inf;
+
+for i = 1:nGroups
+
+    x    = data{i}(:);
+    yMax = max(yMax, quantile(x, 0.999));
+    yMin = min(yMin, quantile(x, 0.001));
+
+    %% --- KDE ---
+    [f, xi] = ksdensity(x, 'NumPoints', nKDE);
+    f  = f(:)';
+    xi = xi(:)';
+    f  = f / max(f) * violinWidth;
+
+    %% --- Box statistics ---
+    q1      = quantile(x, 0.25);
+    med     = median(x,'omit');
+    q3      = quantile(x, 0.75);
+    iqr_val = q3 - q1;
+    whislo  = max(min(x), q1 - 1.5 * iqr_val);
+    whishi  = min(max(x), q3 + 1.5 * iqr_val);
+
+    %% --- Violin patch ---
+    xPatch = [i + f,  fliplr(i - f)];
+    yPatch = [xi,     fliplr(xi)];
+    patch(xPatch, yPatch, colors(i,:), ...
+        'FaceAlpha', 0.4, 'EdgeColor', colors(i,:), 'LineWidth', 1);
+
+    %% --- Whiskers ---
+    plot([i i], [whislo q1],    '-', 'Color', [0.2 0.2 0.2], 'LineWidth', 1.5);
+    plot([i i], [q3    whishi], '-', 'Color', [0.2 0.2 0.2], 'LineWidth', 1.5);
+
+    %% --- IQR box ---
+    boxW = 0.08;
+    boxH = max(iqr_val, eps);
+    rectangle('Position', [i - boxW, q1, 2*boxW, boxH], ...
+        'FaceColor', [1 1 1], 'EdgeColor', [0.2 0.2 0.2], 'LineWidth', 1.5);
+
+    %% --- Median line ---
+    plot([i - boxW, i + boxW], [med med], '-', ...
+        'Color', [0.2 0.2 0.2], 'LineWidth', 2.5);
+
+end
+
+%% -----------------------------------------------------------------------
+%  2. STATISTICAL TESTS (subsampled)
+%% -----------------------------------------------------------------------
+pause(0.1)
+%% --- Subsample ---
+dataSub = cellfun(@(x) x(randperm(numel(x), min(numel(x), maxN))), ...
+    data, 'UniformOutput', false);
+
+%% --- Build grouped vectors (preallocated) ---
+nSub     = cellfun(@numel, dataSub);
+allVals  = vertcat(dataSub{:});
+groupVec = zeros(sum(nSub), 1);
+idx = 1;
+for i = 1:nGroups
+    groupVec(idx : idx+nSub(i)-1) = i;
+    idx = idx + nSub(i);
+end
+
+%% --- Kruskal-Wallis omnibus ---
+[kw_p, ~, kw_stats] = kruskalwallis(allVals, groupVec, 'off');
+
+%%% --- Extract chi2 stat robustly across MATLAB versions ---
+if isfield(kw_stats, 'chi2stat')
+    chi2val = kw_stats.chi2stat;
+elseif isfield(kw_stats, 'chisq')
+    chi2val = kw_stats.chisq;
+else
+    % Fallback: display available fields for debugging
+    disp('Available kw_stats fields:');
+    disp(fieldnames(kw_stats));
+    chi2val = NaN;
+    warning('Could not find chi2 statistic in kw_stats. See fields above.');
+end
+
+%% --- Pairwise comparisons via multcompare ---
+[mc_results, ~] = multcompare(kw_stats, 'CType', 'dunn-sidak', 'Display', 'off');
+
+%% --- Pairwise Cliff's delta ---
+pairs   = nchoosek(1:nGroups, 2);
+nPairs  = size(pairs, 1);
+adj_p    = zeros(nPairs, 1);
+cliffs_d = zeros(nPairs, 1);
+
+for k = 1:nPairs
+    i = pairs(k, 1);
+    j = pairs(k, 2);
+
+    %% Extract adjusted p-value — check both (i,j) and (j,i) orderings
+    rowMask = (mc_results(:,1)==i & mc_results(:,2)==j) | ...
+              (mc_results(:,1)==j & mc_results(:,2)==i);
+    if ~any(rowMask)
+        error('Could not find multcompare result for groups %d and %d', i, j);
+    end
+    adj_p(k) = mc_results(find(rowMask, 1), 6);
+
+    %% Cliff's delta
+    x1 = dataSub{i}(:);
+    x2 = dataSub{j}(:);
+    n1 = numel(x1);
+    n2 = numel(x2);
+    allXY    = [x1; x2];
+    rnks     = tiedrank(allXY);
+    U        = sum(rnks(1:n1)) - n1*(n1+1)/2;
+    cliffs_d(k) = (2*U / (n1*n2)) - 1;
+end
+
+%% -----------------------------------------------------------------------
+%  3. BUILD OUTPUT TABLE
+%% -----------------------------------------------------------------------
+
+%% --- KW omnibus row ---
+kw_row = table( ...
+    {'Kruskal-Wallis (omnibus)'}, ...
+    {''}, ...
+    kw_p, ...
+    NaN, ...
+    {''}, ...
+    NaN, ...
+    {sprintf('chi2=%.2f, df=%d', chi2val, kw_stats.df)}, ...
+    'VariableNames', ...
+    {'Test', 'Comparison', 'p_raw', 'p_adj', 'Significance', 'Cliffs_d', 'Notes'});
+
+%% --- Pairwise rows ---
+nRows       = nPairs;
+test_col    = repmat({'Mann-Whitney (pairwise)'}, nRows, 1);
+comp_col    = cell(nRows, 1);
+p_raw_col   = nan(nRows, 1);   % multcompare does not expose raw p; use adj_p
+p_adj_col   = zeros(nRows, 1);
+sig_col     = cell(nRows, 1);
+cliffs_col  = zeros(nRows, 1);
+notes_col   = repmat({'Dunn-Sidak corrected; positive d = group i > group j'}, nRows, 1);
+
+for k = 1:nPairs
+    i = pairs(k, 1);
+    j = pairs(k, 2);
+    comp_col{k}   = sprintf('%s vs %s', glabels{i}, glabels{j});
+    p_adj_col(k)  = adj_p(k);
+    sig_col{k}    = pToStars(adj_p(k));
+    cliffs_col(k) = cliffs_d(k);
+end
+
+pairwise_rows = table( ...
+    test_col, comp_col, p_raw_col, p_adj_col, sig_col, cliffs_col, notes_col, ...
+    'VariableNames', ...
+    {'Test', 'Comparison', 'p_raw', 'p_adj', 'Significance', 'Cliffs_d', 'Notes'});
+
+%% --- Combine ---
+stats_table = [kw_row; pairwise_rows];
+
+%% --- Add property label column ---
+property_col = repmat({tstr}, height(stats_table), 1);
+stats_table  = addvars(stats_table, property_col, 'Before', 'Test', ...
+    'NewVariableNames', 'Property');
+
+%% --- Display in command window ---
+disp(stats_table);
+fprintf('\nCliffs delta: |d|<0.147 negligible, 0.147-0.33 small, 0.33-0.474 medium, >0.474 large\n');
+fprintf('NOTE: p-values inflated by large N (voxel-level pseudoreplication)\n');
+
+%% -----------------------------------------------------------------------
+%  4. SIGNIFICANCE BRACKETS
+%% -----------------------------------------------------------------------
+yRange     = yMax - yMin;
+bracketPad  = yRange * 0.05;
+bracketStep = yRange * 0.08;
+bracketH    = yRange * 0.02;
+currentY    = yMax + bracketPad;
+
+for k = 1:nPairs
+    i   = pairs(k, 1);
+    j   = pairs(k, 2);
+    sig = pToStars(adj_p(k));
+
+    if strcmp(sig, 'ns')
+        continue;
+    end
+
+    plot([i, j], [currentY, currentY],            '-k', 'LineWidth', 1.2);
+    plot([i, i], [currentY - bracketH, currentY], '-k', 'LineWidth', 1.2);
+    plot([j, j], [currentY - bracketH, currentY], '-k', 'LineWidth', 1.2);
+    text((i+j)/2, currentY + bracketH*0.5, sig, ...
+        'HorizontalAlignment', 'center', 'FontSize', 12);
+
+    currentY = currentY + bracketStep;
+end
+
+%% -----------------------------------------------------------------------
+%  5. AXES FORMATTING
+%% -----------------------------------------------------------------------
+xlim([0.5, nGroups + 0.5]);
+ylim([ylims(1), ylims(2)]);
+xticks(1:nGroups);
+xticklabels(glabels);
+ylabel(ystr);
+title(tstr);
+box off;
+set(gca, 'FontSize', 13, 'LineWidth', 1.2);
+
+hold off;
+end
+
+
+%% -----------------------------------------------------------------------
+%  LOCAL HELPER: p-value to significance stars
+%% -----------------------------------------------------------------------
+function s = pToStars(p)
+if p < 0.001
+    s = '***';
+elseif p < 0.01
+    s = '**';
+elseif p < 0.05
+    s = '*';
+else
+    s = 'ns';
+end
+end

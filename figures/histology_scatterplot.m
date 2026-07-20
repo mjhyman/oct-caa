@@ -7,6 +7,8 @@ across all sections for each region.
 This is an alternative to the bayesian statisical model, which had
 difficulty converging.
 
+TODO:
+- remove the control subject from each stain
 %}
 
 %% Top-level settings
@@ -32,6 +34,11 @@ subdir = fullfile(figdir, '/subject_level');
 lhe = load(fullfile(hdir,'lhe_rings_21-Nov-2025.mat')); lhe = lhe.lhe;
 gfap = load(fullfile(hdir,'gfap_rings_21-Nov-2025.mat')); gfap = gfap.gfap;
 cd68 = load(fullfile(hdir,'cd68_rings_21-Nov-2025.mat')); cd68 = cd68.cd68;
+
+%%% Extract the control sections from each stain
+lhe_ctl = lhe(6:7);
+gfap_ctl = gfap(6:7);
+cd68_ctl = cd68(6:7);
 
 %%% measurement outter radii (units = voxels)
 radii_sm = [40, 81, 121, 162, 202, 243, 283, 324, 364, 405, 445, 486];
@@ -70,6 +77,7 @@ saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
 
 %% AVERAGE within brain region -- scatterplot of histology vs. distance
 % Only use the samll radius measurement (rad40)
+% Combine subjects but keep regions separate
 close all;
 
 % Define the tissue section codes for frontal and occipital
@@ -130,9 +138,10 @@ saveas(gcf,fname,'pdf'); saveas(gcf,fname,'png'); saveas(gcf,fname,'fig');
 
 
 %% AVERAGE within subjects -- scatterplot of histology vs. distance
+% Create figure for each subject
+% This is used for control, mild, moderate
 close all;
 
-%{
 %%% LHE
 % Consolidate measurements within each subject
 [lhe_sm] = iterate_subject_radii(lhe, "rad40");

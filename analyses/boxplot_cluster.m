@@ -1,5 +1,5 @@
 function h = boxplot_cluster(dataCell, groupLabels, subGroupLabels,...
-                            hexColors, useLog, yLab, fontSize)
+                            hexColors, useLog, yLab, ylims, fontSize)
     % Inputs:
     %   useLog   - Boolean (true/false) for logarithmic y-axis
     %   yLab     - String for the Y-axis label
@@ -42,7 +42,7 @@ function h = boxplot_cluster(dataCell, groupLabels, subGroupLabels,...
         % Draw Box (Patch)
         px = [xPos-width/2, xPos+width/2, xPos+width/2, xPos-width/2];
         py = [s(2), s(2), s(4), s(4)];
-        p = patch(px, py, c, 'FaceAlpha', 0.6, 'EdgeColor', 'k');
+        p = patch(px, py, c, 'FaceAlpha', 1, 'EdgeColor', 'k');
         
         if isempty(subHandles(subIdx)) || ~isgraphics(subHandles(subIdx))
             subHandles(subIdx) = p;
@@ -69,7 +69,9 @@ function h = boxplot_cluster(dataCell, groupLabels, subGroupLabels,...
     
     % Labels and Legend
     ylabel(yLab, 'FontName', 'Arial', 'FontSize', fontSize);
-    legend(subHandles, uniqueSubs, 'Location', 'best', 'FontName', 'Arial', 'FontSize', fontSize);
+    % legend(subHandles, uniqueSubs, 'Location', 'northwest',...
+    %        'FontName', 'Arial', 'FontSize', fontSize);
+    ylim(ylims);
     
     grid on;
 end

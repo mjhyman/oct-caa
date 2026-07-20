@@ -155,7 +155,7 @@ dot_size = 100;
 fsize = 30;
 
 % Iterate over datasets
-for ii = 1:numel(f)
+for ii = 3:numel(f)
     % Iterate over optical properties
     for j = 1:numel(op)
         % Iterate regions
@@ -166,8 +166,7 @@ for ii = 1:numel(f)
     
             %%% EPVS plot
             figure;
-            subplot(2,1,1);
-            p1 = scatter(distances, exp, dot_size, 'r', 'filled');
+            p1 = scatter(distances, exp, dot_size, 'b', 'filled');
             % axis labels + title
             xlabel('Distance (\mum)');
             if strcmp(f{ii},'raw') || strcmp(f{ii},'med')
@@ -190,8 +189,8 @@ for ii = 1:numel(f)
             set(gca,'TickLength',[0.04,0.04]);
             
             %%% Control plot
-            subplot(2,1,2);
-            p2 = scatter(distances, ctl, dot_size, 'k', 'filled');
+            hold on;
+            p2 = scatter(distances, ctl, dot_size, 'r', 'filled');
             % axis labels + title
             xlabel('Distance (\mum)');
             if strcmp(f{ii},'raw') || strcmp(f{ii},'med')
@@ -211,6 +210,7 @@ for ii = 1:numel(f)
             set(gca,'fontname','Arial');
             set(gca,'XColor','k','YColor','k');
             set(gca,'TickLength',[0.04,0.04]);
+            pause(1)
     
             %%% Save as .PDF and .FIG
             if save_flag
@@ -228,6 +228,7 @@ for ii = 1:numel(f)
                     sprintf('percentage_diff_%s_%s_%s_scatterplot_subfigs',...
                             f{ii}, op{j}, regs{k})), 'png');
             end
+            pause(1); close all;
         end
     end
 end

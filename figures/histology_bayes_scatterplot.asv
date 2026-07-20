@@ -97,57 +97,61 @@ end
 dot_size = 100;
 lw       = 4;
 fsize    = 30;
+% Manually set y-axis limits and ticks for each stain (LHE, GFAP, CD68)
+ylims    = [-0.5, 0.5; -0.5, 0.5; -0.5, 0.5];
+yticks = {[-0.5:0.1:0.5],[-1.2:0]}
+
 
 %%% Optional: auto y-limits over both methods / sources / stages / regions, per stain
-ylims = zeros(numel(stains), 2);
-for j = 1:numel(stains)
-    min_val = inf; max_val = -inf;
-    for m = 1:numel(methods)
-        for ii = 1:numel(stages)
-            for k = 1:numel(regs)
-                for s = 1:numel(srcs)
-                    try
-                        S = ss.(methods(m).name).(stages{ii}).(stains{j}).(regs{k}).(srcs{s});
-                    catch
-                        continue
-                    end
-                    local_min = min(S.mu - S.sd, [], 'all');
-                    local_max = max(S.mu + S.sd, [], 'all');
-                    if local_min < min_val, min_val = local_min; end
-                    if local_max > max_val, max_val = local_max; end
-                end
-            end
-        end
-    end
-    range_val = max_val - min_val;
-    ylims(j, :) = [min_val - 0.05*range_val, max_val + 0.05*range_val];
-end
+% ylims = zeros(numel(stains), 2);
+% for j = 1:numel(stains)
+%     min_val = inf; max_val = -inf;
+%     for m = 1:numel(methods)
+%         for ii = 1:numel(stages)
+%             for k = 1:numel(regs)
+%                 for s = 1:numel(srcs)
+%                     try
+%                         S = ss.(methods(m).name).(stages{ii}).(stains{j}).(regs{k}).(srcs{s});
+%                     catch
+%                         continue
+%                     end
+%                     local_min = min(S.mu - S.sd, [], 'all');
+%                     local_max = max(S.mu + S.sd, [], 'all');
+%                     if local_min < min_val, min_val = local_min; end
+%                     if local_max > max_val, max_val = local_max; end
+%                 end
+%             end
+%         end
+%     end
+%     range_val = max_val - min_val;
+%     ylims(j, :) = [min_val - 0.05*range_val, max_val + 0.05*range_val];
+% end
 
 %%% Programmatically set symmetric y-axis ticks centered on 0 (per stain)
 % Define how many ticks you roughly want on either side of 0
-ticks_per_side = 3;
-ytick = {};
-for i = 1:size(ylims, 1)
-    current_lim = ylims(i, :);
-    % 1. Find the maximum absolute distance from 0 to ensure coverage
-    max_dist = max(abs(current_lim));
-
-    % 2. Calculate a clean step size based on that maximum distance
-    step = max_dist / ticks_per_side;
-
-    % 3. Generate symmetric ticks centered at 0
-    %    This goes from -max_dist to +max_dist, guaranteed to hit 0
-    raw_ticks = -max_dist : step : max_dist;
-
-    % 4. Filter ticks so they only show up inside your actual limits
-    ticks = raw_ticks(raw_ticks >= current_lim(1) & raw_ticks <= current_lim(2));
-
-    % Ensure 0 is exactly 0 (avoids tiny floating-point issues like -1e-16)
-    [~, zero_idx] = min(abs(ticks));
-    ticks(zero_idx) = 0;
-    % Add to array
-    ytick{i} = ticks;
-end
+% ticks_per_side = 3;
+% ytick = {};
+% for i = 1:size(ylims, 1)
+%     current_lim = ylims(i, :);
+%     % 1. Find the maximum absolute distance from 0 to ensure coverage
+%     max_dist = max(abs(current_lim));
+% 
+%     % 2. Calculate a clean step size based on that maximum distance
+%     step = max_dist / ticks_per_side;
+% 
+%     % 3. Generate symmetric ticks centered at 0
+%     %    This goes from -max_dist to +max_dist, guaranteed to hit 0
+%     raw_ticks = -max_dist : step : max_dist;
+% 
+%     % 4. Filter ticks so they only show up inside your actual limits
+%     ticks = raw_ticks(raw_ticks >= current_lim(1) & raw_ticks <= current_lim(2));
+% 
+%     % Ensure 0 is exactly 0 (avoids tiny floating-point issues like -1e-16)
+%     [~, zero_idx] = min(abs(ticks));
+%     ticks(zero_idx) = 0;
+%     % Add to array
+%     ytick{i} = ticks;
+% end
 
 %%% Overlay EPVS vs vessel difference, once per method
 % Iterate methods (model, raw)

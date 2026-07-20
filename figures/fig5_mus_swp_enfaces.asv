@@ -112,6 +112,7 @@ for ii = 1:length(subjects)
 end
 
 %% Create SWP figures
+% TODO: different color scheme for Vessel and EPVS
 
 %%% Find limits to normalize across the three subjects
 % Initialize vectors for storing min/max
@@ -121,7 +122,7 @@ swp_max.ves = 40;
 swp_max.epvs = 130;
 
 % Iterate over subjects
-for ii = 1:length(subjects)
+for ii = 4:length(subjects)
     %%% Extract slice from each matrix
     % Extract slice index
     slice_idx = subjects(ii).slice;
@@ -141,16 +142,17 @@ for ii = 1:length(subjects)
     
     % Create heatmap for vessel SWP
     swp_heatmap(ves_heatmap, swp_min.ves, swp_max.ves, mask, ves,...
-                'ves',scaleBarLength, vox,...
+                scaleBarLength, vox,...
+                'ves',...
                 fig_out, subid, reg, slice_idx, ves_base)
 
     % Create heatmap for EPVS SWP
     swp_heatmap(epvs_heatmap, swp_min.epvs, swp_max.epvs, mask, epvs,...
-                'epvs',scaleBarLength, vox,...
+                scaleBarLength, vox,...
                 fig_out, subid, reg, slice_idx, epvs_base)
 end
 
-%%% Create zoomed SWP figures
+%% Create zoomed SWP figures
 
 % Initialize x,y dimensions for zoomed subset (voxels)
 sz = 400;
@@ -164,7 +166,7 @@ coords.caa22 = [425, 340];
 zoom_scalebar = 1000;
 
 % Iterate over subjects
-for ii = 1:length(subjects)
+for ii = 4:length(subjects)
     %%% Extract slice from each matrix
     % Extract slice index
     slice_idx = subjects(ii).slice;
@@ -193,11 +195,11 @@ for ii = 1:length(subjects)
     reg = subjects(ii).region;
     % Create heatmap for vessel SWP
     swp_heatmap(ves_heatmap, swp_min.ves, swp_max.ves, mask, ves,...
-                'ves',zoom_scalebar, vox,...
+                zoom_scalebar, vox,...
                 fig_out, subid, reg, slice_idx, strcat(ves_base,'_zoom'))
     % Create heatmap for EPVS SWP
     swp_heatmap(epvs_heatmap, swp_min.epvs, swp_max.epvs, mask, epvs,...
-                'epvs',zoom_scalebar, vox,...
+                zoom_scalebar, vox,...
                 fig_out, subid, reg, slice_idx, strcat(epvs_base,'_zoom'))
 end
 
@@ -363,7 +365,7 @@ function swp_heatmap(heatmap, swp_min, swp_max, mask, seg,...
 if strcmpi(ves_epvs_flag,'ves')
     cmap = hot(256);
 else
-    cmap = parula(256);
+    cmap = winter(256);
 end
 % Clip the upper and lower to ease plotting
 heatmap(heatmap < swp_min) = swp_min; % Clip
@@ -417,7 +419,7 @@ pause(1)
 % Export as PDF
 fname = strcat(subname,'_',region,'_','depth_',num2str(slice_idx),'_',base_fname,'.pdf');
 fout = fullfile(fig_out,fname);
-exportgraphics(gcf, fout, 'ContentType', 'vector',"Resolution",600);
+exportgraphics(gcf, fout,"Resolution",600)
 pause(1)
 close
 end
