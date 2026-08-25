@@ -1,93 +1,124 @@
-function [xy_out, se_out] = bin_swp(pair, N)
-% Efficient scatter plot: averages all points in disjoint x-windows,
-% returning at most N points
+function [xy_out, se_out, info] = bin_swp(pair, N)
+% bin_swp - Average y within disjoint x-windows, returning at most N points.
+%
 % INPUTS:
-%   pair (Nx2 matrix): [x; y]
-%   N (integer): max number of plotted points (bins)
-%   xlab (string): x-axis label
-%   ylab (string): y-axis label
-%   tit (string): title of figure
-%   plt_flag (bool): boolean for plotting within function
-% OUTPUT:
-%   xy_out (Mx2): matrix of [x_bin_mean, y_bin_mean] pairs
-    
-% Cast to single to reduce memory
+%   pair (n x 2) : column 1 = x, column 2 = y
+%   N (integer)  : number of bins
+%
+% OUTPUTS:
+%   xy_out (M x 2) : [bin_midpoint, y_bin_mean] for bins that hold data
+%   se_out (M x 1) : standard error of y in each returned bin, NaN when the
+%                    bin holds a single observation
+%   info (struct)  : nDropped, nZeros, nOutliers, nEmptyBins, edges
+%
+% Fixes relative to the previous version:
+%   1. y was filtered for zeros BEFORE the outlier mask was built, so the
+%      mask (length numel(y_after_zeros)) was then applied to the unfiltered
+%      x. MATLAB permits a logical index shorter than the array, so this ran
+%      silently and mispaired every observation after the first removed zero.
+%   2. y_bin_mean was shrunk by (y_bin_mean ~= 0) before valid_bins was
+%      built, leaving it shorter than y_bin_count -> the size mismatch.
+%   3. An empty bin and a bin whose mean is genuinely 0 were indistinguishable.
+%      Emptiness is now decided by the count, which is what it means.
+%   4. Single-observation bins reported SE = 0 (implying perfect precision)
+%      instead of NaN.
+
+narginchk(2, 2);
+if size(pair, 2) ~= 2
+    error('bin_swp:shape', 'pair must be [n x 2]; got [%d x %d].', size(pair,1), size(pair,2));
+end
+
+%% --- Cast to single to reduce memory, keep x and y locked together ---
 x = single(pair(:,1));
 y = single(pair(:,2));
 clear pair
 
-% Removing outliers using IQR method
-Q1 = prctile(y, 25); % First quartile
-Q3 = prctile(y, 75); % Third quartile
-IQR = Q3 - Q1;       % Interquartile range
-lower_bound = Q1 - 1.5 * IQR; % Lower bound
-upper_bound = Q3 + 1.5 * IQR; % Upper bound
+nStart = numel(x);
 
-% Remove zeroes and outliers
-y = y(y ~= 0);
-valid_pts = (y >= lower_bound) & (y <= upper_bound);
+% Non-finite: isnan alone leaves Inf, and one Inf makes every bin edge Inf
+keep = isfinite(x) & isfinite(y);
+x = x(keep);
+y = y(keep);
+nDropped = nStart - numel(x);
+
+%% --- Remove zeros and IQR outliers in ONE joint mask ---
+% Bounds are computed on the non-zero y, matching the original intent.
+nz = (y ~= 0);
+if ~any(nz)
+    error('bin_swp:allZero', 'All y values are zero.');
+end
+
+Q1  = prctile(y(nz), 25);
+Q3  = prctile(y(nz), 75);
+IQRv = Q3 - Q1;
+lower_bound = Q1 - 1.5 * IQRv;
+upper_bound = Q3 + 1.5 * IQRv;
+
+inRange   = (y >= lower_bound) & (y <= upper_bound);
+valid_pts = nz & inRange;          % single mask, applied to both vectors
+
+nZeros    = nnz(~nz);
+nOutliers = nnz(nz & ~inRange);
+
 x = x(valid_pts);
-y = y(valid_pts);    
-
-% Retrieve maximum of x-axis data
-xmin = min(x);
-xmax = max(x);
-
-% Protect against degenerate data
-if xmax == xmin
-    error('All x values are identical.');
-end
-
-% Calculate edges for binning
-edges = linspace(xmin, xmax, N+1);
-
-% Bin data
-[~, ~, bin] = histcounts(x, edges);
-
-% Change "bin" from double to smaller data type (if applicable)
-bin_max = max(bin(:));
-if bin_max <= intmax("uint8")
-    bin = uint8(bin);
-elseif bin_max <= intmax("uint16")
-    bin = uint16(bin);
-elseif bin_max <= intmax("uint32")
-    bin = uint32(bin);
-elseif bin_max <= intmax("uint64")
-    bin = uint64(bin);
-elseif bin_max <= realmax("single")
-    bin = single(bin);
-end
-
-% Remove data outside bin range (bin==0)
-valid_pts = bin > 0;
-bin = bin(valid_pts);
 y = y(valid_pts);
 
-% Compute mean y for each bin using accumarray
-y_bin_mean = accumarray(bin(:), y(:), [N 1], @mean, single(0));
+if isempty(x)
+    error('bin_swp:empty', 'No points remain after zero and outlier removal.');
+end
 
-%%% Calculate the standard error for y values in each bin
-% standard deviation
-y_bin_std = accumarray(bin(:), y(:), [N 1], @std, single(0));
-% number of samples
-y_bin_count = accumarray(bin(:), 1, [N 1], @sum);
+%% --- Bin edges ---
+xmin = min(x);
+xmax = max(x);
+if xmax == xmin
+    error('bin_swp:degenerate', 'All x values are identical (%g).', xmin);
+end
 
-% Replace NaN std (from single-point bins) with 0
-y_bin_std(isnan(y_bin_std)) = 0;
+edges = linspace(double(xmin), double(xmax), N + 1);
+[~, ~, bin] = histcounts(double(x), edges);
 
-% standard error
-y_bin_se = y_bin_std ./ sqrt(y_bin_count);
+% Drop anything outside the edges (bin == 0)
+inBin = bin > 0;
+bin   = bin(inBin);
+y     = y(inBin);
 
-%%% Process bin mid points
-% Remove bins with zero mean (no points)
-y_bin_mean = y_bin_mean(y_bin_mean ~= 0);
+%% --- Accumulate at an explicit [N 1] size ---
+% Vectorised sums rather than accumarray(..., @mean) / (..., @std): the
+% function-handle form groups values one bin at a time and is far slower on
+% millions of points. y is centred first so the one-pass variance stays
+% numerically stable in single precision.
+bin = double(bin(:));               % accumarray wants double subscripts
+yd  = double(y(:));
 
-% Build valid_bins mask and apply consistently to mean, se, and midpoints
-valid_bins = ~isnan(y_bin_mean) & y_bin_count > 0;
+y_bin_count = accumarray(bin, 1, [N 1], @sum, 0);
 
+yBar = mean(yd);
+yc   = yd - yBar;
+s1   = accumarray(bin, yc,    [N 1], @sum, 0);
+s2   = accumarray(bin, yc.^2, [N 1], @sum, 0);
+
+y_bin_mean = nan(N, 1);
+y_bin_se   = nan(N, 1);
+
+has1 = y_bin_count > 0;
+has2 = y_bin_count > 1;
+
+y_bin_mean(has1) = yBar + s1(has1) ./ y_bin_count(has1);
+
+varY = (s2(has2) - (s1(has2).^2) ./ y_bin_count(has2)) ./ (y_bin_count(has2) - 1);
+y_bin_se(has2) = sqrt(max(varY, 0)) ./ sqrt(y_bin_count(has2));
+
+%% --- Apply one mask to midpoints, means, and SEs ---
+% y_bin_mean is still [N 1] here, so this can no longer mismatch.
+valid_bins    = has1 & ~isnan(y_bin_mean);
 bin_midpoints = (edges(1:end-1) + edges(2:end)) / 2;
 
 xy_out = [bin_midpoints(valid_bins)', y_bin_mean(valid_bins)];
 se_out = y_bin_se(valid_bins);
 
+info = struct('nDropped',   nDropped, ...
+              'nZeros',     nZeros, ...
+              'nOutliers',  nOutliers, ...
+              'nEmptyBins', N - nnz(valid_bins), ...
+              'edges',      edges);
 end

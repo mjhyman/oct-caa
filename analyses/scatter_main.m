@@ -242,15 +242,14 @@ end
 
 
 %%% COMBINED scatterplots (EPVS and ves)
+tit = sprintf('%s Combined',sub);
 % Mus
-tit = 'Combined: \mus vs. Distance';
 dir_out = fullfile(scat_out,subdir);
 fname = strcat('COMBINED_epvs_ves_mus_vs_distance',substr);
 scatter_op_vs_dist(x, comb_mean_ves_mus, comb_sem_ves_mus,...
                 comb_mean_epvs_mus, comb_sem_epvs_mus,err_flag,...
                 xlab, ylab_mus, mus_yl, xt, mus_yt, tit, dir_out, fname, psize)
 % Retardance
-tit = 'Combined: Retardance vs. Distance';
 dir_out = fullfile(scat_out,subdir);
 fname = strcat('COMBINED_epvs_ves_ret_vs_distance',substr);
 scatter_op_vs_dist(x, comb_mean_ves_ret, comb_sem_ves_ret,...
@@ -258,15 +257,14 @@ scatter_op_vs_dist(x, comb_mean_ves_ret, comb_sem_ves_ret,...
                 xlab, ylab_ret, ret_yl, xt, ret_yt, tit, dir_out, fname, psize)
 
 %%% FRONTAL scatterplots (EPVS and ves)
+tit = sprintf('%s Frontal',sub);
 % Mus
-tit = 'Frontal: \mus vs. Distance';
 dir_out = fullfile(scat_out,subdir);
 fname = strcat('FRONT_epvs_ves_mus_vs_distance',substr);
 scatter_op_vs_dist(x, front_mean_ves_mus, front_sem_ves_mus,...
                 front_mean_epvs_mus, front_sem_epvs_mus,err_flag,...
                 xlab, ylab_mus, mus_yl, xt, mus_yt,tit, dir_out, fname, psize)
 % Retardance
-tit = 'Frontal: Retardance vs. Distance';
 dir_out = fullfile(scat_out,subdir);
 fname = strcat('FRONT_epvs_ves_ret_vs_distance',substr);
 scatter_op_vs_dist(x, front_mean_ves_ret, front_sem_ves_ret,...
@@ -274,15 +272,14 @@ scatter_op_vs_dist(x, front_mean_ves_ret, front_sem_ves_ret,...
                 xlab, ylab_ret, ret_yl,xt, ret_yt,tit, dir_out, fname, psize)
 
 %%% OCCIPITAL scatterplots (EPVS and ves)
+tit = sprintf('%s Occipital',sub);
 % Mus
-tit = 'Occipital: \mus vs. Distance';
 dir_out = fullfile(scat_out,subdir);
 fname = strcat('OCCIP_epvs_ves_mus_vs_distance',substr);
 scatter_op_vs_dist(x, occip_mean_ves_mus, occip_sem_ves_mus,...
                 occip_mean_epvs_mus, occip_sem_epvs_mus,err_flag,...
                 xlab, ylab_mus, mus_yl, xt, mus_yt, tit, dir_out, fname, psize)
 % Retardance
-tit = 'Occipital: Retardance vs. Distance';
 dir_out = fullfile(scat_out,subdir);
 fname = strcat('OCCIP_epvs_ves_ret_vs_distance',substr);
 scatter_op_vs_dist(x, occip_mean_ves_ret, occip_sem_ves_ret,...
@@ -333,6 +330,10 @@ function scatter_op_vs_dist(x, ves_op, ves_sem, epvs_op, epvs_sem, err_flag,...
 % Init figure
 fig = figure('Position', [100, 100, 1000, 1000],'Resize', 'off');
 
+% Colors for vessel and EPVS
+ves_color = hex2rgb('#DB5829');
+epv_color = hex2rgb('#1964B0');
+
 % Scatterplot with error bars
 if err_flag
     h1 = errorbar(x,ves_op,ves_sem,'k'); hold on;
@@ -340,8 +341,11 @@ if err_flag
     set(h1,'MarkerSize',psize);
     set(h2,'MarkerSize',psize);
 else
-    scatter(x,ves_op,psize,'k','filled'); hold on;
-    scatter(x,epvs_op,psize,'r','filled');
+    scatter(x,ves_op,psize,'MarkerEdgeColor',ves_color,...
+            'MarkerFaceColor',ves_color);
+    hold on;
+    scatter(x,epvs_op,psize,'MarkerEdgeColor',epv_color,...
+            'MarkerFaceColor',epv_color);
 end
 
 % y-axis limits, ticks, etc.
@@ -358,14 +362,16 @@ xtickformat('%.0f');
 % plot title
 title(tit);
 
+% Add legend
+legend({'Vessel','EPVS'})
+
 % Font and fontsize
 fontname(fig, "Helvetica")
 set(gca,'fontsize',40);
 
 % Save output
 fout = fullfile(dir_out,fname);
-saveas(gcf,fout,'pdf');
-saveas(gcf,fout,'fig');
+exportgraphics(gcf,strcat(fout,'.jpg'),'Resolution',600)
 pause(0.5)
 close;
 end

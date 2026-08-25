@@ -9,7 +9,7 @@ swp_dir = '/projectnb/npbssmic/ns/CAA/swp/';
 epvs_base = 'swp_voxelwise_radius_500_exp_2_interpolated_heatmap';
 ves_base = 'swp_voxelwise_ves_radius_500_exp_2_interpolated_heatmap';
 % Directory to store csv
-fig_out = '/projectnb/npbssmic/ns/CAA/figures/fig4_mus_swp_epvs/';
+fig_out = '/projectnb/npbssmic/ns/CAA/figures/swp_method_distributions_heatmaps/';
 % flag for loading data
 load_caa_flag = true;
 load_swp_flag = true;
@@ -118,7 +118,7 @@ end
 swp_min.ves = 1;
 swp_min.epvs = 1;
 swp_max.ves = 40;
-swp_max.epvs = 130;
+swp_max.epvs = 400;
 
 % Iterate over subjects
 for ii = 1:length(subjects)
@@ -150,8 +150,13 @@ for ii = 1:length(subjects)
                 fig_out, subid, reg, slice_idx, epvs_base)
 end
 
-%%% Create zoomed SWP figures
+%% Create zoomed SWP figures
 
+% Initialize vectors for storing min/max
+swp_min.ves = 1;
+swp_min.epvs = 1;
+swp_max.ves = 40;
+swp_max.epvs = 130;
 % Initialize x,y dimensions for zoomed subset (voxels)
 sz = 400;
 % Initialize the zoomed box for SWP heatmaps

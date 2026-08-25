@@ -22,17 +22,15 @@ Outline:
 - Measure average WM value of retardance, scattering, orientation
 %}
 
-% TODO: replace box/whisker with manual quartile calculations to accelerate
-% graphics processing
-
 %% Prepare environment
-clear; clc; close all;
+clc; close all;
+clearvars -except caa6 caa17 caa22 caa25 caa26
 % Add top-level directory + subdirectories
 addpath(genpath(fullfile(pwd, '..')))
 % Directory for loading seg, mus, ret, mask, epvs
 data_dir = '/projectnb/npbssmic/ns/CAA/';
 % Output figure directory
-fig_out = '/projectnb/npbssmic/ns/CAA/bw_plots/';
+fig_out = '/projectnb/npbssmic/ns/CAA/violin_plots/';
 % Stats output directory
 stats_out = '/projectnb/npbssmic/ns/CAA/metrics/';
 % Voxel dimensions (microns) for all runs
@@ -44,9 +42,11 @@ flag_load_caa_structs = true;
 %%% Analysis Variables
 % down sampling factor for the boxplot arrays
 ds = 10;
-% Upper limits for each optical property
+% Upper limits for each optical property (as Hui provided, based on prior
+% literature)
 upper = struct();
-upper('mus')
+upper.('mus') = 25; % 1/mm
+upper.('ret') = 45; % degrees
 
 %% Load each subject's .MAT struct and create WM mask
 %%% Load the .MAT structs
@@ -110,6 +110,9 @@ for ii = 1:length(subs)
         ret(seg) = NaN;
         mus(epvs) = NaN;
         ret(epvs) = NaN;
+        % Remove values above thresholds
+        mus(mus > upper.('mus')) = NaN;
+        ret(ret > upper.('ret')) = NaN;
         % Measure WM values
         op.(subs{ii}).(reg{j}).wm.mus = single(mus(wm));
         op.(subs{ii}).(reg{j}).wm.ret = single(ret(wm));
@@ -128,7 +131,9 @@ for i = 1:length(subs)
     sub = subs{i};
     regs = fields(op.(sub));
     for j = 1:length(regs)
+        % Retrieve local region
         reg = regs{j};
+        %%% Initialize entry cell array
         % Default values as NaN (in case fields missing)
         % Subject, Region,
         % ret_wm_mean, ret_wm_std
@@ -164,22 +169,25 @@ disp('Export complete: all_op_measurements_columns.csv');
 
 %% Create table of means & std for each severity
 % Measure the statistics for each group and region
-% Control = CAA 26
-% Mild = CAA 6
+% TODO: change control to CAA26 and CAA6
+%
+% Control = CAA6 + CAA 26
 % Moderate = CAA 17
 % Severe = CAA 22, CAA 25
 
 % Create struct for storing optical properties by severity
 stages = struct();
-% control (CAA26)
-stages.ctl = op.caa26;
+% control (CAA6 + CAA26)
+ctl_sub = {'caa6','caa26'};
+[~, raw] = group_mean_std(op, ctl_sub);
+stages.ctl = raw;
 % mild (CAA6)
 stages.mild = op.caa6;
 % moderate (CAA17)
 stages.mod = op.caa17;
 % severe (CAA22, CAA25)
 severe_subs = {'caa22','caa25'};
-[severe_stats, raw] = group_mean_std(op, severe_subs);
+[~, raw] = group_mean_std(op, severe_subs);
 stages.severe = raw;
 
 %% Violin + Box/Whisker separated by severity, region, WM/GM
@@ -191,76 +199,84 @@ regs = {'front','occip'};
 prop = {'mus','ret'};
 % Title string
 tstr = {'White Matter','Gray Matter'};
-% Y-axis label
+% Y-axis labels and limits
 ylabs = {'\mu_s (mm^-^1)','Retardance (\circ)'};
+ylims.('mus') = [0,35];
+ylims.('ret') = [0,55];
 % Flag for keeping moderate
 keep_mod = false;
+% Output xlsx filename with date
+dateStr  = datestr(now, 'DD-mmm-YYYY');
+xlsxFile = fullfile(fig_out, sprintf('stats_%s.xlsx', dateStr));
 
 % Iterate WM/GM
 for ii = 1:2
     % Iterate brain region
     for j = 1:2
         % Iterate optical properties (mus, ret)
-        for k=1:2
-            fprintf('Starting %s %s %s\n',wm_gm{ii},regs{j},prop{k})
+        for k = 1:2
+            fprintf('----------Starting %s %s %s----------\n',...
+                    wm_gm{ii}, regs{j}, prop{k})
+
             %%% box/whisker plot x-labels
-            % if keeping moderate for occipital
             if keep_mod
-                if strcmp(regs{j},'front')
-                    xticklabs = {'Control','Mild','Severe'};
-                    ngroups = 3;
+                if strcmp(regs{j}, 'front')
+                    xticklabs = {'Control','Severe'};
+                    ngroups = numel(xticklabs);
+                    % colors: dark blue, vermillion
+                    colors = {'#1964B0','#DB5829'};
                 else
-                    xticklabs = {'Control','Mild','Moderate','Severe'};
-                    ngroups = 4;
+                    xticklabs = {'Control','Moderate','Severe'};
+                    ngroups = numel(xticklabs);
+                    % colors: dark blue, dark purple, vermillion
+                    colors = {'#1964B0','#882D71','#DB5829'};
                 end
-            % Otherwise exclude moderate
             else
-                xticklabs = {'Control','Mild','Severe'};
-                ngroups = 3;
-            end
-            
-            %%% Place the three severities into single vector
-            % Initialize stats cell array
-            data_cell = cell(ngroups,1);
-            data_cell{1} = (stages.ctl.(regs{j}).(wm_gm{ii}).(prop{k}));
-            data_cell{2} = (stages.mild.(regs{j}).(wm_gm{ii}).(prop{k}));
-            data_cell{3} = (stages.severe.(regs{j}).(wm_gm{ii}).(prop{k}));
-            % If frontal, then do not retrieve from moderate (CAA17 only has
-            % occipital)
-            if keep_mod
-                if strcmp(regs{j},'front')
-                    data_cell{3} = (stages.severe.(regs{j}).(wm_gm{ii}).(prop{k}));
-                else
-                    data_cell{3} = (stages.mod.(regs{j}).(wm_gm{ii}).(prop{k}));
-                    data_cell{4} = (stages.severe.(regs{j}).(wm_gm{ii}).(prop{k}));
-                end
+                xticklabs = {'Control','Severe'};
+                ngroups = numel(xticklabs);
+                % colors: dark blue, vermillion
+                colors = {'#1964B0','#DB5829'};
             end
 
-            %%% Kruskal-Wallis Tests
-            if ~keep_mod
-                % Place into matrix
-                dvector = [data_cell{1}(:),data_cell{2}(:),data_cell{3}(:)];
-                % Compute KW stats
-                [p,tbl,stats] = kruskalwallis(dvector,);
+            %%% Place severities into cell array
+            data_cell = cell(ngroups, 1);
+            data_cell{1} = stages.ctl.(regs{j}).(wm_gm{ii}).(prop{k});
+            if keep_mod
+                if strcmp(regs{j}, 'front')
+                    data_cell{2} = stages.severe.(regs{j}).(wm_gm{ii}).(prop{k});
+                else
+                    data_cell{2} = stages.mod.(regs{j}).(wm_gm{ii}).(prop{k});
+                    data_cell{3} = stages.severe.(regs{j}).(wm_gm{ii}).(prop{k});
+                end
+            else
+                data_cell{2} = stages.severe.(regs{j}).(wm_gm{ii}).(prop{k});
             end
 
             %%% Violin + BW
-            bw_ttl = strjoin({tstr{ii},regs{j},prop{k}});
-            violin_box_whisker(data_cell, xticklabs, bw_ttl, ylabs{k})
-            % Save output
+            yl      = ylims.(prop{k});
+            bw_ttl  = strjoin({tstr{ii}, regs{j}, prop{k}});
+            t = violin_box_whisker(data_cell, xticklabs, bw_ttl, yl,...
+                                    ylabs{k}, hex2rgb(colors));
+
+            %%% Save figure
             pause(0.5);
-            fname = strcat('violin_box_whisker_stages_',wm_gm{ii},'_',regs{j},...
-                           '_',prop{k});
-            fout = fullfile(fig_out,fname);
-            saveas(gcf,fout,'jpeg');
-            saveas(gcf,fout,'fig');
-            exportgraphics(gcf,strcat(fout,'.svg'),'ContentType','vector');
+            fname = strcat('violin_box_whisker_stages_', wm_gm{ii}, '_', regs{j}, '_', prop{k});
+            fout  = fullfile(fig_out, fname);
+            saveas(gcf, fout, 'jpeg');
+            saveas(gcf, fout, 'fig');
+            exportgraphics(gcf, strcat(fout, '.svg'), 'ContentType', 'vector');
             close;
-            % Update console
-            fprintf('Finished %s %s %s\n',wm_gm{ii},regs{j},prop{k})
+
+            %%% Write stats table to xlsx sheet
+            % Sheet name: e.g. 'wm_front_mus' (max 31 chars, Excel limit)
+            sheetName = sprintf('%s_%s_%s', wm_gm{ii}, regs{j}, prop{k});
+            writetable(t, xlsxFile, 'Sheet', sheetName);
+            fprintf('Stats written to sheet: %s\n', sheetName);
+            fprintf('Finished %s %s %s\n', wm_gm{ii}, regs{j}, prop{k})
         end
     end
 end
+fprintf('\nAll stats saved to: %s\n', xlsxFile);
 
 %% Box/Whisker by severity (WM, GM separately)
 % TODO: exclude moderate from main fig. Move this script to /figures/

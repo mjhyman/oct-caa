@@ -10,11 +10,10 @@
 #$ -l h_rt=120:00:00
 
 # Name of job
-#$ -N gam_severe
+#$ -N gam_oct
 
 # Compute Settings (entire node w/ 512 GB)
-#$ -pe omp 28
-#$ -l mem_per_core=18G
+#$ -pe omp 36
 
 # Keep track of information related to the current job
 echo "=========================================================="

@@ -8,10 +8,10 @@
 %   Displays where joint ves-swp/epvs-swp diverge by severity
 %{
 TODO:
-- import structs w/ consolidated GAMs (ctl, severe, subject)
+- import struct w/ consolidated GAMs (ctl, severe, subject)
 - compare severe - ctl
 - export surfaces for each subject
-- export surfaces for combined ctl and severe
+- export surfacesfor combined ctl and severe
 %}
 
 

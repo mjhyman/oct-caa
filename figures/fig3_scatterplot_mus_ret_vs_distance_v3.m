@@ -6,6 +6,9 @@
 % Mean and standard deviation are read from the "*_model_diff.csv" files
 % produced by the R stage_vs_control pipeline:
 %   columns: distance, diff_mean, diff_sd, lower, upper, n_draws
+%
+% TODO: Update this to plot the control and severe separately
+
 clc; close all;
 
 %% Directories and Data

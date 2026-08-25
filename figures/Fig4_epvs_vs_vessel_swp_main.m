@@ -4,6 +4,13 @@
 % Bin the data points along x-axis
 % Column 1 = x-axis = EPVS SWP
 % Column 2 = y-axis = Vessel SWP
+% 
+%{
+TODO:
+- combine CAA6 w/ control
+- use violin instead of box/whisker
+- 
+%}
 
 %% Initialization
 clearvars -except caa caa6 caa17 caa22 caa25 caa26 swp_struct
@@ -29,9 +36,9 @@ mat_dir = '/projectnb/npbssmic/ns/CAA/';
 % Heatmap directory
 swp_dir = '/projectnb/npbssmic/ns/CAA/swp';
 % Scatterplot directory
-plt_dir = '/projectnb/npbssmic/ns/CAA/figures/fig4_mus_swp_epvs/';
+plt_dir = '/projectnb/npbssmic/ns/CAA/figures/swp_method_distributions_heatmaps/';
 % Figure dir
-fig_dir = '/projectnb/npbssmic/ns/CAA/figures/fig4_mus_swp_epvs/';
+fig_dir = '/projectnb/npbssmic/ns/CAA/figures/swp_method_distributions_heatmaps/';
 
 %%% Common filename for importing
 epvs_fbase = '_swp_voxelwise_radius_500_exp_2_interpolated_heatmap.mat';
@@ -112,11 +119,11 @@ if flag_load_caa_structs
     fprintf('Finished loading CAA26\n')
     
     % Remove top-level struct
-    caa.caa6 = caa6.caa6;
-    caa.caa17 = caa17.caa17;
-    caa.caa22 = caa22.caa22;
-    caa.caa25 = caa25.caa25;
-    caa.caa26 = caa26.caa26;
+    caa.caa6 = caa6.caa6; clear caa6;
+    caa.caa17 = caa17.caa17; clear caa17;
+    caa.caa22 = caa22.caa22; clear caa22;
+    caa.caa25 = caa25.caa25; clear caa25;
+    caa.caa26 = caa26.caa26; clear caa26;
 else
     % If the CAA structs have already been loaded into memory
     caa = struct();
@@ -127,192 +134,194 @@ else
     caa.caa26 = caa26;
 end
 
-%% Create Pairs [EPVS-SWP, Ves-SWP]
-% 2xN Matrix for each optical property:
-%   - column 1 = EPVS SWP from heatmap
-%   - column 2 = Vessel SWP from heatmap
-%   - row = pairwise observations from same tissue volume
-fprintf('Creating 2D arrays of EPVS SWP vs. vessel SWP\n')
+%% EPVS-SWP vs vessel-SWP pairing and pooling by CAA severity group
+% Pass 1: voxel-wise SWP pairs restricted to "clean" white matter
+%         (WM minus vessel lumen minus EPVS)
+% Pass 2: pool per-group SWP (per voxel) and object volumes (per component)
+%
+% Replaces the positional front_cnt / occip_cnt bookkeeping with an explicit
+% subject -> group map, so reordering `subs` or a missing region can no
+% longer silently misfile data.
 
-% struct for storing pairs
+%%% ---------------------------- configuration ----------------------------
+subs        = {'caa26','caa6','caa22','caa25'};   % CAA17 (moderate) excluded
+group_of    = struct('caa26','control', 'caa6','control', ...
+                     'caa22','severe','caa25','severe');
+group_names = {'control','severe'};
+regions     = {'front','occip'};
+conn        = 26;          % connectivity for bwconncomp
+vox_vol_um3 = vox_size;    % volume of one voxel, um^3
+
+%%% ------------- pass 1: SWP pairs inside clean white matter --------------
+fprintf('Creating 2D arrays of EPVS SWP vs. vessel SWP\n')
 heat_pairs = struct();
 
-%%% Iterate subjects
-% Subjects to iterate (skip moderate CAA17)
-subs = {'caa26','caa6','caa22','caa25'};
 for ii = 1:numel(subs)
-    sub = subs{ii};
-    regs = fields(subjects.(sub));
+    sub  = subs{ii};
+    regs = fieldnames(caa.(sub));
     for j = 1:numel(regs)
         reg = regs{j};
-        %%% Retrieve SWP for EPVS and Vessel
+        assert(ismember(reg, regions), '%s: unexpected region "%s"', sub, reg);
+        c = caa.(sub).(reg);
+
+        % Clean WM mask (logical ops, not index assignment)
+        mask_wm = logical(c.mask_wm) & ~logical(c.seg) & ~logical(c.epvs);
+
         swp_epvs = swp_struct.epvs.(sub).(reg);
-        swp_ves = swp_struct.ves.(sub).(reg);
+        swp_ves  = swp_struct.ves.(sub).(reg);
+        assert(isequal(size(swp_epvs), size(swp_ves), size(mask_wm)), ...
+               '%s/%s: SWP volumes and WM mask are not the same size', sub, reg);
 
-        %%% Remove vessels and EPVS from the EPVS and Vessel SWP 
-        % Retrieve white matter mask
-        mask_wm = caa.(sub).(reg).mask_wm;
-        % Remove vesselsa and EPVS from white matter mask
-        ves = caa.(sub).(reg).seg;
-        epvs = caa.(sub).(reg).epvs;
-        mask_wm(ves) = 0;
-        mask_wm(epvs) = 0;
-
-        %%% Apply WM mask to SWP for both EPVS and vessel
-        swp_ves = swp_ves(mask_wm);
-        swp_epvs = swp_epvs(mask_wm);
-
-        %%% Create pairs for raw SWP
-        swp_pair = [swp_epvs(:), swp_ves(:)];
-
-        % add pairs to heatmap struct
-        heat_pairs.(sub).(reg) = swp_pair;
+        % Column 1 = EPVS SWP, column 2 = vessel SWP, same voxel per row.
+        % single() halves memory; SWP does not need double precision.
+        heat_pairs.(sub).(reg) = single([swp_epvs(mask_wm), swp_ves(mask_wm)]);
     end
 end
 fprintf('Finished making 2D arrays of SWP\n')
 
-%%% Box/whisker plots: epv-swp, ves-swp, EPVS+vessel volume
-% Each array will the following order for the rows:
-%   EPVS
-%   Vessel
-
-%%% Iterate subjects and measure EPVS size and vessel size (um^3)
-% Initialize cell arrays for storing SWP data
-front_swp = cell(6,1);
-occip_swp = cell(6,1);
-% Initialize cell arrays for storing size
-front_size = cell(6,1);
-occip_size = cell(6,1);
-% Initialize counters
-front_cnt = 1;
-occip_cnt = 1;
-for ii = 1:numel(subs)
-    fprintf('\nSubject %s\n',subs{ii})
-    % Iterate regions
-    regs = fields(caa.(subs{ii}));
-    for j = 1:numel(regs)
-        fprintf('\tRegion %s\n',regs{j})
-        %%% Retrieve SWP and segmentation
-        % Retrieve SWP vectors [epv_swp, ves_swp]
-        epv_swp = heat_pairs.(subs{ii}).(regs{j})(:,1);
-        ves_swp = heat_pairs.(subs{ii}).(regs{j})(:,2);
-        % Retrieve vessel segmentation and epvs
-        ves = caa.(subs{ii}).(regs{j}).seg_wm_no_epvs;
-        epvs = caa.(subs{ii}).(regs{j}).epvs;
-        
-        %%% Measure volume of each vessel and EPVS
-        % Find connected components (continuous vessels) for each
-        epv_cc = bwconncomp(epvs,26);
-        ves_cc = bwconncomp(ves,26);   
-        % Calculate the volume of each vessel and EPVS
-        epvs_vol = cellfun(@numel, epv_cc.PixelIdxList);
-        ves_vol = cellfun(@numel, ves_cc.PixelIdxList);
-        epvs_vol = epvs_vol .* vox_size;
-        ves_vol = ves_vol .* vox_size;
-        
-        %%% Add to cell array
-        % Combine CAA22 and CAA 25 (severe)
-        if strcmp(subs{ii},'caa25')
-            if strcmp(regs{j},'front')
-                % Volume: Append current volumes to the existing vectors in the cells
-                front_size{front_cnt-2} = [front_size{front_cnt-2}(:); epvs_vol(:)];
-                front_size{front_cnt-1} = [front_size{front_cnt-1}(:); ves_vol(:)];
-                % SWP: Append current SWP data to the existing vectors
-                front_swp{front_cnt-2}  = [front_swp{front_cnt-2}(:); epv_swp(:)];
-                front_swp{front_cnt-1}  = [front_swp{front_cnt-1}(:); ves_swp(:)];
-                continue
-            elseif strcmp(regs{j},'occip')
-                % Volume
-                occip_size{occip_cnt-2} = [occip_size{occip_cnt-2}(:); epvs_vol(:)];
-                occip_size{occip_cnt-1} = [occip_size{occip_cnt-1}(:); ves_vol(:)];
-                % SWP
-                occip_swp{occip_cnt-2}  = [occip_swp{occip_cnt-2}(:); epv_swp(:)];
-                occip_swp{occip_cnt-1}  = [occip_swp{occip_cnt-1}(:); ves_swp(:)];
-                continue
-            end
-        end
-        % New row in cell array for all other subjects
-        if strcmp(regs{j},'front')
-            % Volume
-            front_size{front_cnt} = epvs_vol;
-            front_size{front_cnt+1} = ves_vol;
-            % SWP
-            front_swp{front_cnt} = epv_swp;
-            front_swp{front_cnt+1} = ves_swp;
-            % Increment counter for next subject/region
-            front_cnt = front_cnt + 2;
-        else
-            % Volume
-            occip_size{occip_cnt} = epvs_vol;
-            occip_size{occip_cnt+1} = ves_vol;
-            % SWP
-            occip_swp{occip_cnt} = epv_swp;
-            occip_swp{occip_cnt+1} = ves_swp;
-            % Increment counter for next subject/region
-            occip_cnt = occip_cnt + 2;
-        end
+%%% -------------- pass 2: pool SWP and object volumes by group ------------
+% Buffers hold cell arrays; concatenated once at the end rather than grown
+% with [old; new] on every iteration.
+acc = struct();
+for r = 1:numel(regions)
+    for g = 1:numel(group_names)
+        acc.(regions{r}).(group_names{g}) = struct( ...
+            'swp_epvs', {{}}, 'swp_ves', {{}}, ...
+            'vol_epvs', {{}}, 'vol_ves', {{}});
     end
 end
 
-%% Boxplot for each grouping
-% The *_swp cell arrays stored in order [EPVS,vessel,EPVS,vessel,...]
-% Possibly replace boxplot_cluster with violin_cluster
-clc;
+for ii = 1:numel(subs)
+    sub = subs{ii};
+    grp = group_of.(sub);
+    fprintf('\nSubject %s (group: %s)\n', sub, grp)
 
-%%% Create labels
-% Define Main Groups and Subgroups for frontal
-front_groups = {'Control';'Control';'Mild';'Mild';'Severe';'Severe'};
-front_subgroup = {'EPVS';'Ves';'EPVS';'Ves';'EPVS';'Ves'};
-% Define Main Groups and Subgroups for occipital
-occip_groups = {'Control';'Control';'Mild';'Mild';'Severe';'Severe'};
-occip_subgroup = {'EPVS';'Ves';'EPVS';'Ves';'EPVS';'Ves'};
-% Define colors (EPVS = dark blue, vessel = orange)
-epvs_ves_colors = {'#1964B0','#DB5829'};
-fsize = 20;
-% Limits for SWP and size
-swp_lims = [10^-1, 10^3];
-size_lims = [10^4, 10^9];
+    regs = fieldnames(caa.(sub));
+    for j = 1:numel(regs)
+        reg = regs{j};
+        fprintf('\tRegion %s\n', reg)
+        c = caa.(sub).(reg);
 
-%%% Take the upper Xth percentile for each group
-% Front SWP
-boxplot_cluster(front_swp, front_groups,front_subgroup,...
-                epvs_ves_colors,true,'Unitless',swp_lims,fsize);
-title('Frontal SWP Distributions');
-pause(1);
-exportgraphics(gca,fullfile(fig_dir,'bw_front_swp.png'),...
-               'ContentType','vector','Resolution',600);
-exportgraphics(gca,fullfile(fig_dir,'bw_front_swp.svg'),...
-               'ContentType','vector','Resolution',600);
-% Occip SWP
-boxplot_cluster(occip_swp, occip_groups,occip_subgroup,...
-                epvs_ves_colors,true,'Unitless',swp_lims,fsize);
-title('Occipital SWP Distributions');
-pause(1);
-exportgraphics(gca,fullfile(fig_dir,'bw_occip_swp.png'),...
-               'ContentType','vector','Resolution',600);
-exportgraphics(gca,fullfile(fig_dir,'bw_occip_swp.svg'),...
-               'ContentType','vector','Resolution',600);
+        % --- per-voxel SWP (from pass 1) ---
+        P = heat_pairs.(sub).(reg);
 
-% Front Size
-boxplot_cluster(front_size, front_groups,front_subgroup,...
-                epvs_ves_colors,true,'Size (\mum^3)',size_lims,fsize);
-title('Frontal Size Distributions');
-pause(1);
-exportgraphics(gca,fullfile(fig_dir,'bw_front_size.png'),...
-                'ContentType','vector','Resolution',600);
-exportgraphics(gca,fullfile(fig_dir,'bw_front_size.svg'),...
-                'ContentType','vector','Resolution',600);
-% Occip Size
-boxplot_cluster(occip_size, occip_groups,occip_subgroup,...
-                epvs_ves_colors,true,'Size (\mum^3)',size_lims,fsize);
-title('Occipital Size Distributions');
-pause(1);
-exportgraphics(gca,fullfile(fig_dir,'bw_occip_size.png'),...
-                'ContentType','vector','Resolution',600);
-exportgraphics(gca,fullfile(fig_dir,'bw_occip_size.svg'),...
-                'ContentType','vector','Resolution',600);
+        % --- per-object volumes ---
+        % NB: uses seg_wm_no_epvs for vessels, while pass 1 masks with seg.
+        % Confirm that difference is intentional.
+        cc_epvs  = bwconncomp(logical(c.epvs), conn);
+        cc_ves   = bwconncomp(logical(c.seg_wm_no_epvs), conn);
+        vol_epvs = cellfun(@numel, cc_epvs.PixelIdxList)' .* vox_vol_um3;
+        vol_ves  = cellfun(@numel, cc_ves.PixelIdxList)'  .* vox_vol_um3;
+
+        a = acc.(reg).(grp);
+        a.swp_epvs{end+1} = P(:,1);
+        a.swp_ves{end+1}  = P(:,2);
+        a.vol_epvs{end+1} = vol_epvs;
+        a.vol_ves{end+1}  = vol_ves;
+        acc.(reg).(grp)   = a;
+    end
+end
+
+%%% ------------------------- flatten for plotting -------------------------
+% swp.(region).(group) = [n_voxels x 2], columns [EPVS, vessel]
+% vol.(region).(group) = struct with epvs / ves object volumes (um^3)
+swp = struct();
+vol = struct();
+for r = 1:numel(regions)
+    reg = regions{r};
+    for g = 1:numel(group_names)
+        grp = group_names{g};
+        a = acc.(reg).(grp);
+        swp.(reg).(grp) = [vertcat(a.swp_epvs{:}), vertcat(a.swp_ves{:})];
+        vol.(reg).(grp) = struct('epvs', vertcat(a.vol_epvs{:}), ...
+                                 'ves',  vertcat(a.vol_ves{:}));
+        fprintf('%s/%s: %d SWP voxels, %d EPVS, %d vessels\n', reg, grp, ...
+                size(swp.(reg).(grp),1), numel(vol.(reg).(grp).epvs), ...
+                numel(vol.(reg).(grp).ves));
+    end
+end
+
+%% Violin/boxplot
+
+%%% Prepare data for violin_box_whisker_paired, and save dated outputs
+% Consumes the `swp` and `vol` structs produced by swp_pairs_refactor.m:
+%   swp.(region).(group) = [n_voxels x 2], columns [EPVS, vessel]
+%   vol.(region).(group) = struct with fields .epvs and .ves (um^3 per object)
+%
+% Target format: nGroups x 2 cell, column 1 = EPVS, column 2 = vessel,
+% row order matching glabels.
+%
+% Everything is written to results_<yyyy-mm-dd>/ with the date in each
+% filename, so re-running on a different day never overwrites earlier output.
+
+%%% --- Which groups to plot, and how to label them on the x axis ---
+% Must be fieldnames present in swp.(region) / vol.(region).
+plot_groups = {'control','severe'};
+glabels     = {'Control','Severe'};   % display names, same order
+
+assert(numel(plot_groups) == numel(glabels), ...
+       'plot_groups and glabels must be the same length.');
+
+regions = {'front','occip'};
+
+%%% --- Dated output
+run_date = datestr(now, 'yyyy-mm-dd');   %#ok<*TNOW1,*DATST>
+
+%%% --- Helper handles ---
+pack_swp = @(reg) local_pack(swp, reg, plot_groups, 'swp');
+pack_vol = @(reg) local_pack(vol, reg, plot_groups, 'vol');
+
+%% --- SWP figures, one per region ---
+swp_tables = cell(numel(regions), 1);
+for r = 1:numel(regions)
+    reg = regions{r};
+    d   = pack_swp(reg);
+
+    % Set ylims from the pooled data rather than hard-coding
+    allv  = vertcat(d{:});
+    ylims = [10^-1, 10^4];
+
+    % SWP columns are voxel-aligned -> paired within-group contrast.
+    % Left on a linear scale: SWP can be zero or negative, which log10 cannot
+    % represent. Add 'LogScale', true here only if your SWP is strictly > 0.
+    [swp_tables{r}, fig] = violin_box_whisker_paired(d, glabels, ...
+        sprintf('SWP - %s', reg), ylims, 'Scattering-weighted proximity', ...
+        'Paired', true,'LogScale', true);
+
+    local_save_fig(fig, sprintf('swp_%s', reg), fig_dir, run_date);
+end
+
+%%% --- Volume figures, one per region (log scale is usually clearer) ---
+vol_tables = cell(numel(regions), 1);
+for r = 1:numel(regions)
+    reg = regions{r};
+    d   = pack_vol(reg);
+
+    % Object volumes span several decades. The function now does the log10
+    % transform internally ('LogScale'), so the KDE and quartiles are
+    % estimated in log space and the ticks are relabelled in um^3.
+    % ylims are given in ORIGINAL units.
+    allv  = vertcat(d{:});
+    allv  = allv(allv > 0);
+    ylims = [10^floor(log10(min(allv))), 10^ceil(log10(max(allv)))];
+
+    % EPVS objects and vessel objects are separate entities -> NOT paired
+    [vol_tables{r}, fig] = violin_box_whisker_paired(d, glabels, ...
+        sprintf('Object volume - %s', reg), ylims, 'Object volume (\mum^3)', ...
+        'Paired', false, 'LogScale', true);
+
+    local_save_fig(fig, sprintf('volume_%s', reg), fig_dir, run_date);
+end
+
+%%% --- Write all comparisons to one dated workbook ---
+all_stats = vertcat(swp_tables{:}, vol_tables{:});
+xlsx_path = fullfile(fig_dir, sprintf('cliffs_delta_results_%s.xlsx', run_date));
+writetable(all_stats, xlsx_path, 'Sheet', sprintf('paired_violins_%s', run_date));
+fprintf('Wrote %d comparisons to %s\n', height(all_stats), xlsx_path);
+
 
 %% Find # of EPVS and vessels
+%{
 % Initialize vectors for storing counts
 front_nepv = zeros(4,1);
 front_nves = zeros(4,1);
@@ -395,248 +404,242 @@ figure;
 plot(occip_nepv,'k'); hold on;
 plot(occip_nves,'r'); hold off;
 xlabel(o_xlabs); title('Occipital')
+%}
 
+%% Bin EPVS-SWP vs vessel-SWP, per subject/region and pooled by group
+% Fixes relative to the previous version of this section:
+%   1. The whole block was duplicated. Running it twice re-entered the loop
+%      with ctl/sev already inside heat_pairs, so combine_subjects_regions
+%      counted every voxel twice.
+%   2. ctl/sev were written back INTO heat_pairs. Any later iteration over
+%      fieldnames(heat_pairs) then treated the pooled groups as if they were
+%      additional subjects. They now live in a separate struct.
+%   3. NaN removal was applied only in the per-region loop. The combined
+%      vectors went into bin_swp unfiltered - and Inf was never filtered
+%      anywhere, which is what makes the bin edges infinite.
+%   4. The subject loop was hard-coded to 1:2.
+%   5. region_data was computed and never used.
 
-%% Bin each subject and region, then combine regions
-region_data = combine_subjects(heat_pairs);
-% struct for storing binned vectors
+assert(exist('heat_pairs','var') == 1, 'heat_pairs not in the workspace.');
+assert(exist('subs','var')       == 1, 'subs not in the workspace.');
+assert(exist('nbin','var')       == 1, 'nbin not in the workspace.');
+
+%%% --- Group definitions (pooled AFTER binning, kept out of heat_pairs) ---
+group_members = struct('ctl', {{'caa26','caa6'}}, ...
+                       'sev', {{'caa22','caa25'}});
+group_names   = fieldnames(group_members);
+
 binned = struct();
 
-%%% Separate the frontal and occipital
-% Iterate subjects
-for ii = 1:2
-% for ii = 3:length(subs)
-    % Retrieve regions for this subject
-    regs = fields(heat_pairs.(subs{ii}));
-    % iterate over regions
-    for j = 1:length(regs)
-        % Print to console
-        fprintf('\nBinning subject %s region %s',subs{ii},regs{j})
-        % Retrieve epvs-swp and ves-swp pairs
-        pair = heat_pairs.(subs{ii}).(regs{j});
-        % remove any row that contains NaN
-        pair = pair(~any(isnan(pair), 2), :);
-        % scattering coefficient
-        [xy,se] = bin_swp(pair, nbin);
-        binned.(subs{ii}).(regs{j}).pair = xy;
-        binned.(subs{ii}).(regs{j}).se = se;
+%%% --- Per subject, per region, plus the subject-level front+occip pool ---
+for ii = 1:numel(subs)
+    sub  = subs{ii};
+    regs = fieldnames(heat_pairs.(sub));
+
+    for j = 1:numel(regs)
+        reg = regs{j};
+        fprintf('Binning subject %s region %s\n', sub, reg);
+
+        pair = heat_pairs.(sub).(reg);
+        pair = pair(all(isfinite(pair), 2), :);   % NaN *and* Inf
+        if isempty(pair)
+            warning('%s/%s: no finite rows, skipping.', sub, reg);
+            continue
+        end
+
+        [xy, se, info] = bin_swp(pair, nbin);
+        binned.(sub).(reg).pair = xy;
+        binned.(sub).(reg).se   = se;
+        binned.(sub).(reg).info = info;
     end
 
-    %%% Subject-level Combine the frontal and occipital
-    % Print status to console
-    fprintf('\nCombining Front + Occip for %s',subs{ii})
-    % Initialize struct to ensure only combining individual subject
-    heat_pair_sub = struct();
-    % Retrieve the pairs for each subject
-    heat_pair_sub.(subs{ii}) = heat_pairs.(subs{ii});
-    
-    % Combine frontal and occipital for this subject
-    [comb] = combine_subjects_regions(heat_pair_sub);
-    
-    % Bin the combined regions
-    [comb,comb_se] = bin_swp(comb, nbin);
+    % --- Subject-level front + occip ---
+    fprintf('Combining front + occip for %s\n', sub);
+    sub_pairs = local_stack(heat_pairs.(sub));
+    sub_pairs = sub_pairs(all(isfinite(sub_pairs), 2), :);
 
-    % Add to struct
-    binned.(subs{ii}).comb      = comb;
-    binned.(subs{ii}).comb_se   = comb_se;
+    [xy, se, info] = bin_swp(sub_pairs, nbin);
+    binned.(sub).comb      = xy;
+    binned.(sub).comb_se   = se;
+    binned.(sub).comb_info = info;
 end
 
-%% Combine CAA22 or CAA25 for severe
-heat_pairs.sev.front = [heat_pairs.caa22.front; heat_pairs.caa25.front];
-heat_pairs.sev.occip = [heat_pairs.caa22.occip; heat_pairs.caa25.occip];
+%%% --- Group-level pooling (ctl / sev), kept separate from heat_pairs ---
+group_pairs = struct();
+for g = 1:numel(group_names)
+    grp     = group_names{g};
+    members = group_members.(grp);
 
-%%% Separate/combine heat_pairs across subject and region
-fprintf('Separating heatmap pairs by subject and region\n')
-% combine occip + frontal across all subjects
-[comb] = combine_subjects_regions(heat_pairs);
-
-%%% combined subjects and regions
-fprintf('Binning for front + occip\n')
-% scattering coefficient
-[xy,se] = bin_swp(comb, nbin);
-binned.comb = xy;
-binned.comb_se = se;
-fprintf('Finished binning for front + occip\n')
-
-%% 2D Joint Density Heatmap
-
-% Settings
-groups = {'caa26','caa6','caa17','sev'};
-severities = {'control', 'mild', 'moderate', 'severe'};
-n_bins     = 150;
-
-%%% Find histogram edges for epvs-swp and ves-swp (front, occip separate)
-% lims.ves.front = [0,5];
-% lims.ves.occip = [0,5];
-% lims.epv.front = [0,5];
-% lims.epv.occip = [0,5];
-% % First find min/max for each region and ves-swp and epvs-swp
-% for ii = 1:length(groups)
-%     % Find number of regions
-%     regs = fields(heat_pairs.(groups{ii}));
-%     for j = 1:length(regs)
-%         % Retrieve [epv, ves] pairs and limits
-%         xy = heat_pairs.(groups{ii}).(regs{j});
-%         epv_lims = lims.epv.(regs{j});
-%         ves_lims = lims.ves.(regs{j});
-%         % Compare limits to vector
-%         lims.epv.(regs{j}) = [0,ceil(max(epv_lims(2),max(xy(:,1))))];
-%         lims.ves.(regs{j}) = [0,ceil(max(ves_lims(2),max(xy(:,2))))];
-%         pause(1)
-%     end
-% end
-% Manually set large limits ves=150, epv = 400
-lims.ves.front = [0,100];
-lims.ves.occip = [0,100];
-lims.epv.front = [0,400];
-lims.epv.occip = [0,400];
-% Iterate ves/epvs and front/occip and create edges
-type = {'ves','epv'}; regs = {'front','occip'};
-for ii = 1:2
-    for j = 1:2
-        edges.(type{ii}).(regs{j}) = linspace(min(lims.(type{ii}).(regs{j})),...
-                                              max(lims.(type{ii}).(regs{j})),...
-                                              n_bins+1);
-    end
-end
-
-%%% Hard coded zoomed-in limits for inset figures
-% control = [0,50] for both ves,epvs for front/occip
-% mild = [0,50] for both ves,epvs for front/occip
-% moderate
-%   epvs = [0,100] + ves = [0,50]
-% severe
-%   front: epvs = [0,50] + ves = [0,50]
-%   occip: epvs = [0,50] + ves = [0,50]
-% Control
-lims.caa26.front.ves = [0,50];
-lims.caa26.front.epv = [0,50];
-lims.caa26.occip = lims.caa26.front;
-% Mild
-lims.caa6.front.ves = [0,50];
-lims.caa6.front.epv = [0,50];
-lims.caa6.occip = lims.caa6.front;
-% Moderate
-lims.caa17.occip.ves = [0,50];
-lims.caa17.occip.epv = [0,100];
-% Severe
-lims.sev.front.ves = [0,50];
-lims.sev.front.epv = [0,50];
-lims.sev.occip.ves = [0,50];
-lims.sev.occip.epv = [0,50];
-
-%%% Iterate severities
-for ii = 1:length(groups)
-    % Find number of regions
-    regs = fields(heat_pairs.(groups{ii}));
-    for j = 1:length(regs)
-        % Retrieve [epv, ves] pairs and limits
-        epv_ves = heat_pairs.(groups{ii}).(regs{j});
-        epv_edge = edges.epv.(regs{j});
-        ves_edge = edges.ves.(regs{j});
-        % Create 2D histogram (X = epv-swp, Y = ves-swp)
-        histo = histcounts2(epv_ves(:,1), epv_ves(:,2),epv_edge,ves_edge,...
-                            'Normalization','percentage');
-        % Generate figure of histogram
-        figure;
-        imagesc(epv_edge, ves_edge, histo'); set(gca,'YDir','normal');
-        colorbar; clim([0,0.5])
-        xlabel('EPVS SWP'); ylabel('Vessel SWP');
-        title(sprintf('%s %s',severities{ii}, regs{j}));
-        set(gca,'FontName','Arial'); set(gca,'FontSize',20);
-        % Export graphics
-        ax = gca;
-        fname = sprintf('ves-swp_vs_epv-swp_%s_%s',groups{ii},regs{j});
-        fname_pdf = strcat(fname,'.pdf');
-        fname_png = strcat(fname,'.png');
-        exportgraphics(ax,fullfile(plt_dir,fname_pdf),...
-            'ContentType','vector','Resolution',600);
-        exportgraphics(ax,fullfile(plt_dir,fname_png),...
-            'Resolution',600);
-
-        %%% Zoom in region and export graphics
-        ves_lim = lims.(groups{ii}).(regs{j}).ves;
-        epv_lim = lims.(groups{ii}).(regs{j}).epv;
-        xlim(epv_lim); ylim(ves_lim);
-        fname = sprintf('ves-swp_vs_epv-swp_%s_%s_zoom',groups{ii},regs{j});
-        fname_pdf = strcat(fname,'.pdf');
-        fname_png = strcat(fname,'.png');
-        exportgraphics(ax,fullfile(plt_dir,fname_pdf),...
-            'ContentType','vector','Resolution',600);
-        exportgraphics(ax,fullfile(plt_dir,fname_png),...
-            'Resolution',600);
-        pause(0.5); close;
-    end
-end
-
-
-%%% Rerun with zoomed edges for subfigures
-% control = [0,50] for both ves,epvs for front/occip
-% mild = [0,50] for both ves,epvs for front/occip
-% moderate
-%   epvs = [0,100] + ves = [0,50]
-% severe
-%   front: epvs = [0,50] + ves = [0,50]
-%   occip: epvs = [0,50] + ves = [0,50]
-
-% Set upper limit for edges
-up_lim = 50;
-n_bins = 100;
-% iterate epv/ves
-for ii = 1:2
-    % Iterate severity
-    for j = 1:length(groups)
-        % Iterate regions
-        for k = 1:length(regs)
-            % Set all edges to be the same
-            edges.(type{ii}).(groups{j}).(regs{k}) = linspace(0,up_lim,n_bins+1);
-            % Set the EPV edges for CAA17 to go up to 100
-            if strcmp(type{ii},'epv') & strcmp(groups{j},'caa17')
-                edges.(type{ii}).(groups{j}).(regs{k}) =...
-                        linspace(0,100,n_bins+1);
-            end
-            % Set the EPV edges for CAA22 front to 400
-            if strcmp(type{ii},'epv') & strcmp(groups{j},'sev') &...
-                    strcmp(regs{k},'front')
-                        edges.(type{ii}).(groups{j}).(regs{k}) =...
-                                linspace(0,400,n_bins+1);
+    for j = 1:numel(members)
+        mem  = members{j};
+        assert(isfield(heat_pairs, mem), 'heat_pairs is missing subject %s.', mem);
+        regs = fieldnames(heat_pairs.(mem));
+        for k = 1:numel(regs)
+            reg = regs{k};
+            if ~isfield(group_pairs, grp) || ~isfield(group_pairs.(grp), reg)
+                group_pairs.(grp).(reg) = heat_pairs.(mem).(reg);
+            else
+                group_pairs.(grp).(reg) = [group_pairs.(grp).(reg); heat_pairs.(mem).(reg)];
             end
         end
     end
+
+    % per-region and pooled-across-region binning for this group
+    regs = fieldnames(group_pairs.(grp));
+    for k = 1:numel(regs)
+        reg  = regs{k};
+        pair = group_pairs.(grp).(reg);
+        pair = pair(all(isfinite(pair), 2), :);
+        fprintf('Binning group %s region %s\n', grp, reg);
+        [xy, se, info] = bin_swp(pair, nbin);
+        binned.(grp).(reg).pair = xy;
+        binned.(grp).(reg).se   = se;
+        binned.(grp).(reg).info = info;
+    end
+
+    allReg = local_stack(group_pairs.(grp));
+    allReg = allReg(all(isfinite(allReg), 2), :);
+    fprintf('Binning group %s front + occip\n', grp);
+    [xy, se, info] = bin_swp(allReg, nbin);
+    binned.(grp).comb      = xy;
+    binned.(grp).comb_se   = se;
+    binned.(grp).comb_info = info;
 end
 
-% Iterate severities
-for ii = 4:length(groups)
-    % Find number of regions
-    regs = fields(heat_pairs.(groups{ii}));
-    for j = 1:length(regs)
-        % Retrieve [epv, ves] pairs and limits
-        epv_ves = heat_pairs.(groups{ii}).(regs{j});
-        epv_edge = edges.epv.(groups{ii}).(regs{j});
-        ves_edge = edges.ves.(groups{ii}).(regs{j});
-        % Create 2D histogram (X = epv-swp, Y = ves-swp)
-        histo = histcounts2(epv_ves(:,1), epv_ves(:,2),epv_edge,ves_edge,...
-                            'Normalization','percentage');
-        % Generate figure of histogram
-        figure;
-        imagesc(epv_edge, ves_edge, histo'); set(gca,'YDir','normal');
-        colorbar; clim([0,0.15])
-        xlabel('EPVS SWP'); ylabel('Vessel SWP');
-        title(sprintf('%s %s',severities{ii}, regs{j}));
-        set(gca,'FontName','Arial'); set(gca,'FontSize',20);
-        % Export graphics with high quality
-        ax = gca;
-        fname = sprintf('ves-swp_vs_epv-swp_%s_%s',groups{ii},regs{j});
-        fname_pdf = strcat(fname,'_zoom_rescaled.pdf');
-        fname_png = strcat(fname,'_zoom_rescaled.png');
-        exportgraphics(ax,fullfile(plt_dir,fname_pdf),...
-            'ContentType','vector','Resolution',600);
-        exportgraphics(ax,fullfile(plt_dir,fname_png),...
-            'Resolution',600);
-        pause(0.5); close;
+%%% --- Everything pooled: all subjects, both regions ---
+fprintf('Binning all subjects, front + occip\n');
+allPairs = [];
+for ii = 1:numel(subs)
+    allPairs = [allPairs; local_stack(heat_pairs.(subs{ii}))];  %#ok<AGROW>
+end
+allPairs = allPairs(all(isfinite(allPairs), 2), :);
+
+[xy, se, info] = bin_swp(allPairs, nbin);
+binned.comb      = xy;
+binned.comb_se   = se;
+binned.comb_info = info;
+fprintf('Finished binning for front + occip (%d rows, %d empty bins)\n', ...
+        size(allPairs,1), info.nEmptyBins);
+
+
+%%% -----------------------------------------------------------------------
+function M = local_stack(s)
+% Vertically concatenate every [n x 2] field of a struct.
+c = struct2cell(s);
+c = c(cellfun(@(v) isnumeric(v) && size(v,2) == 2, c));
+M = vertcat(c{:});
+end
+
+%% 2D Joint Density Heatmap: EPVS-SWP vs vessel-SWP
+% Contrast handling for sparse joint densities:
+%   - Empty bins are rendered TRANSPARENT (not "lowest colour"), so the
+%     background reads as background rather than as near-zero density. This
+%     is the main fix: with parula, an empty bin and a one-voxel bin are
+%     both dark blue and indistinguishable.
+%   - Bins below MIN_COUNT are treated as empty, which removes the
+%     single-voxel speckle that flattens the perceived dynamic range.
+%   - Colour limits are taken from a percentile of OCCUPIED bins instead of
+%     a hard-coded ceiling, so the ramp spans the data actually present.
+%   - Log colour scale by default: joint SWP densities are concentrated
+%     enough that a linear ramp saturates near the origin and leaves the
+%     rest of the plane visually empty.
+%   - Colormap starts at a light-but-visible blue rather than white, so the
+%     faintest occupied bins still separate from the white background.
+ 
+assert(exist('group_pairs','var') == 1, 'group_pairs not in the workspace.');
+assert(exist('plt_dir','var')     == 1, 'plt_dir not defined.');
+if ~exist(plt_dir, 'dir')
+    mkdir(plt_dir);
+end
+ 
+%%% --- Settings ---
+groups_to_plot = {'ctl','sev'};
+disp_name      = struct('ctl','Control', 'sev','Severe');
+n_bins         = 150;
+ 
+MIN_COUNT      = 3;        % raw voxel count below which a bin is drawn empty
+USE_LOG_COLOUR = true;     % log colour scale
+CLIM_PCT       = 99.5;     % percentile of occupied bins -> colour ceiling
+CLIM_FLOOR_DEC = 3;        % log scale spans this many decades below the top
+BG_COLOUR      = [1 1 1];  % what an empty bin shows as
+SHOW_GRID_BOX  = true;     % thin box helps delimit the data area on white
+ 
+%%% --- Full-range axis limits ---
+axis_lims.epv.front = [0, 400];
+axis_lims.epv.occip = [0, 400];
+axis_lims.ves.front = [0, 100];
+axis_lims.ves.occip = [0, 100];
+ 
+%%% --- Zoom windows for the inset figures ---
+zoom_lims.ctl.front.epv = [0, 50];
+zoom_lims.ctl.front.ves = [0, 50];
+zoom_lims.ctl.occip     = zoom_lims.ctl.front;
+zoom_lims.sev.front.epv = [0, 50];
+zoom_lims.sev.front.ves = [0, 50];
+zoom_lims.sev.occip     = zoom_lims.sev.front;
+ 
+cmap = local_density_cmap(256);
+ 
+%%% --- Iterate groups and regions ---
+for ii = 1:numel(groups_to_plot)
+    grp  = groups_to_plot{ii};
+    assert(isfield(group_pairs, grp), 'group_pairs has no field "%s".', grp);
+    regs = fieldnames(group_pairs.(grp));
+ 
+    for j = 1:numel(regs)
+        reg = regs{j};
+ 
+        epv_ves = group_pairs.(grp).(reg);
+        epv_ves = epv_ves(all(isfinite(epv_ves), 2), :);
+        nTotal  = size(epv_ves, 1);
+        if nTotal == 0
+            warning('%s/%s: no finite pairs, skipping.', grp, reg);
+            continue
+        end
+ 
+        % ---- Full-range histogram ----
+        epv_edge = linspace(axis_lims.epv.(reg)(1), axis_lims.epv.(reg)(2), n_bins+1);
+        ves_edge = linspace(axis_lims.ves.(reg)(1), axis_lims.ves.(reg)(2), n_bins+1);
+ 
+        counts = histcounts2(epv_ves(:,1), epv_ves(:,2), epv_edge, ves_edge);
+        pct    = 100 * counts / nTotal;
+ 
+        % Colour limits from occupied bins only, then reused for the inset so
+        % the two figures stay directly comparable.
+        occ = pct(counts >= MIN_COUNT);
+        if isempty(occ)
+            warning('%s/%s: no bin reaches MIN_COUNT=%d, lower it.', grp, reg, MIN_COUNT);
+            continue
+        end
+        cHi = prctile(occ, CLIM_PCT);
+        if USE_LOG_COLOUR
+            cLo = max(min(occ), cHi / 10^CLIM_FLOOR_DEC);
+        else
+            cLo = 0;
+        end
+ 
+        ttl = sprintf('%s %s', disp_name.(grp), reg);
+        fig = local_draw(epv_edge, ves_edge, pct, counts, ttl, ...
+                         [cLo cHi], MIN_COUNT, USE_LOG_COLOUR, BG_COLOUR, cmap, SHOW_GRID_BOX);
+        local_export(fig, plt_dir, sprintf('ves-swp_vs_epv-swp_%s_%s', grp, reg));
+        close(fig);
+ 
+        % ---- Inset: re-binned over the zoom window at full resolution ----
+        zl       = zoom_lims.(grp).(reg);
+        epv_z    = linspace(zl.epv(1), zl.epv(2), n_bins+1);
+        ves_z    = linspace(zl.ves(1), zl.ves(2), n_bins+1);
+        counts_z = histcounts2(epv_ves(:,1), epv_ves(:,2), epv_z, ves_z);
+        pct_z    = 100 * counts_z / nTotal;
+ 
+        fig = local_draw(epv_z, ves_z, pct_z, counts_z, [ttl ' (zoom)'], ...
+                         [cLo cHi], MIN_COUNT, USE_LOG_COLOUR, BG_COLOUR, cmap, SHOW_GRID_BOX);
+        local_export(fig, plt_dir, sprintf('ves-swp_vs_epv-swp_%s_%s_zoom', grp, reg));
+        close(fig);
+ 
+        fprintf('%s / %s: %d pairs | occupied bins %d/%d | clim [%.4g %.4g]%%\n', ...
+                grp, reg, nTotal, nnz(counts >= MIN_COUNT), numel(counts), cLo, cHi);
     end
 end
-%}
 
 %% COMBINE SUBJECTS - Bin Frontal and Occipital separately
 %{
@@ -1105,4 +1108,111 @@ function [x_out, y_out, y_se_out] = average_bins(x1, y1, y1_se, x2, y2, y2_se, t
     fprintf('Primary points unchanged             : %d\n', sum(~merged_p));
     fprintf('Secondary points used                : %d\n', sum(used_s));
     fprintf('Secondary points not used            : %d\n', sum(~used_s));
+end
+
+%% -----------------------------------------------------------------------
+function d = local_pack(S, reg, plot_groups, kind)
+% Returns nGroups x 2 cell: column 1 = EPVS, column 2 = vessel.
+nG = numel(plot_groups);
+d  = cell(nG, 2);
+for g = 1:nG
+    grp = plot_groups{g};
+    assert(isfield(S, reg) && isfield(S.(reg), grp), ...
+           'Missing %s.%s - check plot_groups against your group names.', reg, grp);
+    switch kind
+        case 'swp'
+            d{g,1} = double(S.(reg).(grp)(:,1));   % EPVS SWP
+            d{g,2} = double(S.(reg).(grp)(:,2));   % vessel SWP
+        case 'vol'
+            d{g,1} = double(S.(reg).(grp).epvs(:));
+            d{g,2} = double(S.(reg).(grp).ves(:));
+    end
+end
+end
+
+%% -----------------------------------------------------------------------
+function local_save_fig(fig, basename, outdir, run_date)
+% Saves PNG (300 dpi) + vector PDF, both with the date in the filename.
+stem = fullfile(outdir, sprintf('%s_%s', basename, run_date));
+try
+    exportgraphics(fig, [stem '.png'], 'Resolution', 300);
+    exportgraphics(fig, [stem '.pdf'], 'ContentType', 'vector');
+catch
+    % exportgraphics requires R2020a; fall back to print
+    print(fig, [stem '.png'], '-dpng', '-r300');
+    print(fig, [stem '.pdf'], '-dpdf', '-vector');
+end
+savefig(fig, [stem '.fig']);   % keeps the figure editable later
+fprintf('  saved %s.{png,pdf,fig}\n', stem);
+end
+
+%% 2D Joint Density Heat Maps
+function fig = local_draw(xEdges, yEdges, C, counts, ttl, clims, minCount, ...
+                          useLog, bg, cmap, showBox)
+% imagesc maps the supplied x/y vectors to pixel CENTERS, so pass centers.
+xC = xEdges(1:end-1) + diff(xEdges)/2;
+yC = yEdges(1:end-1) + diff(yEdges)/2;
+ 
+% Blank out empty / under-threshold bins. NaN CData plus zero AlphaData
+% shows the axes colour through, which is what makes filled voxels read as
+% filled rather than as the bottom of the colour ramp.
+Cp = C;
+Cp(counts < minCount) = NaN;
+ 
+fig = figure('Color', 'w');
+h   = imagesc(xC, yC, Cp');           % C is [nx x ny]; imagesc wants rows = y
+set(h, 'AlphaData', ~isnan(Cp'));     % transparent where empty
+ax = gca;
+set(ax, 'YDir', 'normal', 'Color', bg);
+axis tight;
+ 
+colormap(ax, cmap);
+if useLog
+    set(ax, 'ColorScale', 'log');
+end
+caxis_safe(clims);
+ 
+cb = colorbar;
+cb.Label.String = '% of pairs per bin';
+ 
+xlabel('EPVS SWP');
+ylabel('Vessel SWP');
+title(ttl);
+set(ax, 'FontName', 'Arial', 'FontSize', 20, 'Layer', 'top');
+if showBox
+    set(ax, 'Box', 'on', 'XColor', [0.2 0.2 0.2], 'YColor', [0.2 0.2 0.2], ...
+            'LineWidth', 1.0);
+end
+end
+ 
+function cmap = local_density_cmap(n)
+% Light-to-dark sequential ramp with monotonically decreasing luminance.
+% Starts at a light blue rather than white so the faintest occupied bin is
+% still distinguishable from a white background.
+anchors = [0.78 0.86 0.94;   % light blue
+           0.42 0.63 0.83;
+           0.10 0.39 0.69;   % #1964B0
+           0.06 0.24 0.44;
+           0.03 0.11 0.22];  % near-black navy
+x  = linspace(0, 1, size(anchors,1));
+xi = linspace(0, 1, n);
+cmap = [interp1(x, anchors(:,1), xi)', ...
+        interp1(x, anchors(:,2), xi)', ...
+        interp1(x, anchors(:,3), xi)'];
+cmap = min(max(cmap, 0), 1);
+end
+ 
+function local_export(fig, outdir, stem)
+ax = fig.CurrentAxes;
+exportgraphics(ax, fullfile(outdir, [stem '.pdf']), ...
+    'ContentType', 'vector', 'Resolution', 600);
+exportgraphics(ax, fullfile(outdir, [stem '.png']), 'Resolution', 600);
+end
+ 
+function caxis_safe(lims)
+if exist('clim', 'file') || exist('clim', 'builtin')
+    clim(lims);
+else
+    caxis(lims);   %#ok<CAXIS>
+end
 end

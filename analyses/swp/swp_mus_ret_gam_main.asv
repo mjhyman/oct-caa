@@ -4,10 +4,7 @@
 % Bin the data points along x-axis and y-axis
 %   x-axis = EPVS SWP
 %   y-axis = Optical Property
-% TODO:
-% - combine just CAA22 + CAA25 (severe)
-% - run GAM for severe
-
+% TODO: combine CAA6 into control
 
 %% Initialization
 clearvars -except caa caa6 caa17 caa22 caa25 caa26 swp_struct
@@ -48,43 +45,7 @@ flag_load_caa_structs = true;
 %%% Number of bins for the x-axis along SWP
 nbin = 100;
 
-%%% Initialize struct for subject/region
-subjects = struct();
-subjects.caa6.front = [];
-subjects.caa6.occip = [];
-subjects.caa17.occip = [];
-subjects.caa22.front = [];
-subjects.caa22.occip = [];
-subjects.caa25.front = [];
-subjects.caa25.occip = [];
-subjects.caa26.front = [];
-subjects.caa26.occip = [];
-
-%% Load EPVS SWP & Vessel SWP
-if flag_load_swp_structs
-    % Struct for storing SWP
-    swp_struct = struct();
-    % Iterate subjects
-    subs = fields(subjects);
-    for ii = 1:numel(fields(subjects))
-        sub = subs{ii};
-        regs = fields(subjects.(sub));
-        for j = 1:numel(regs)
-            % retrieve subject and region
-            reg = regs{j};
-            fprintf('Importing SWP for %s %s\n',sub,reg)
-            % EPVS
-            tmp = load(fullfile(swp_dir, sub, reg, strcat(sub, '_', reg, epvs_fbase)));
-            swp_struct.epvs.(sub).(reg) = tmp.interpolated_volume;
-            % Vessels
-            tmp = load(fullfile(swp_dir, sub, reg, strcat(sub, '_', reg, ves_fbase)));
-            swp_struct.ves.(sub).(reg) = tmp.interpolated_volume;
-        end
-    end
-end
-
 %% Load matlab structs
-
 if flag_load_caa_structs
     fprintf('Loading CAA6\n')
     caa6 = load(fullfile(mat_dir,"/caa6/caa6.mat"));
@@ -106,12 +67,68 @@ if flag_load_caa_structs
     caa26 = load(fullfile(mat_dir,"/caa26/caa26.mat"));
     fprintf('Finished loading CAA26\n')
     
-    % Remove top-level struct
-    caa.caa6 = caa6.caa6;
-    caa.caa17 = caa17.caa17;
-    caa.caa22 = caa22.caa22;
-    caa.caa25 = caa25.caa25;
-    caa.caa26 = caa26.caa26;
+    %%% Remove top-level struct, consolidate, remove extra struct
+    caa.caa6 = caa6.caa6;       clear caa6;
+    caa.caa17 = caa17.caa17;    clear caa17;
+    caa.caa22 = caa22.caa22;    clear caa22;
+    caa.caa25 = caa25.caa25;    clear caa25;
+    caa.caa26 = caa26.caa26;    clear caa26;
+
+    %%% Remove orientation & convert retardance to single
+    subjects = fieldnames(caa);
+    for i = 1:numel(subjects)
+        subj = subjects{i};
+        regions = fieldnames(caa.(subj));
+    
+        for j = 1:numel(regions)
+            reg = regions{j};
+    
+            % remove orient_rgb if it exists
+            if isfield(caa.(subj).(reg), 'orient_rgb')
+                caa.(subj).(reg) = rmfield(caa.(subj).(reg), 'orient_rgb');
+            end
+            if isfield(caa.(subj).(reg), 'orient')
+                caa.(subj).(reg) = rmfield(caa.(subj).(reg), 'orient');
+            end
+        end
+    end
+end
+
+%% Load EPVS SWP & Vessel SWP
+if flag_load_swp_structs
+    % Struct for storing SWP
+    % swp_struct = struct();
+    
+    %%% Initialize struct for subject/region
+    subjects = struct();
+    subjects.caa6.front = [];
+    subjects.caa6.occip = [];
+    subjects.caa17.occip = [];
+    subjects.caa22.front = [];
+    subjects.caa22.occip = [];
+    subjects.caa25.front = [];
+    subjects.caa25.occip = [];
+    subjects.caa26.front = [];
+    subjects.caa26.occip = [];
+
+    % Iterate subjects
+    subs = fields(subjects);
+    for ii = 1:numel(fields(subjects))
+        sub = subs{ii};
+        regs = fields(subjects.(sub));
+        for j = 1:numel(regs)
+            % retrieve subject and region
+            reg = regs{j};
+            fprintf('Importing SWP for %s %s\n',sub,reg)
+            % EPVS
+            tmp = load(fullfile(swp_dir, sub, reg, strcat(sub, '_', reg, epvs_fbase)));
+            swp_struct.epvs.(sub).(reg) = tmp.interpolated_volume;
+            % Vessels
+            tmp = load(fullfile(swp_dir, sub, reg, strcat(sub, '_', reg, ves_fbase)));
+            swp_struct.ves.(sub).(reg) = tmp.interpolated_volume;
+        end
+    end
+    clear tmp;
 end
 
 %% Import medians for calculating percentage difference
@@ -174,37 +191,19 @@ for ii = 1:numel(fields(subjects))
         %%% Create matrix
         swp = [mus(:), ret(:), swp_ves(:), swp_epvs(:)];
         swp_pdif = [mus_pdif(:), ret_pdif(:), swp_ves(:), swp_epvs(:)];
-
         % add pairs to heatmap struct
         swp_op.raw.(sub).(reg) = swp;
         swp_op.pdif.(sub).(reg) = swp_pdif;
     end
 end
-fprintf('Finished making 2D arrays of EPVS density vs. optical prop\n')
+fprintf('Finished making 4D arrays of EPVS density vs. optical prop\n')
+% Remove SWP to save data
+clear swp_struct swp_ves swp_epvs swp swp_pdif mus_pdif ret_pdif
 
-%% Consolidate regions across all subjects
-fprintf('Combining regions\n')
-swp_op_region_raw = combine_subjects(swp_op.raw);
-swp_op_region_pdif = combine_subjects(swp_op.pdif);
-fprintf('Finished combining regions\n')
 
-%%% Convert to tables
-vnames = {'scattering','retardance','ves_swp','epv_swp'};
-% Raw
-T_front_raw = array2table(swp_op_region_raw.front,'VariableNames',vnames);
-T_occip_raw = array2table(swp_op_region_raw.occip,'VariableNames',vnames);
-% Percent Diff
-T_front_pdif = array2table(swp_op_region_pdif.front,'VariableNames',vnames);
-T_occip_pdif = array2table(swp_op_region_pdif.occip,'VariableNames',vnames);
-% Add to struct
-T.raw.front = T_front_raw;
-T.raw.occip = T_occip_raw;
-T.pdif.front = T_front_pdif;
-T.pdif.occip = T_occip_pdif;
+%% Combine severe (CAA22 + CAA25) then control (CAA26 + CAA6)
 
-%% Combine severe (CAA22 + CAA25)
-% Extract just severe from swp_op raw and pdif
-
+%%% Severe
 % Create copy of raw and pdif
 swp_op_raw = swp_op.raw;
 swp_op_pdif = swp_op.pdif;
@@ -212,16 +211,26 @@ swp_op_pdif = swp_op.pdif;
 keepFields = {'caa22', 'caa25'};
 % Remove all other fields
 swp_op_raw_severe = rmfield(swp_op_raw, setdiff(fieldnames(swp_op_raw), keepFields));
-swp_op_pdif_severe = rmfield(swp_op_pdif, setdiff(fieldnames(swp_op_raw), keepFields));
-
-
+swp_op_pdif_severe = rmfield(swp_op_pdif, setdiff(fieldnames(swp_op_pdif), keepFields));
+% Combine caa22 and caa25
 swp_op_raw_severe = combine_subjects(swp_op_raw_severe);
 swp_op_pdif_severe = combine_subjects(swp_op_pdif_severe);
 
-%% Create table for each subject/region
-% TODO: Add table entry for combined severe
+%%% Control
+% Create copy of raw and pdif
+swp_op_raw = swp_op.raw;
+swp_op_pdif = swp_op.pdif;
+% Define fields to keep
+keepFields = {'caa26', 'caa6'};
+% Remove all other fields
+swp_op_raw_control = rmfield(swp_op_raw, setdiff(fieldnames(swp_op_raw), keepFields));
+swp_op_pdif_control = rmfield(swp_op_pdif, setdiff(fieldnames(swp_op_pdif), keepFields));
+% Combine caa22 and caa25
+swp_op_raw_control = combine_subjects(swp_op_raw_control);
+swp_op_pdif_control = combine_subjects(swp_op_pdif_control);
 
-fprintf('Creating 4xN matrices\n')
+%% Create table for each subject/region
+fprintf('Creating 4xN Tables\n')
 vnames = {'scattering','retardance','ves_swp','epv_swp'};
 subs = fields(subjects);
 % Iterate subjects
@@ -241,218 +250,89 @@ for ii = 1:numel(fields(subjects))
         T.pdif.(sub).(reg) = tmp;
     end
 end
+% Add the combined control
+fprintf('\tAdding the combined control to the table\n')
+T.raw.ctl.front = array2table(swp_op_raw_control.front,'VariableNames',vnames);
+T.raw.ctl.occip = array2table(swp_op_raw_control.occip,'VariableNames',vnames);
+T.pdif.ctl.front = array2table(swp_op_pdif_control.front,'VariableNames',vnames);
+T.pdif.ctl.occip = array2table(swp_op_pdif_control.occip,'VariableNames',vnames);
+% Add the combined severe
+fprintf('\tAdding the combined severe to the table\n')
+T.raw.sev.front = array2table(swp_op_raw_severe.front,'VariableNames',vnames);
+T.raw.sev.occip = array2table(swp_op_raw_severe.occip,'VariableNames',vnames);
+T.pdif.sev.front = array2table(swp_op_pdif_severe.front,'VariableNames',vnames);
+T.pdif.sev.occip = array2table(swp_op_pdif_severe.occip,'VariableNames',vnames);
 
-%% Generalized Additive Model (GAM) - By Subject/Region
-% TODO:
-% - add logic for combined severe
+%% Isosurface Comparison — Severe vs Control (shared grid, tuned per group)
+cmp_dir = fullfile(fig_dir,'severe_vs_control');
+if ~exist(cmp_dir,'dir'); mkdir(cmp_dir); end
 
-% Initialize GAM output struct
-gam = struct();
-
-%%% Sampling and Learning
-% Set maximum number of samples
-n_max = 1e6;
-% Set learning parameters (avoid over fitting)
-ntrees = 500;
-max_splits = 4;
-learn_rate = 0.05;
-% Set learning parameters (sharper contrast near EPVS)
-% ntrees = 200;
-% max_splits = 10;
-% learn_rate = 0.1;
-%%% Plotting confidence intervals settings
+%%% Bootstrap
 nbootstrap = 100;
-ci_alpha = 0.05;
 
-% Initialize data type (raw/pdif)
-dtype = {'raw','pdif'};
-% Iterate subjects
-subs = fields(subjects);
-for ii = 1:numel(fields(subjects))
-    sub = subs{ii};
-    regs = fields(subjects.(sub));
-    % Update output directory with subject name sub directory
-    subdir = fullfile(fig_dir, sub);
-    if ~exist(subdir,'dir'); mkdir(subdir); end
-    % Iterate regions
-    for j = 1:numel(regs)
-        reg = regs{j};
-        for k = 1:numel(dtype)
-            %%% Retrieve optical properties        
-            fprintf('\tSubject %s region %s\n',sub,reg)
-            d = dtype{k};
-            % Create title substring from data type and region
-            tstr = string(sprintf('%s %s %s',string(d),string(sub),...
-                                  string(reg)));
-            % set z-score normalization boolean
-            if strcmp(d,'raw')
-                zscore = true;
-            else
-                zscore = false;
-            end            
-            % Run GMM clustering
-            t = T.(d).(sub).(reg);
-            fprintf('Running GAM for %s %s %s\n',d,sub,reg)
-            gam.(d).(sub).(reg) = fit_swp_psoct_gam(t,...
-                            'NumTrees',ntrees,...
-                            'MaxSplits',max_splits,'LearnRate',learn_rate,...
-                            'MaxSample',n_max,'NBootstrap',nbootstrap,...
-                            'CIAlpha',ci_alpha,'TitleStr',tstr,...
-                            'dirout',subdir);
-            pause(1);
-            close all;
-        end
-    end
+n_max_cmp = 2e5;               % subsample for tuning+fit (see runtime note)
+regs = {'front','occip'};
+ci_alpha = 0.05;
+gam_cmp = struct();
+for ii = 1:numel(regs)
+    fprintf('\nStart GAM for severe vs. control for %s\n',regs{ii})
+    reg = regs{ii};
+    tstr = sprintf('pdif_severe_vs_control_%s', reg);
+    fprintf('Comparing severe vs control: %s\n', reg);
+    gam_cmp.pdif.(reg) = compare_isosurfaces_severe_control(...
+        T.pdif.sev.(reg), T.pdif.ctl.(reg), ...
+        'TuneParams', true, ...
+        'MaxSplitsGrid', [4 10 20], 'NumTreesGrid', [100 200 500], ...
+        'MaxSample', n_max_cmp, ...
+        'NBootstrap', nbootstrap, 'CIAlpha', ci_alpha, ...
+        'GridRange', 'intersection', 'SharedPercentiles', true, ...
+        'TitleStr', tstr, 'dirout', cmp_dir);
+    pause(1); close all;
+    fprintf('\nFinished GAM for severe vs. control for %s\n',regs{ii})
 end
-pause(1); close all;
-% Save GAM
 dt = datetime("now",'TimeZone','local','Format','dd-MMM-yyyy');
-fout = strcat('GAM_struct_subjects_',string(dt),'.mat');
-full_fout = fullfile(fig_dir,fout);
-sprintf('Saving GAM data structs to %s\n',full_fout)
-save(full_fout,'gam','-v7.3');
+save(fullfile(fig_dir, strcat('GAM_compare_severe_control_',string(dt),'.mat')), ...
+     'gam_cmp','-v7.3');
 
-%% Generalized Additive Model (GAM) - By Region (combined subjects)
-%{
-% Initialize GAM output struct
-gam = struct();
 
-%%% Sampling and Learning
-% Set maximum number of samples
-n_max = 1e6;
-% Set learning parameters (avoid over fitting)
-ntrees = 100;
-max_splits = 4;
-learn_rate = 0.05;
-% Set learning parameters (sharper contrast near EPVS)
-% ntrees = 200;
-% max_splits = 10;
-% learn_rate = 0.1;
-%%% Plotting confidence intervals settings
-nbootstrap = 100;
-ci_alpha = 0.05;
+%%% Isosurface per Subject/Region (tuned per dataset)
+subjects.sev.front = []; subjects.sev.occip = [];
+subjects.ctl.front = []; subjects.ctl.occip = [];
 
-%%% Iterate over raw/pdif and front/occip
-dtype = {'raw','pdif'};
-regs = {'front','occip'};
-% Iterate raw/pdif
-for ii = 1:2
-    % Iterate front/occip
-    for j = 1:2
-        % Select data type and region
-        d = dtype{ii};
-        reg = regs{j};
-        % Create title substring from data type and region
-        tstr = string(sprintf('%s %s',string(d),string(reg)));
-        fprintf('Running GAM for %s %s\n',d,reg)
-        gam.(d).(reg) = fit_swp_psoct_gam(T.(d).(reg),'NumTrees',ntrees,...
-                        'MaxSplits',max_splits,'LearnRate',learn_rate,...
-                        'MaxSample',n_max,'NBootstrap',nbootstrap,...
-                        'CIAlpha',ci_alpha,'TitleStr',tstr,...
-                        'dirout',fig_dir);
-    end
-end
-save(fullfile(fig_dir,'GAM_struct.mat'),'gam','-v7.3');
-%}
-
-%% Gausian Mixture Model (GMM) Clustering - By Region (combined subjects)
-%{
-% Initialize struct for GMM
-gmm = struct();
-
-%%% Initialization Parameters
-% Set the number of quanitle bins for stratifying by the EPVS SWP
-n_quantile = 4;
-% Maximum number of samples per GMM
-n_max = 1e6;
-
-%%% Iterate over raw/pdif and front/occip
-dtype = {'raw','pdif'};
-regs = {'front','occip'};
-% Iterate raw/pdif
-for ii = 1:2
-    % Iterate front/occip
-    for j = 1:2
-        % Select data type and region
-        d = dtype{ii};
-        reg = regs{j};
-        % Create title substring from data type and region
-        tstr = string(sprintf('%s %s',string(d),string(reg)));
-        % set z-score normalization boolean
-        if strcmp(d,'raw')
-            zscore = true;
-        else
-            zscore = false;
-        end
-        % Run GMM clustering
-        gmm.(d).(reg) = cluster_psoct_gmm(T_front_raw,...
-                                         'NQuantileBins',n_quantile,...
-                                         'MaxSample',n_max,'ZScore',zscore,...
-                                         'TitleStr',tstr,...
-                                         'dirout',fig_dir);
-    end
-end
-
-% Save GMM
-full_fout = fullfile(fig_dir,'GMM_struct.mat');
-sprintf('Saving GMM data structs to %s\n',full_fout)
-save(full_fout,'gmm','-v7.3');
-%}
-
-%% Gausian Mixture Model (GMM) Clustering - By Subject/Region
-%{
-% Initialize struct for GMM
-gmm = struct();
-
-%%% Initialization Parameters
-% Set the number of quanitle bins for stratifying by the EPVS SWP
-n_quantile = 4;
-% Maximum number of samples per GMM
-n_max = 1e6;
-
-% Initialize data type (raw/pdif)
-dtype = {'raw','pdif'};
-% Iterate subjects
+iso_dir_base = fullfile(fig_dir,'by_subject');
+n_max_iso = 2e5;
+dtype = {'pdif'};              % or {'raw','pdif'}
+gam_iso = struct();
 subs = fields(subjects);
-for ii = 1:numel(fields(subjects))
+for ii = 1:numel(subs)
     sub = subs{ii};
     regs = fields(subjects.(sub));
-    % Update output directory with subject name sub directory
-    subdir = fullfile(fig_dir, sub);
+    subdir = fullfile(iso_dir_base, sub);
     if ~exist(subdir,'dir'); mkdir(subdir); end
-    % Iterate regions
     for j = 1:numel(regs)
         reg = regs{j};
+        fprintf('\nStart GAM for %s %s\n',subs{ii},regs{j})
         for k = 1:numel(dtype)
-            %%% Retrieve optical properties        
-            fprintf('\tSubject %s region %s\n',sub,reg)
             d = dtype{k};
-            % Create title substring from data type and region
-            tstr = string(sprintf('%s %s %s',string(d),string(sub),...
-                                  string(reg)));
-            % set z-score normalization boolean
-            if strcmp(d,'raw')
-                zscore = true;
-            else
-                zscore = false;
-            end
-            % Run GMM clustering
-            t = T.(d).(sub).(reg);
-            gmm.(d).(sub).(reg) = cluster_psoct_gmm(t,...
-                                             'NQuantileBins',n_quantile,...
-                                             'MaxSample',n_max,...
-                                             'ZScore',zscore,...
-                                             'TitleStr',tstr,...
-                                             'dirout',subdir);
+            if ~isfield(T.(d),sub) || ~isfield(T.(d).(sub),reg); continue; end
+            tstr = sprintf('%s_%s_%s', d, sub, reg);
+            fprintf('Isosurface for %s\n', tstr);
+            gam_iso.(d).(sub).(reg) = fit_isosurface_by_dataset(...
+                T.(d).(sub).(reg), ...
+                'TuneParams', true, ...
+                'MaxSplitsGrid', [4 10 20], 'NumTreesGrid', [100 200 500], ...
+                'MaxSample', n_max_iso, ...
+                'NBootstrap', nbootstrap, 'CIAlpha', ci_alpha, ...
+                'TitleStr', tstr, 'dirout', subdir);
+            pause(1); close all;
         end
+        fprintf('\nFinished GAM for %s %s\n',subs{ii},regs{j})
     end
 end
-
-% Save GMM
-full_fout = fullfile(fig_dir,'GMM_struct_subjects.mat');
-sprintf('Saving GMM data structs to %s\n',full_fout)
-save(full_fout,'gmm','-v7.3');
-%}
+% Save the gam_iso
+dt = datetime("now",'TimeZone','local','Format','dd-MMM-yyyy');
+save(fullfile(fig_dir, strcat('GAM_subject_region_',string(dt),'.mat')), ...
+     'gam_iso','-v7.3');
 
 %% Combine across all subjects. Separate by regions
 function region_data = combine_subjects(heat_pairs)

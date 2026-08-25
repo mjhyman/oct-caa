@@ -33,7 +33,7 @@ bw_out = fullfile(data_dir,'/bw_plots');
 %%% Load parenchyma struct
 % This file contains the measurements at each radius
 load(fullfile(data_dir, ...
-    "parenchyma_optical_properties_40um_thick_03Nov2025.mat"));
+    "parenchyma_optical_properties_40um_thick_5-Mar-2026.mat"));
 
 %%% Load median white matter value of each subject/region
 % Load median white matter values for each subject
@@ -166,12 +166,13 @@ fprops.rm_outlier = rm_outlier;
 subjects = fieldnames(parench);
 
 %%% call function to create scatter plots
+%{
 %   standardize_flag (int):
 %                  0 : do not change measurement
 %                  1 : use the absolute change from parench_median
 %                  2 : use the percentage change from parench_median
 scatter_main(subjects, fprops, parench_median, standardize_flag)
-
+%}
 
 %% Scatterplot optical property vs. distance (separate subjects)
 % y-axis = average optical property  for epvs or vessel

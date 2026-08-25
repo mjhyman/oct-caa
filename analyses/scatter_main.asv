@@ -41,17 +41,6 @@ err_flag = fprops.err_flag;
 mus_max = fprops.mus_max;
 ret_max = fprops.ret_max;
 rm_outlier = fprops.rm_outlier;
-% Method for standardizing the measurements
-if standardize_flag == 0
-    median_offset = 0;
-    percentage_diff = 0;
-elseif standardize_flag == 1
-    median_offset = 1;
-    percentage_diff = 0;
-else
-    median_offset = 0;
-    percentage_diff = 1;
-end
 
 %% Initialize vectors: singel value for each distance
 %%% Combined array for pairs of optical proprety vs. distance
@@ -243,7 +232,7 @@ end
 
 %%% x-axis and y-axis labels
 xlab = 'Distance (\mum)';
-if use_percentage
+if standardize_flag == 2
     ylab_mus = '\mus (% \Delta)';
     ylab_ret = 'Retardance (% \Delta)';
 else
@@ -254,48 +243,48 @@ end
 
 %%% COMBINED scatterplots (EPVS and ves)
 % Mus
-tit = 'Combined: \mus vs. Distance';
+tit = 'Combined';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('COMBINED_epvs_ves_mus_vs_distance',substr,'.png');
+fname = strcat('COMBINED_epvs_ves_mus_vs_distance',substr);
 scatter_op_vs_dist(x, comb_mean_ves_mus, comb_sem_ves_mus,...
                 comb_mean_epvs_mus, comb_sem_epvs_mus,err_flag,...
                 xlab, ylab_mus, mus_yl, xt, mus_yt, tit, dir_out, fname, psize)
 % Retardance
-tit = 'Combined: Retardance vs. Distance';
+tit = 'Combined';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('COMBINED_epvs_ves_ret_vs_distance',substr,'.png');
+fname = strcat('COMBINED_epvs_ves_ret_vs_distance',substr);
 scatter_op_vs_dist(x, comb_mean_ves_ret, comb_sem_ves_ret,...
                 comb_mean_epvs_ret, comb_sem_epvs_ret,err_flag,...
                 xlab, ylab_ret, ret_yl, xt, ret_yt, tit, dir_out, fname, psize)
 
 %%% FRONTAL scatterplots (EPVS and ves)
 % Mus
-tit = 'Frontal: \mus vs. Distance';
+tit = 'Frontal';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('FRONT_epvs_ves_mus_vs_distance',substr,'.png');
+fname = strcat('FRONT_epvs_ves_mus_vs_distance',substr);
 scatter_op_vs_dist(x, front_mean_ves_mus, front_sem_ves_mus,...
                 front_mean_epvs_mus, front_sem_epvs_mus,err_flag,...
                 xlab, ylab_mus, mus_yl, xt, mus_yt,tit, dir_out, fname, psize)
 % Retardance
-tit = 'Frontal: Retardance vs. Distance';
+tit = 'Frontal';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('FRONT_epvs_ves_ret_vs_distance',substr,'.png');
+fname = strcat('FRONT_epvs_ves_ret_vs_distance',substr);
 scatter_op_vs_dist(x, front_mean_ves_ret, front_sem_ves_ret,...
                 front_mean_epvs_ret, front_sem_epvs_ret,err_flag,...
                 xlab, ylab_ret, ret_yl,xt, ret_yt,tit, dir_out, fname, psize)
 
 %%% OCCIPITAL scatterplots (EPVS and ves)
 % Mus
-tit = 'Occipital: \mus vs. Distance';
+tit = 'Occipital';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('OCCIP_epvs_ves_mus_vs_distance',substr,'.png');
+fname = strcat('OCCIP_epvs_ves_mus_vs_distance',substr);
 scatter_op_vs_dist(x, occip_mean_ves_mus, occip_sem_ves_mus,...
                 occip_mean_epvs_mus, occip_sem_epvs_mus,err_flag,...
                 xlab, ylab_mus, mus_yl, xt, mus_yt, tit, dir_out, fname, psize)
 % Retardance
-tit = 'Occipital: Retardance vs. Distance';
+tit = 'Occipital';
 dir_out = fullfile(scat_out,subdir);
-fname = strcat('OCCIP_epvs_ves_ret_vs_distance',substr,'.png');
+fname = strcat('OCCIP_epvs_ves_ret_vs_distance',substr);
 scatter_op_vs_dist(x, occip_mean_ves_ret, occip_sem_ves_ret,...
                 occip_mean_epvs_ret, occip_sem_epvs_ret,err_flag,...
                 xlab, ylab_ret, ret_yl,xt, ret_yt,tit,dir_out, fname, psize)
@@ -344,6 +333,10 @@ function scatter_op_vs_dist(x, ves_op, ves_sem, epvs_op, epvs_sem, err_flag,...
 % Init figure
 fig = figure('Position', [100, 100, 1000, 1000],'Resize', 'off');
 
+% Colors for vessel and EPVS
+ves_color = hex2rgb('#DB5829');
+epv_color = hex2rgb('#1964B0');
+
 % Scatterplot with error bars
 if err_flag
     h1 = errorbar(x,ves_op,ves_sem,'k'); hold on;
@@ -351,8 +344,11 @@ if err_flag
     set(h1,'MarkerSize',psize);
     set(h2,'MarkerSize',psize);
 else
-    scatter(x,ves_op,psize,'k','filled'); hold on;
-    scatter(x,epvs_op,psize,'r','filled');
+    scatter(x,ves_op,psize,'MarkerEdgeColor',ves_color,...
+            'MarkerFaceColor',ves_color);
+    hold on;
+    scatter(x,epvs_op,psize,'MarkerEdgeColor',epv_color,...
+            'MarkerFaceColor',epv_color);
 end
 
 % y-axis limits, ticks, etc.
@@ -375,19 +371,21 @@ set(gca,'fontsize',40);
 
 % Save output
 fout = fullfile(dir_out,fname);
-saveas(gcf,fout);
+exportgraphics(gcf,strcat(fout,'.jpg'),'Resolution',600)
 pause(0.5)
 close;
 end
 
 %% Percentage Difference or Median Removal
 
-function [mus,ret] = relative_difference(use_percentage, offsets,...
+function [mus,ret] = relative_difference(standardize_flag, offsets,...
                                          sub, reg, mus, ret)
 % RELATIVE_DIFFERENCE compute either % difference or remove offset
 %   INPUTS
-%       use_percentage (boolean): compute percentage difference from median
-%                               white matter value
+%       standardize_flag (int):
+%                  0 : do not change measurement
+%                  1 : use the absolute change from median
+%                  2 : use the percentage change from median
 %       offsets (boolean): subtract median white matter optical property
 %       mus (boolean): scattering coefficient vector
 %       ret (boolean): retardance vector
@@ -395,19 +393,21 @@ function [mus,ret] = relative_difference(use_percentage, offsets,...
 
 
 %%% percentage difference or offset removal
-if use_percentage
+if standardize_flag == 0
+    return
+elseif standardize_flag == 1
+    % Subtract the median optical property to standardize
+    med_mus = offsets.(sub).(reg).med.mus;
+    med_ret = offsets.(sub).(reg).med.ret;
+    mus = mus - med_mus;
+    ret = ret - med_ret;  
+else
     % Median mus and retardance
     med_mus = offsets.(sub).(reg).med.mus;
     med_ret = offsets.(sub).(reg).med.ret;
     % subtract median then divide by median to find d%
     mus = ((mus - med_mus) ./ med_mus) .* 100;
     ret = ((ret - med_ret) ./ med_ret) .* 100;
-elseif ~isempty(offsets)
-    % Subtract the median optical property to standardize
-    med_mus = offsets.(sub).(reg).med.mus;
-    med_ret = offsets.(sub).(reg).med.ret;
-    mus = mus - med_mus;
-    ret = ret - med_ret;                
 end
 
 end
