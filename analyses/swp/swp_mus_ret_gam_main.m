@@ -45,6 +45,9 @@ flag_load_caa_structs = true;
 %%% Number of bins for the x-axis along SWP
 nbin = 100;
 
+%%% Flag for rough GAM or high fidelity
+EXPLORATORY = false;
+
 %% Load matlab structs
 if flag_load_caa_structs
     fprintf('Loading CAA6\n')
@@ -268,7 +271,6 @@ T.pdif.sev.occip = array2table(swp_op_pdif_severe.occip,'VariableNames',vnames);
 % The higher bootsrap leads to cleaner plots (less wobble)
 %   -- true while iterating
 %   -- false for manuscript figures
-EXPLORATORY = true;
 if EXPLORATORY
     nbootstrap = 100;     % fast, seed-jittery — NOT for final figures
     n_max_cmp  = 2e5;     % subsample for speed while tuning
@@ -300,9 +302,15 @@ for ii = 1:numel(regs)
     pause(1); close all;
     fprintf('\nFinished GAM for severe vs. control for %s\n',regs{ii})
 end
+% Save the gam
 dt = datetime("now",'TimeZone','local','Format','dd-MMM-yyyy');
-save(fullfile(fig_dir, strcat('GAM_compare_severe_control_',string(dt),'.mat')), ...
-     'gam_cmp','-v7.3');
+if EXPLORATORY
+    fout = strcat('GAM_compare_severe_control_nboot100_',string(dt),'.mat');
+    save(fullfile(fig_dir,fout,'gam_cmp','-v7.3'));
+else
+    fout = strcat('GAM_compare_severe_control_nboot500_',string(dt),'.mat');
+    save(fullfile(fig_dir,fout,'gam_cmp','-v7.3'));
+end
 
 
 %%% Isosurface per Subject/Region (tuned per dataset)
@@ -310,7 +318,6 @@ save(fullfile(fig_dir, strcat('GAM_compare_severe_control_',string(dt),'.mat')),
 % The higher bootsrap leads to cleaner plots (less wobble)
 %   -- true while iterating
 %   -- false for manuscript figures
-EXPLORATORY = true;
 if EXPLORATORY
     nbootstrap = 100;
     n_max_iso  = 2e5;
@@ -355,9 +362,13 @@ for ii = 1:numel(subs)
     end
 end
 % Save the gam_iso
-dt = datetime("now",'TimeZone','local','Format','dd-MMM-yyyy');
-save(fullfile(fig_dir, strcat('GAM_subject_region_',string(dt),'.mat')), ...
-     'gam_iso','-v7.3');
+if EXPLORATORY
+    fout = strcat('GAM_subject_region_nboot100_',string(dt),'.mat');
+    save(fullfile(fig_dir, fout),'gam_iso','-v7.3');
+else
+    fout = strcat('GAM_subject_region_nboot500_',string(dt),'.mat');
+    save(fullfile(fig_dir,fout,'gam_iso','-v7.3'));
+end
 
 %% Combine across all subjects. Separate by regions
 function region_data = combine_subjects(heat_pairs)

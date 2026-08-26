@@ -7,9 +7,7 @@
 % 
 %{
 TODO:
-- combine CAA6 w/ control
-- use violin instead of box/whisker
-- 
+- standardize the heatmap limits for the 2D histogram
 %}
 
 %% Initialization
@@ -46,9 +44,9 @@ ves_fbase = '_swp_voxelwise_ves_radius_500_exp_2_interpolated_heatmap.mat';
 
 %%% Flags for importing data
 % Flag for SWP structs
-flag_load_swp_structs = true;
+flag_load_swp_structs = false;
 % Flag for importing .MAT structs
-flag_load_caa_structs = true;
+flag_load_caa_structs = false;
 
 %%% Number of bins for the x-axis along SWP
 nbin = 100;
@@ -243,6 +241,7 @@ end
 
 %% Violin/boxplot
 
+%{
 %%% Prepare data for violin_box_whisker_paired, and save dated outputs
 % Consumes the `swp` and `vol` structs produced by swp_pairs_refactor.m:
 %   swp.(region).(group) = [n_voxels x 2], columns [EPVS, vessel]
@@ -271,7 +270,7 @@ run_date = datestr(now, 'yyyy-mm-dd');   %#ok<*TNOW1,*DATST>
 pack_swp = @(reg) local_pack(swp, reg, plot_groups, 'swp');
 pack_vol = @(reg) local_pack(vol, reg, plot_groups, 'vol');
 
-%% --- SWP figures, one per region ---
+%%% --- SWP figures, one per region ---
 swp_tables = cell(numel(regions), 1);
 for r = 1:numel(regions)
     reg = regions{r};
@@ -318,7 +317,7 @@ all_stats = vertcat(swp_tables{:}, vol_tables{:});
 xlsx_path = fullfile(fig_dir, sprintf('cliffs_delta_results_%s.xlsx', run_date));
 writetable(all_stats, xlsx_path, 'Sheet', sprintf('paired_violins_%s', run_date));
 fprintf('Wrote %d comparisons to %s\n', height(all_stats), xlsx_path);
-
+%}
 
 %% Find # of EPVS and vessels
 %{
@@ -565,10 +564,12 @@ BG_COLOUR      = [1 1 1];  % what an empty bin shows as
 SHOW_GRID_BOX  = true;     % thin box helps delimit the data area on white
  
 %%% --- Full-range axis limits ---
-axis_lims.epv.front = [0, 400];
-axis_lims.epv.occip = [0, 400];
-axis_lims.ves.front = [0, 100];
-axis_lims.ves.occip = [0, 100];
+axis_lims.ctl.front.epv = [0, 150];
+axis_lims.ctl.front.ves = [0, 100];
+axis_lims.ctl.occip     = axis_lims.ctl.front;
+axis_lims.sev.front.epv = [0, 600];
+axis_lims.sev.front.ves = [0, 200];
+axis_lims.sev.occip     = axis_lims.sev.front;
  
 %%% --- Zoom windows for the inset figures ---
 zoom_lims.ctl.front.epv = [0, 50];
@@ -577,11 +578,17 @@ zoom_lims.ctl.occip     = zoom_lims.ctl.front;
 zoom_lims.sev.front.epv = [0, 50];
 zoom_lims.sev.front.ves = [0, 50];
 zoom_lims.sev.occip     = zoom_lims.sev.front;
- 
+
+%%% --- Set colorbar limits for control and severe ---
+clim.ctl = [10^-3, 10^0];
+clim.sev = [10^-4, 10^-1];
+
+% Set the colormap
 cmap = local_density_cmap(256);
  
 %%% --- Iterate groups and regions ---
-for ii = 1:numel(groups_to_plot)
+for ii = 2:2
+% for ii = 1:numel(groups_to_plot)
     grp  = groups_to_plot{ii};
     assert(isfield(group_pairs, grp), 'group_pairs has no field "%s".', grp);
     regs = fieldnames(group_pairs.(grp));
@@ -596,48 +603,44 @@ for ii = 1:numel(groups_to_plot)
             warning('%s/%s: no finite pairs, skipping.', grp, reg);
             continue
         end
+
+        %%% ---- Full-range histogram ----
+        al       = axis_lims.(grp).(reg);
+        epv_edge = linspace(al.epv(1), al.epv(2), n_bins+1);
+        ves_edge = linspace(al.ves(1), al.ves(2), n_bins+1);
+        counts   = histcounts2(epv_ves(:,1), epv_ves(:,2), epv_edge, ves_edge);
+        pct      = 100 * counts / nTotal;
  
-        % ---- Full-range histogram ----
-        epv_edge = linspace(axis_lims.epv.(reg)(1), axis_lims.epv.(reg)(2), n_bins+1);
-        ves_edge = linspace(axis_lims.ves.(reg)(1), axis_lims.ves.(reg)(2), n_bins+1);
- 
-        counts = histcounts2(epv_ves(:,1), epv_ves(:,2), epv_edge, ves_edge);
-        pct    = 100 * counts / nTotal;
- 
-        % Colour limits from occupied bins only, then reused for the inset so
-        % the two figures stay directly comparable.
+        %%% Colour limits from occupied bins only, then reused for the
+        % inset so the two figures stay directly comparable.
         occ = pct(counts >= MIN_COUNT);
         if isempty(occ)
             warning('%s/%s: no bin reaches MIN_COUNT=%d, lower it.', grp, reg, MIN_COUNT);
             continue
         end
-        cHi = prctile(occ, CLIM_PCT);
-        if USE_LOG_COLOUR
-            cLo = max(min(occ), cHi / 10^CLIM_FLOOR_DEC);
-        else
-            cLo = 0;
-        end
- 
+        % Retrieve the low and high limits
+        clims = clim.(grp);
         ttl = sprintf('%s %s', disp_name.(grp), reg);
+        % Draw zoomed-out figure
         fig = local_draw(epv_edge, ves_edge, pct, counts, ttl, ...
-                         [cLo cHi], MIN_COUNT, USE_LOG_COLOUR, BG_COLOUR, cmap, SHOW_GRID_BOX);
+                         clims, MIN_COUNT, USE_LOG_COLOUR, BG_COLOUR, cmap, SHOW_GRID_BOX);
         local_export(fig, plt_dir, sprintf('ves-swp_vs_epv-swp_%s_%s', grp, reg));
         close(fig);
  
-        % ---- Inset: re-binned over the zoom window at full resolution ----
+        %%% ---- Inset: re-binned over the zoom window at full resolution ----
+        % Retrieve axis limits
         zl       = zoom_lims.(grp).(reg);
         epv_z    = linspace(zl.epv(1), zl.epv(2), n_bins+1);
         ves_z    = linspace(zl.ves(1), zl.ves(2), n_bins+1);
         counts_z = histcounts2(epv_ves(:,1), epv_ves(:,2), epv_z, ves_z);
         pct_z    = 100 * counts_z / nTotal;
- 
+        % Draw zoomed in figure
         fig = local_draw(epv_z, ves_z, pct_z, counts_z, [ttl ' (zoom)'], ...
-                         [cLo cHi], MIN_COUNT, USE_LOG_COLOUR, BG_COLOUR, cmap, SHOW_GRID_BOX);
+                         clims, MIN_COUNT, USE_LOG_COLOUR, BG_COLOUR, cmap, SHOW_GRID_BOX);
         local_export(fig, plt_dir, sprintf('ves-swp_vs_epv-swp_%s_%s_zoom', grp, reg));
         close(fig);
- 
         fprintf('%s / %s: %d pairs | occupied bins %d/%d | clim [%.4g %.4g]%%\n', ...
-                grp, reg, nTotal, nnz(counts >= MIN_COUNT), numel(counts), cLo, cHi);
+                grp, reg, nTotal, nnz(counts >= MIN_COUNT), numel(counts), clims(1), clims(2));
     end
 end
 
@@ -1204,8 +1207,8 @@ end
  
 function local_export(fig, outdir, stem)
 ax = fig.CurrentAxes;
-exportgraphics(ax, fullfile(outdir, [stem '.pdf']), ...
-    'ContentType', 'vector', 'Resolution', 600);
+exportgraphics(ax, fullfile(outdir, [stem '.svg']), ...
+               'ContentType', 'vector', 'Resolution', 600);
 exportgraphics(ax, fullfile(outdir, [stem '.png']), 'Resolution', 600);
 end
  

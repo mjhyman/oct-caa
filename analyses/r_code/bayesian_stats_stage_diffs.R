@@ -28,10 +28,11 @@ normalize_region <- function(r) {
 
 ######### Helper: fit one within-stage model #################################
 # Within a fixed optical property x region x source x stage, the only predictor
-# is distance. Subjects per stage: 1 for control/mild/moderate, 2 for severe.
-# Because no stage has >= 3 subjects we always use stan_glm. When 2 subjects are
-# present, subjectID is added as a fixed covariate; the fitted curve is later
-# averaged over the two subjects.
+# is distance. Design is now 2 controls (stage 0) and 2 severe (stage 3), so
+# both stages have 2 subjects. No stage has >= 3 subjects, so stan_glm is used
+# throughout; subjectID enters as a fixed covariate and the fitted curve is
+# later averaged over the two subjects. The n_subj branch is retained so the
+# function still behaves sensibly if a subject is dropped from a subset.
 fit_stage_model <- function(data, response, fit_ctrl) {
   n_subj <- length(unique(data$subjectID))
   f <- if (n_subj >= 2) {
@@ -74,6 +75,34 @@ posterior_fitted_by_distance <- function(model, data) {
   colnames(draws_by_d) <- as.character(d_present)
   
   list(draws = draws_by_d, distances = d_present)
+}
+
+
+######### Per-stage posterior summary (absolute fitted curve) ################
+# Summarizes a single stage's fitted curve rather than a contrast: posterior
+# mean, SD and central interval of the model-implied mean at each distance,
+# averaged over the subjects present in that stage.
+#
+# NOTE ON INTERPRETATION: subjectID is a fixed covariate, so this interval
+# describes the mean of the two subjects actually measured. It does not
+# propagate between-subject variance and should not be read as generalizing to
+# new subjects at this stage.
+posterior_stage_table <- function(model, data, prob = 0.95) {
+  f <- posterior_fitted_by_distance(model, data)
+  a_low  <- (1 - prob) / 2
+  a_high <- 1 - a_low
+  
+  purrr::map_dfr(seq_along(f$distances), function(i) {
+    v <- f$draws[, i]
+    tibble(
+      distance = f$distances[i],
+      fit_mean = mean(v),
+      fit_sd   = sd(v),
+      lower    = unname(quantile(v, a_low)),
+      upper    = unname(quantile(v, a_high)),
+      n_draws  = length(v)
+    )
+  }) %>% arrange(distance)
 }
 
 
@@ -120,12 +149,15 @@ raw_means_by_distance <- function(data, response) {
       sd   = sd(.data[[response]],   na.rm = TRUE),
       n    = sum(!is.na(.data[[response]])),
       .groups = "drop"
-    )
+    ) %>%
+    mutate(se = sd / sqrt(n))
 }
 
 raw_diff_table <- function(data0, datak, response) {
-  r0 <- raw_means_by_distance(data0, response) %>% rename(mean_0 = mean, sd_0 = sd, n_0 = n)
-  rk <- raw_means_by_distance(datak, response) %>% rename(mean_k = mean, sd_k = sd, n_k = n)
+  r0 <- raw_means_by_distance(data0, response) %>%
+    select(distance, mean_0 = mean, sd_0 = sd, n_0 = n)
+  rk <- raw_means_by_distance(datak, response) %>%
+    select(distance, mean_k = mean, sd_k = sd, n_k = n)
   
   inner_join(r0, rk, by = "distance") %>%
     mutate(
@@ -137,7 +169,36 @@ raw_diff_table <- function(data0, datak, response) {
 }
 
 
-######### Helper: overlay plot of both methods ###############################
+######### Plot: absolute fitted curves, one line per stage ###################
+plot_stage_curves <- function(fit_df, raw_df, title, ylab) {
+  ggplot() +
+    geom_ribbon(data = fit_df,
+                aes(x = distance, ymin = lower, ymax = upper, fill = stage_label),
+                alpha = 0.18) +
+    geom_line(data = fit_df,
+              aes(x = distance, y = fit_mean, color = stage_label), linewidth = 0.8) +
+    geom_point(data = raw_df,
+               aes(x = distance, y = mean, color = stage_label), size = 1.2) +
+    geom_errorbar(data = raw_df,
+                  aes(x = distance, ymin = mean - se, ymax = mean + se,
+                      color = stage_label),
+                  width = 8, alpha = 0.6) +
+    scale_x_continuous(breaks = seq(40, 480, 80)) +
+    scale_color_manual(values = c(control = "grey35", severe = "firebrick"),
+                       name = NULL, aesthetics = c("color", "fill")) +
+    labs(
+      x = "Distance", y = ylab,
+      title = title,
+      subtitle = "lines/ribbons = posterior fitted mean (95% CI); points = raw means (\u00b1 SE)"
+    ) +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5, size = 8),
+          legend.position = "top")
+}
+
+
+######### Plot: overlay of both difference methods ###########################
 plot_stage_diffs <- function(model_df, raw_df, title) {
   ggplot() +
     geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
@@ -156,7 +217,7 @@ plot_stage_diffs <- function(model_df, raw_df, title) {
     facet_wrap(~ stage_label, nrow = 1) +
     scale_x_continuous(breaks = seq(40, 480, 80)) +
     labs(
-      x = "Distance", y = "Difference (Stage k - Stage 0)",
+      x = "Distance", y = "Difference (severe - control)",
       title = title,
       subtitle = "blue = model fitted-curve difference (95% CI ribbon); red = raw-mean difference (\u00b1 SE)"
     ) +
@@ -176,7 +237,8 @@ message("ANALYZING DATA FOR: ", fname)
 # Groups encodes the measurement source:
 #   experimental = measurement around the enlarged perivascular space (EPVS)
 #   control      = measurement around the vessel
-# Stage encodes CAA severity: 0 = control, 1 = mild, 2 = moderate, 3 = severe.
+# Stage encodes CAA severity. The corrected design retains only:
+#   0 = control (n = 2 subjects), 3 = severe (n = 2 subjects).
 retardance_data <- read_excel(input_file, sheet = "retardance") %>%
   rename(retardance = OpticalProperty) %>%
   mutate(
@@ -193,18 +255,29 @@ scattering_data <- read_excel(input_file, sheet = "scattering") %>%
     Groups = factor(Groups, levels = c("control", "experimental"))
   )
 
+## Guard: confirm the workbook really contains only stages 0 and 3
+observed_stages <- sort(unique(c(retardance_data$Stage, scattering_data$Stage)))
+message("Stages present in input: ", paste(observed_stages, collapse = ", "))
+if (!all(observed_stages %in% c(0L, 3L))) {
+  warning("Unexpected stage codes present: ",
+          paste(setdiff(observed_stages, c(0L, 3L)), collapse = ", "),
+          " -- these rows will be ignored.")
+}
+
 ######## 2) DEFINE LOOP PARAMETERS ###########################################
 properties     <- list(retardance = retardance_data, scattering = scattering_data)
 regions        <- c("front", "occip")
 sources        <- c(epvs = "experimental", vessel = "control")   # name -> Groups level
-nonzero_stages <- c(1L, 2L, 3L)
-stage_labels   <- c("0" = "control", "1" = "mild", "2" = "moderate", "3" = "severe")
+nonzero_stages <- c(3L)                                          # severe only
+stage_labels   <- c("0" = "control", "3" = "severe")
 
 fit_ctrl        <- list(chains = 4, iter = 4000, cores = 4, seed = 42)
 output_filepath <- "/projectnb/npbssmic/ns/CAA/beta_stats"
 base_name       <- tools::file_path_sans_ext(fname)
+save_models     <- TRUE   # keep stanreg objects so summaries can be recomputed
+# without refitting
 
-######## 3) MAIN LOOP: PROPERTY x REGION x SOURCE x (STAGE k - STAGE 0) ######
+######## 3) MAIN LOOP: PROPERTY x REGION x SOURCE x (SEVERE - CONTROL) #######
 for (prop in names(properties)) {
   pdata <- properties[[prop]]
   
@@ -220,17 +293,39 @@ for (prop in names(properties)) {
       
       data0 <- base_sub %>% filter(Stage == 0)
       if (nrow(data0) == 0) {
-        message("  Skipping – no stage 0 (control) data for this property/region/source")
+        message("  Skipping - no stage 0 (control) data for this property/region/source")
         next
       }
-      
-      # Fit the stage 0 model once and reuse for every nonzero-stage comparison
-      message("  Fitting stage 0 (control) model...")
-      model0 <- fit_stage_model(data0, prop, fit_ctrl)
       
       out_dir <- file.path(output_filepath, base_name, "stage_vs_control", rgn, src)
       dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
       
+      stem <- paste0(base_name, "__", prop, "_", rgn, "_", src)
+      
+      # Fit the stage 0 model once and reuse for every nonzero-stage comparison
+      message("  Fitting stage 0 (control) model on ",
+              length(unique(data0$subjectID)), " subject(s)...")
+      model0 <- fit_stage_model(data0, prop, fit_ctrl)
+      if (save_models) {
+        saveRDS(model0, file.path(out_dir, paste0(stem, "_stage0_model.rds")))
+      }
+      
+      ## --- Per-stage summaries for stage 0 -------------------------------
+      fit0 <- posterior_stage_table(model0, data0) %>%
+        mutate(stage = 0L, stage_label = stage_labels["0"], .before = 1)
+      raw0 <- raw_means_by_distance(data0, prop) %>%
+        mutate(stage = 0L, stage_label = stage_labels["0"], .before = 1)
+      
+      write.csv(fit0, file.path(out_dir, paste0(stem, "_stage0_fitted.csv")),
+                row.names = FALSE)
+      write.csv(raw0, file.path(out_dir, paste0(stem, "_stage0_raw.csv")),
+                row.names = FALSE)
+      
+      message("  --- Stage 0 (control) posterior fitted curve ---")
+      print(fit0, n = Inf)
+      
+      fit_accum   <- list("0" = fit0)
+      raw_accum_s <- list("0" = raw0)
       model_accum <- list()
       raw_accum   <- list()
       
@@ -238,58 +333,90 @@ for (prop in names(properties)) {
         datak <- base_sub %>% filter(Stage == k)
         if (nrow(datak) == 0) {
           message("  Skipping stage ", k, " (", stage_labels[as.character(k)],
-                  ") – no data for this property/region/source")
+                  ") - no data for this property/region/source")
           next
         }
         
-        message("  Fitting stage ", k, " (", stage_labels[as.character(k)], ") model...")
+        message("  Fitting stage ", k, " (", stage_labels[as.character(k)],
+                ") model on ", length(unique(datak$subjectID)), " subject(s)...")
         modelk <- fit_stage_model(datak, prop, fit_ctrl)
+        if (save_models) {
+          saveRDS(modelk, file.path(out_dir, paste0(stem, "_stage", k, "_model.rds")))
+        }
         
+        ## --- Per-stage summaries for stage k -----------------------------
+        fitk <- posterior_stage_table(modelk, datak) %>%
+          mutate(stage = k, stage_label = stage_labels[as.character(k)], .before = 1)
+        rawk <- raw_means_by_distance(datak, prop) %>%
+          mutate(stage = k, stage_label = stage_labels[as.character(k)], .before = 1)
+        
+        write.csv(fitk, file.path(out_dir, paste0(stem, "_stage", k, "_fitted.csv")),
+                  row.names = FALSE)
+        write.csv(rawk, file.path(out_dir, paste0(stem, "_stage", k, "_raw.csv")),
+                  row.names = FALSE)
+        
+        message("  --- Stage ", k, " (", stage_labels[as.character(k)],
+                ") posterior fitted curve ---")
+        print(fitk, n = Inf)
+        
+        fit_accum[[as.character(k)]]   <- fitk
+        raw_accum_s[[as.character(k)]] <- rawk
+        
+        ## --- Contrasts ---------------------------------------------------
         ## Method 1: model fitted-curve difference
         mdiff <- model_diff_table(model0, data0, modelk, datak)
         ## Method 2: raw-mean difference
         rdiff <- raw_diff_table(data0, datak, prop)
         
         if (is.null(mdiff) || nrow(rdiff) == 0) {
-          message("  No common distances between stage ", k, " and stage 0 – skipping")
+          message("  No common distances between stage ", k, " and stage 0 - skipping")
           next
         }
         
-        ## Save both summary tables
-        model_fout <- file.path(
-          out_dir,
-          paste0(base_name, "__", prop, "_", rgn, "_", src,
-                 "_stage", k, "_vs_stage0_model_diff.csv")
-        )
-        raw_fout <- file.path(
-          out_dir,
-          paste0(base_name, "__", prop, "_", rgn, "_", src,
-                 "_stage", k, "_vs_stage0_raw_diff.csv")
-        )
-        write.csv(mdiff, model_fout, row.names = FALSE)
-        write.csv(rdiff, raw_fout,   row.names = FALSE)
+        write.csv(mdiff,
+                  file.path(out_dir, paste0(stem, "_stage", k, "_vs_stage0_model_diff.csv")),
+                  row.names = FALSE)
+        write.csv(rdiff,
+                  file.path(out_dir, paste0(stem, "_stage", k, "_vs_stage0_raw_diff.csv")),
+                  row.names = FALSE)
         
-        ## Print summary stats
         message("  --- Method 1 (model) : stage ", k, " - stage 0 ---")
         print(mdiff, n = Inf)
         message("  --- Method 2 (raw)   : stage ", k, " - stage 0 ---")
         print(rdiff, n = Inf)
         
-        ## Accumulate for the overlay plot
         sl <- paste0("Stage ", k, " (", stage_labels[as.character(k)], ") - control")
         model_accum[[as.character(k)]] <- mdiff %>% mutate(stage = k, stage_label = sl)
         raw_accum[[as.character(k)]]   <- rdiff %>% mutate(stage = k, stage_label = sl)
       }
       
-      ## Overlay plot across all available nonzero stages
+      ## --- Combined per-stage tables (both stages stacked) ---------------
+      fit_all <- bind_rows(fit_accum)
+      raw_all_stage <- bind_rows(raw_accum_s)
+      write.csv(fit_all,
+                file.path(out_dir, paste0(stem, "_all_stages_fitted.csv")),
+                row.names = FALSE)
+      write.csv(raw_all_stage,
+                file.path(out_dir, paste0(stem, "_all_stages_raw.csv")),
+                row.names = FALSE)
+      
+      ## --- Absolute-curve plot -------------------------------------------
+      p_curves <- plot_stage_curves(
+        fit_all, raw_all_stage,
+        title = paste0(prop, " (", rgn, ", ", src, "): fitted curve by stage"),
+        ylab  = prop
+      )
+      print(p_curves)
+      
+      ## --- Difference plot ------------------------------------------------
       if (length(model_accum) > 0) {
         model_all <- bind_rows(model_accum)
         raw_all   <- bind_rows(raw_accum)
-        p <- plot_stage_diffs(
+        p_diff <- plot_stage_diffs(
           model_all, raw_all,
-          title = paste0(prop, " (", rgn, ", ", src, "): stage - control")
+          title = paste0(prop, " (", rgn, ", ", src, "): severe - control")
         )
-        print(p)
+        print(p_diff)
       }
       
       message("  Finished: ", out_dir)

@@ -113,12 +113,21 @@ end
 
 %% Create SWP figures
 
-%%% Find limits to normalize across the three subjects
-% Initialize vectors for storing min/max
-swp_min.ves = 1;
-swp_min.epvs = 1;
-swp_max.ves = 40;
-swp_max.epvs = 400;
+%%% Set heatmap limits for each subject
+% All SWP heatmaps have 0 for lower limit
+swp_min = 0;
+% Control vessel (min = 0, max = 40)
+swp_lims.caa6.ves.max = 40;
+swp_lims.caa26.ves.max = 40;
+% Control EPVS (min = 0, max = 20)
+swp_lims.caa6.epvs.max = 50;
+swp_lims.caa26.epvs.max = 20;
+% Moderate / Severe vessel (min = 0, max = 40)
+swp_lims.caa17.ves.max = 40;
+swp_lims.caa22.ves.max = 40;
+% Moderate / Severe EPVS (min = 0, max = 300)
+swp_lims.caa17.epvs.max = 200;
+swp_lims.caa22.epvs.max = 200;
 
 % Iterate over subjects
 for ii = 1:length(subjects)
@@ -138,25 +147,23 @@ for ii = 1:length(subjects)
     % Retrieve subject and region names
     subid = subjects(ii).subject_name;
     reg = subjects(ii).region;
+    % Retrieve heatmap limits
+    ves_swp_max = swp_lims.(subid).ves.max;
+    epvs_swp_max = swp_lims.(subid).epvs.max;
     
     % Create heatmap for vessel SWP
-    swp_heatmap(ves_heatmap, swp_min.ves, swp_max.ves, mask, ves,...
+    swp_heatmap(ves_heatmap, swp_min, ves_swp_max, mask, ves,...
                 'ves',scaleBarLength, vox,...
                 fig_out, subid, reg, slice_idx, ves_base)
 
     % Create heatmap for EPVS SWP
-    swp_heatmap(epvs_heatmap, swp_min.epvs, swp_max.epvs, mask, epvs,...
+    swp_heatmap(epvs_heatmap, swp_min, epvs_swp_max, mask, epvs,...
                 'epvs',scaleBarLength, vox,...
                 fig_out, subid, reg, slice_idx, epvs_base)
 end
 
 %% Create zoomed SWP figures
 
-% Initialize vectors for storing min/max
-swp_min.ves = 1;
-swp_min.epvs = 1;
-swp_max.ves = 40;
-swp_max.epvs = 130;
 % Initialize x,y dimensions for zoomed subset (voxels)
 sz = 400;
 % Initialize the zoomed box for SWP heatmaps
@@ -196,12 +203,16 @@ for ii = 1:length(subjects)
     %%% Retrieve subject and region names
     subid = subjects(ii).subject_name;
     reg = subjects(ii).region;
+    % Retrieve heatmap limits
+    ves_swp_max = swp_lims.(subid).ves.max;
+    epvs_swp_max = swp_lims.(subid).epvs.max;
+
     % Create heatmap for vessel SWP
-    swp_heatmap(ves_heatmap, swp_min.ves, swp_max.ves, mask, ves,...
+    swp_heatmap(ves_heatmap, swp_min, ves_swp_max, mask, ves,...
                 'ves',zoom_scalebar, vox,...
                 fig_out, subid, reg, slice_idx, strcat(ves_base,'_zoom'))
     % Create heatmap for EPVS SWP
-    swp_heatmap(epvs_heatmap, swp_min.epvs, swp_max.epvs, mask, epvs,...
+    swp_heatmap(epvs_heatmap, swp_min, epvs_swp_max, mask, epvs,...
                 'epvs',zoom_scalebar, vox,...
                 fig_out, subid, reg, slice_idx, strcat(epvs_base,'_zoom'))
 end
@@ -420,7 +431,7 @@ fout = fullfile(fig_out,fname);
 exportgraphics(gcf, fout,"Resolution",600)
 pause(1)
 % Export as PDF
-fname = strcat(subname,'_',region,'_','depth_',num2str(slice_idx),'_',base_fname,'.pdf');
+fname = strcat(subname,'_',region,'_','depth_',num2str(slice_idx),'_',base_fname,'.svg');
 fout = fullfile(fig_out,fname);
 exportgraphics(gcf, fout, 'ContentType', 'vector',"Resolution",600);
 pause(1)

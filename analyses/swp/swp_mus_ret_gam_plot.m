@@ -38,14 +38,14 @@ swp_dir = '/projectnb/npbssmic/ns/CAA/figures/swp_gam_gmm/';
 % Output directory for GAM comparison
 fig_dir = '/projectnb/npbssmic/ns/CAA/figures/swp_gam_gmm/gam_comparison/';
 
-%%% Import GAM
-% Filename of GAM struct
-fname = 'GAM_struct_subjects_23-Apr-2026.mat';
-% Load the GAM struct from the specified file
+%%% Import GAMs
 fprintf('\n----Loading GAM struct----\n')
-load(fullfile(swp_dir, fname));
-% Load the severe GAM
-sev = load(fullfile(swp_dir,'GAM_struct_severe_combined_30-Apr-2026.mat'));
+% Import GAM for comparing control vs. severe
+gam_ctl_sev = 'GAM_compare_severe_control_24-Aug-2026.mat';
+gam_ctl_sev = load(fullfile(swp_dir, gam_ctl_sev));
+% Import GAM for comparing subjects/regions (not combined)
+gam_sub_reg = 'GAM_subject_region_24-Aug-2026.mat';
+gam_sub_reg = load(fullfile(swp_dir, gam_sub_reg));
 
 %% Map subjectID to severities
 % CAA26 = control
