@@ -42,6 +42,23 @@ cd68 = load(fullfile(hdir,'cd68_rings_21-Nov-2025.mat')); cd68 = cd68.cd68;
 %%% measurement outter radii (units = voxels)
 radii_sm = [40, 81, 121, 162, 202, 243, 283, 324, 364, 405, 445, 486];
 
+%% Identify 
+% subject identifiers for each stage
+ctl_subs = {'CAA_26','CAA_6'};
+mod_subs = {'CAA_17'};
+sev_subs = {'CAA_22','CAA_25'};
+
+%%% Extract substruct for severe group
+% Find the severe indices from each struct
+
+% Create substruct
+
+%%% Extract substruct for control group
+% Find the control indices from each struct
+
+% Create substruct
+
+
 %% Take average of severe cases
 % Combine subjects but keep regions separate
 % Only use the samll radius measurement (rad40)
@@ -67,6 +84,8 @@ ocode = "_7";
 %%% CD68
 [cd68_sev_front] = average_within_region(cd68_sev, fcode, "rad40");
 [cd68_sev_occip] = average_within_region(cd68_sev, ocode, "rad40");
+
+%% Take average of control cases
 
 %% AVERAGE within subjects -- scatterplot of histology vs. distance
 % Create figure for each subject
