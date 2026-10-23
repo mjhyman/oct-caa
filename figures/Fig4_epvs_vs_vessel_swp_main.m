@@ -44,9 +44,9 @@ ves_fbase = '_swp_voxelwise_ves_radius_500_exp_2_interpolated_heatmap.mat';
 
 %%% Flags for importing data
 % Flag for SWP structs
-flag_load_swp_structs = false;
+flag_load_swp_structs = true;
 % Flag for importing .MAT structs
-flag_load_caa_structs = false;
+flag_load_caa_structs = true;
 
 %%% Number of bins for the x-axis along SWP
 nbin = 100;

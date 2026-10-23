@@ -13,8 +13,8 @@
 #$ -N histo_gam
 
 # Entire node
-#$ -pe omp 8
-#$ -l mem_per_core=8G
+#$ -pe omp 28
+#$ -l mem_per_core=13G
 
 # Keep track of information related to the current job
 echo "=========================================================="

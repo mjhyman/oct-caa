@@ -2,13 +2,13 @@
 # Bayesian per-stage fitted curves + severity contrasts for HISTOPATHOLOGY
 # (CD68, GFAP, LHE), modeled over annular-ring distance bins around EPVS/vessel.
 #
-# This script now mirrors the *function* of the optical-property script
-# (retardance / scattering). In addition to the stage-k - stage-0 contrasts it
-# already produced, it emits, for every stain x region x source x stage:
+# Emits, for every stain x region x source x stage:
 #   - the absolute posterior fitted curve (mean, SD, 95% CI) by distance
 #   - the absolute raw means (+/- SE) by distance
 #   - combined "all stages" fitted/raw tables
 #   - an absolute-curve plot (one line/ribbon per stage)
+#   - MODEL-FIT DIAGNOSTICS (convergence + predictive fit), per model and
+#     aggregated into a single diagnostics_summary.csv
 #   - optionally, the saved stanreg objects (save_models)
 # alongside the existing model/raw difference tables and the difference plot.
 # =============================================================================
@@ -17,6 +17,7 @@
 library(nlme)
 library(readxl)
 library(rstanarm)
+library(loo)
 library(tidyverse)
 library(tidybayes)
 library(dplyr)
@@ -46,8 +47,13 @@ dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
 # Histology distance grid (used for factor levels and plot breaks)
 distance_levels <- c(40, 81, 121, 162, 202, 243, 283, 324, 364, 405, 445, 486)
 
-save_models <- TRUE   # keep stanreg objects so summaries can be recomputed
-# without refitting
+save_models     <- TRUE   # keep stanreg objects so summaries can be recomputed
+save_diag_plots <- TRUE   # save one posterior predictive check (png) per model
+run_loo         <- TRUE   # PSIS-LOO predictive accuracy per model.
+# NOTE: LOO here is leave-one-VOXEL-out and does not respect subject structure,
+# so treat elpd_loo as a rough predictive summary only. p_loo (effective # of
+# parameters) is the more useful signal: if it greatly exceeds the real number
+# of coefficients, the fit is straining. Set run_loo <- FALSE to skip (faster).
 
 
 ######### Helper: normalize Region labels ####################################
@@ -235,6 +241,114 @@ raw_diff_table <- function(data0, datak, response) {
 }
 
 
+######### Diagnostics: convergence + predictive fit for one model ############
+# Returns a one-row tibble of MCMC-convergence and predictive-fit diagnostics.
+#   Convergence : max R-hat, min effective sample size (n_eff) over parameters,
+#                 # divergent transitions, # max-treedepth saturations,
+#                 min E-BFMI across chains.
+#   Fit quality : Bayesian R^2 (median + 95% CI), residual sigma (median),
+#                 and (optional) LOO elpd, p_loo, # Pareto-k > 0.7.
+# All pieces are wrapped in tryCatch so a diagnostic failure never aborts the
+# run; the offending field is returned as NA instead.
+model_diagnostics <- function(model, data, run_loo = TRUE) {
+  
+  # -- max R-hat and min n_eff over the estimated parameters -----------------
+  conv <- tryCatch({
+    ss   <- summary(model)                                   # matrix: Rhat, n_eff, ...
+    keep <- !rownames(ss) %in% c("mean_PPD", "log-posterior")
+    list(max_rhat = max(ss[keep, "Rhat"],  na.rm = TRUE),
+         min_neff = min(ss[keep, "n_eff"], na.rm = TRUE))
+  }, error = function(e) list(max_rhat = NA_real_, min_neff = NA_real_))
+  
+  # -- HMC sampler pathologies from the underlying stanfit -------------------
+  sf          <- model$stanfit
+  n_divergent <- tryCatch(rstan::get_num_divergent(sf),     error = function(e) NA_integer_)
+  n_max_td    <- tryCatch(rstan::get_num_max_treedepth(sf), error = function(e) NA_integer_)
+  min_ebfmi   <- tryCatch(min(rstan::get_bfmi(sf)),         error = function(e) NA_real_)
+  
+  # -- Bayesian R^2 (posterior median + 95% CI) ------------------------------
+  r2     <- tryCatch(bayes_R2(model), error = function(e) NA_real_)
+  r2_med <- suppressWarnings(stats::median(r2, na.rm = TRUE))
+  r2_lo  <- suppressWarnings(unname(stats::quantile(r2, 0.025, na.rm = TRUE)))
+  r2_hi  <- suppressWarnings(unname(stats::quantile(r2, 0.975, na.rm = TRUE)))
+  
+  # -- residual scale (gaussian sigma) ---------------------------------------
+  sigma_med <- tryCatch(stats::median(as.matrix(model, pars = "sigma")),
+                        error = function(e) NA_real_)
+  
+  # -- PSIS-LOO predictive accuracy (optional) -------------------------------
+  elpd_loo <- NA_real_; p_loo <- NA_real_; n_bad_k <- NA_integer_
+  if (run_loo) {
+    loo_obj <- tryCatch(suppressWarnings(loo(model)), error = function(e) NULL)
+    if (!is.null(loo_obj)) {
+      elpd_loo <- loo_obj$estimates["elpd_loo", "Estimate"]
+      p_loo    <- loo_obj$estimates["p_loo",    "Estimate"]
+      n_bad_k  <- sum(loo_obj$diagnostics$pareto_k > 0.7, na.rm = TRUE)
+    }
+  }
+  
+  # -- overall convergence flag ----------------------------------------------
+  converged <- isTRUE(conv$max_rhat < 1.01) &&
+    isTRUE(n_divergent == 0) &&
+    isTRUE(conv$min_neff > 400)
+  
+  tibble(
+    n_obs           = nrow(data),
+    n_subj          = length(unique(data$subjectID)),
+    max_rhat        = conv$max_rhat,
+    min_neff        = conv$min_neff,
+    n_divergent     = n_divergent,
+    n_max_treedepth = n_max_td,
+    min_ebfmi       = min_ebfmi,
+    bayes_R2_med    = r2_med,
+    bayes_R2_lo     = r2_lo,
+    bayes_R2_hi     = r2_hi,
+    sigma_med       = sigma_med,
+    elpd_loo        = elpd_loo,
+    p_loo           = p_loo,
+    n_pareto_k_bad  = n_bad_k,
+    converged       = converged
+  )
+}
+
+
+######### Diagnostics: compute, save, print for one model ####################
+# Wraps model_diagnostics: prepends identifying columns, writes a per-model CSV,
+# prints a one-line summary, saves a posterior predictive check png (optional),
+# and returns the one-row tibble for the master accumulator.
+record_diagnostics <- function(model, data, stain, rgn, src, stage, stage_label,
+                               stem, out_dir, run_loo, save_diag_plots) {
+  d <- model_diagnostics(model, data, run_loo = run_loo) %>%
+    mutate(stain = stain, region = rgn, source = src,
+           stage = stage, stage_label = stage_label, .before = 1)
+  
+  write.csv(d,
+            file.path(out_dir, paste0(stem, "_stage", stage, "_diagnostics.csv")),
+            row.names = FALSE)
+  
+  message(sprintf(
+    "  [diag] stage %d (%s): Rhat=%.3f  n_eff=%.0f  div=%s  E-BFMI=%.2f  R2=%.2f  conv=%s",
+    stage, stage_label, d$max_rhat, d$min_neff,
+    as.character(d$n_divergent), d$min_ebfmi, d$bayes_R2_med, as.character(d$converged)))
+  
+  if (save_diag_plots) {
+    pc <- tryCatch(
+      pp_check(model) +
+        ggplot2::ggtitle(paste0(stain, " ", rgn, " ", src,
+                                " stage ", stage, " (", stage_label, ")")),
+      error = function(e) { message("  pp_check failed: ", e$message); NULL }
+    )
+    if (!is.null(pc)) {
+      ggplot2::ggsave(
+        file.path(out_dir, paste0(stem, "_stage", stage, "_ppcheck.png")),
+        pc, width = 6, height = 4, dpi = 150
+      )
+    }
+  }
+  d
+}
+
+
 ######### Plot: absolute fitted curves, one line per stage ###################
 # Two stages in the corrected design; scale_manual maps each label to a colour.
 stage_palette <- c(
@@ -354,6 +468,9 @@ fit_ctrl <- list(
 )
 base_name <- tools::file_path_sans_ext(fname)
 
+# Master accumulator for the per-model diagnostics table
+diag_accum <- list()
+
 ######## 3) MAIN LOOP: STAIN x REGION x SOURCE x (STAGE k - STAGE 0) #########
 for (stain in names(stains)) {
   sdata <- stains[[stain]]
@@ -395,6 +512,12 @@ for (stain in names(stains)) {
         saveRDS(model0, file.path(out_dir, paste0(stem, "_stage0_model.rds")))
       }
       
+      ## --- Diagnostics for stage 0 ---------------------------------------
+      diag_accum[[length(diag_accum) + 1]] <-
+        record_diagnostics(model0, data0, stain, rgn, src,
+                           0L, unname(stage_labels["0"]), stem, out_dir,
+                           run_loo, save_diag_plots)
+      
       ## --- Per-stage summaries for stage 0 -------------------------------
       fit0 <- posterior_stage_table(model0, data0) %>%
         mutate(stage = 0L, stage_label = stage_labels["0"], .before = 1)
@@ -435,6 +558,12 @@ for (stain in names(stains)) {
         if (save_models) {
           saveRDS(modelk, file.path(out_dir, paste0(stem, "_stage", k, "_model.rds")))
         }
+        
+        ## --- Diagnostics for stage k -------------------------------------
+        diag_accum[[length(diag_accum) + 1]] <-
+          record_diagnostics(modelk, datak, stain, rgn, src,
+                             k, unname(stage_labels[as.character(k)]), stem, out_dir,
+                             run_loo, save_diag_plots)
         
         ## --- Per-stage summaries for stage k -----------------------------
         fitk <- posterior_stage_table(modelk, datak) %>%
@@ -514,4 +643,28 @@ for (stain in names(stains)) {
       message("  Finished: ", out_dir)
     }
   }
+}
+
+######## 4) WRITE MASTER DIAGNOSTICS SUMMARY #################################
+# One row per fitted model. Scan `converged`, then max_rhat / min_neff /
+# n_divergent for anything that needs a rerun (e.g. higher adapt_delta or iter).
+if (length(diag_accum) > 0) {
+  diagnostics_summary <- bind_rows(diag_accum) %>%
+    arrange(stain, region, source, stage)
+  
+  write.csv(diagnostics_summary,
+            file.path(output_root, "diagnostics_summary.csv"), row.names = FALSE)
+  message("\nWrote diagnostics_summary.csv for ", nrow(diagnostics_summary), " model(s).")
+  
+  bad <- diagnostics_summary %>% filter(!converged)
+  if (nrow(bad) > 0) {
+    message("  WARNING: ", nrow(bad),
+            " model(s) did not meet thresholds (Rhat < 1.01, min n_eff > 400, 0 divergences):")
+    print(bad %>% select(stain, region, source, stage,
+                         max_rhat, min_neff, n_divergent, n_max_treedepth))
+  } else {
+    message("  All models met the convergence thresholds.")
+  }
+} else {
+  message("\nNo models fit; diagnostics_summary.csv not written.")
 }
