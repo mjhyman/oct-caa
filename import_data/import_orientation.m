@@ -189,7 +189,7 @@ caa25.occip.orient = orient;
 % Save struct
 save(fullfile(fout_base,'/caa25/caa25.mat'),'caa25','-v7.3');
 
-%%% CAA 26 front:
+%% CAA 26 front:
 % Import orientation
 orient = fullfile(fout_base,'caa26/front/orientation_full_stack.nii');
 orient = MRIread(orient,h_flag,p_flag);
@@ -211,7 +211,7 @@ figure; imagesc(mask(:,:,1)); title('mask - 1');
 % Add to data struct and save
 caa26.front.orient = orient;
 
-%%% CAA 26 occip:
+%% CAA 26 occip:
 % Import orientation
 orient = fullfile(fout_base,'caa26/occip/orientation_full_stack.nii');
 orient = MRIread(orient,h_flag,p_flag);

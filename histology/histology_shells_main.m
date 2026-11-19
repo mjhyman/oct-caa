@@ -11,7 +11,7 @@ Output: one row per stain x section x object x 40 µm shell, with columns
 Requires on path: import_stain.m, measure_histo_shells.m
 %}
 
-clear; clc; close all;
+clc; close all; clearvars -except caa swp_op
 addpath(fileparts(mfilename('fullpath')));
 
 %% Settings

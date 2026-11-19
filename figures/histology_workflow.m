@@ -1,299 +1,154 @@
-%% Subfigures for histopathology workflow
+%% Subfigures for histopathology workflow (LHE and GFAP)
 %{
-- large stain
-- stain subset
-- stain deconvolved
-- histogram matched
-- z-score
-- z-score with donut annotations
+Exported per stain (PNG + SVG), prefixed with stain name:
+- <stain>_stain_deconv
+- <stain>_histogram_matched
+- <stain>_histogram_matched_stain_z_score
+- <stain>_histogram_matched_stain_z_score_overlay_donuts_zoom
+Also exported (LHE only, unchanged):
+- stain_ref
 %}
 
 %% Top-level settings
-clearvars -except caa6 caa17 caa22 caa25 caa26 swp_struct lhe cd68 gfap
+clearvars -except caa swp_struct lhe cd68 gfap
 clc; close all;
-% Get the current folder
 currentFolder = pwd;
-% Move one directory up
 parentFolder = fileparts(currentFolder);
-% Add the parent folder and all its subfolders to the MATLAB search path
 addpath(genpath(parentFolder));
 
 %%% Directories (SCC)
-% Input directory
-hdir='/projectnb/npbssmic/ns/CAA/histology/';
-% Directory to save output figures
+hdir   = '/projectnb/npbssmic/ns/CAA/histology/';
 figdir = '/projectnb/npbssmic/ns/CAA/figures/histology_workflow/';
 
-%%% Load the stain and segmentation structs
+%%% Load the stain and segmentation structs (only if not in workspace)
 if ~exist('lhe','var')
-    lhe = load(fullfile(hdir,'lhe_rings_15-Oct-2025.mat')); lhe = lhe.lhe;
+    lhe = load(fullfile(hdir,'lhe_rings_15-Oct-2025.mat'));
+    lhe = lhe.lhe;
+end
+if ~exist('gfap','var')
+    gfap = load(fullfile(hdir,'gfap_rings_21-Nov-2025.mat'));
+    gfap = gfap.gfap;
 end
 
-%%% measurement radius (units = pixels)
-pix = 1.3067;               % um/pix
-rad_sm = ceil(40/pix);      % 39.2 um ~= 30 pixels
-rad_lg = ceil(100/pix);     % 39.2 um ~= 30 pixels
-radii_sm = rad_sm : rad_sm : rad_sm*12;
-radii_lg = rad_lg : rad_lg : rad_lg*5;
+%%% Shared figure properties
+slen  = 2000;   % scale bar length (um), full-slide reference
+sth   = 25;     % scale bar thickness (line width units)
+fsize = 40;     % font size
 
-%%% color limits
-% stain limits
-smin = 0;
-smax = 0.5;
-% Reference limits
-rmin = 0;
-rmax = 0.6;
-% z-score limits
-zmin = -2;
-zmax = 2;
+%%% Overlay colours
+col_ves  = [0.89,   0.26,   0.20  ];  % vermillion (vessel)
+col_epvs = [0.098,  0.3922, 0.6902];  % dark blue  (EPVS)
+alpha    = 0.5;
 
-%%% Scale bar properties
-slen = 2000; % scale bar length in microns
-slen_zoom = 100; % scale bar length (um) for zoomed subfigure
-sth = 25;   % scale bar thickness in line width units
+%% Per-stain configuration
+% Crop bounds are in the native (un-rotated) image coordinates.
+% transpose = true  -> crop, then flipud(img')   (LHE convention)
+% transpose = false -> crop, then flipud(img)    (GFAP convention)
+cfg = struct( ...
+    'name',      {'lhe',            'gfap'}, ...
+    'idx',       {2,                7}, ...
+    'x1',        {2274,             1850}, ...
+    'x2',        {2274+300,         2600}, ...
+    'y1',        {1585,             8980}, ...
+    'y2',        {1585+300,         9720}, ...
+    'transpose', {true,             false}, ...
+    'pix',       {1.3067,           1.3067}, ... % um/pix
+    'slen_zoom', {100,              250}, ...    % scale bar (um), zoomed panels
+    'smin',      {0,                0}, ...      % deconvolved stain limits
+    'smax',      {0.5,              0.5}, ...
+    'rmin',      {0,                0}, ...      % histogram-matched limits
+    'rmax',      {1.0,              1.0}, ...
+    'zmin',      {-2,               -2}, ...     % z-score limits
+    'zmax',      {2,                2});
+stains = {lhe, gfap};
 
-%%% Font size for color bar
-fsize = 40; % Set font size for figures
+%% Generate and export figures for each stain
+for k = 2:numel(cfg)
+    c    = cfg(k);
+    s    = stains{k}(c.idx);
+    mask = s.mask;
+    tag  = upper(c.name);
+    rad_sm = ceil(40/c.pix);   % donut width: 40 um
 
-%%% Define bounds for cropping
-x1 = 2274; x2 = x1+300;
-y1 = 1585; y2 = y1+300;
+    %%% Stain deconvolved
+    img = s.stain; img(~mask) = -4;
+    img = crop_orient(img, c);
+    plot_panel(img, [c.smin c.smax], 'Stain Intensity (unitless)', ...
+        sprintf('%s Stain', tag), fsize);
+    sbar(c.slen_zoom, sth, c.pix, img)
+    export_png_svg(gca, fullfile(figdir, [c.name '_stain_deconv']));
 
-%% Debugging Figure
-% stain
-zstain = lhe(2).z_stain;
-mask = lhe(2).mask;
-ves =  lhe(2).ves;
-epvs = lhe(2).epvs;
-zstain(~mask) = -4;
+    %%% Histogram matched
+    img = s.stain_matched; img(~mask) = -4;
+    img = crop_orient(img, c);
+    plot_panel(img, [c.rmin c.rmax], 'Stain Intensity (unitless)', ...
+        sprintf('%s Stain Histogram Matched', tag), fsize);
+    sbar(c.slen_zoom, sth, c.pix, img)
+    export_png_svg(gca, fullfile(figdir, [c.name '_histogram_matched']));
 
-% Flip the axes to place gyri at top
-zstain = flipud(zstain');
-ves = flipud(ves');
-epvs = flipud(epvs');
+    %%% z-score
+    zimg = s.z_stain; zimg(~mask) = -4;
+    zimg = crop_orient(zimg, c);
+    plot_panel(zimg, [c.zmin c.zmax], 'z-score', ...
+        sprintf('%s Z-score Stain', tag), fsize);
+    sbar(c.slen_zoom, sth, c.pix, zimg)
+    export_png_svg(gca, fullfile(figdir, [c.name '_histogram_matched_stain_z_score']));
 
-%%% Dilations of EPVS and Vessel
-% EPVS
-se1 = strel('disk',0);
-se2 = strel('disk',rad_sm);
-inner_e = imdilate(epvs,se1);
-outter_e = imdilate(epvs,se2);
-epvs_annot = xor(inner_e, outter_e);
-epvs_annot = epvs_annot(y1:y2,x1:x2);
-epvs_annot = flipud(epvs_annot');
-% Vessel
-se1_v = strel('disk',0);
-se2_v = strel('disk',rad_sm);
-inner_v = imdilate(ves,se1_v);
-outter_v = imdilate(ves,se2_v);
-ves_annot = xor(inner_v, outter_v);
-ves_annot = ves_annot(y1:y2,x1:x2);
-ves_annot = flipud(ves_annot');
+    %%% z-score with donut overlays
+    % Dilate on the full image, then crop, to avoid edge truncation
+    epvs_annot = crop_orient(donut(s.epvs, rad_sm), c);
+    ves_annot  = crop_orient(donut(s.ves,  rad_sm), c);
 
-% 1. Create Vermillion overlay for vessel [0.89, 0.26, 0.20]
-overlay_ves = cat(3, ones(size(zstain)) * 0.89, ... 
-                      ones(size(zstain)) * 0.26, ... 
-                      ones(size(zstain)) * 0.20);
+    plot_panel(zimg, [c.zmin c.zmax], 'z-score', '', fsize);
+    hold on;
+    add_overlay(col_epvs, epvs_annot, alpha);
+    add_overlay(col_ves,  ves_annot,  alpha);
+    hold off;
+    sbar(c.slen_zoom, sth, c.pix, zimg)
+    export_png_svg(gca, fullfile(figdir, ...
+        [c.name '_histogram_matched_stain_z_score_overlay_donuts_zoom']));
+end
 
-% 2. Create Dark Blue overlay for EPVS [0.68, 0.85, 0.90]
-% Dark Blue 0.0980    0.3922    0.6902
-overlay_epvs = cat(3, ones(size(zstain)) * 0.098, ... 
-                     ones(size(zstain)) * 0.3922, ... 
-                     ones(size(zstain)) * 0.6902);
-
-%%% Plot z-stain and then overlay donuts
-figure('Position', [500 500 1000 1000]);
-imagesc(zstain); hold on;
-
-% Plot EPVS Overlay (Vermillion)
-h1 = imagesc(overlay_epvs); colormap('gray');
-set(h1, 'AlphaData', epvs_annot * 0.5); % 50% transparency [cite: 5]
-
-% Plot Vessel Overlay (Light Blue)
-h2 = imagesc(overlay_ves); colormap('gray');
-set(h2, 'AlphaData', ves_annot * 0.5); % 50% transparency [cite: 5]
-
-set(gca, 'XTick', []); set(gca, 'YTick', []);
-c = colorbar; clim([zmin, zmax]);
-c.Label.String = 'z-score';
-set(gca, 'FontSize', fsize);
-
-%% Create figure of stain deconvolved
-% stain
-stain = lhe(2).stain;
-mask = lhe(2).mask;
-stain(~mask) = -4;
-% Apply crop and rotate
-stain = stain(y1:y2,x1:x2);
-stain = flipud(stain');
-% Create figure
-figure('Position', [500 500 1000 1000]);
-imagesc(stain); colormap('gray'); clim([smin, smax]); c = colorbar;
-c.Label.String = 'Stain Intensity (unitless)';
-% Title, remove tick marks, colorbar
-title('Stain')
-set(gca,'XTick',[]); set(gca,'YTick',[])
-set(gca,'FontSize',fsize)
-% Add scale bar (microns)
-sbar(slen_zoom, sth, pix, stain)
-% Save figure
-fout = fullfile(figdir, 'stain_deconv');
-png_fout = strcat(fout,'.png');
-svg_fout = strcat(fout,'.svg');
-exportgraphics(gca,png_fout,'ContentType','vector','Resolution',600);
-exportgraphics(gca,svg_fout,'ContentType','vector','Resolution',600);
-
-%% Figure of reference
-% The reference is CAA 17 occipital
+%% Reference (CAA 17 occipital, LHE)
 ref = lhe(1).stain;
-mask = lhe(1).mask;
-ref(~mask) = -4;
-% Create figure for the reference stain
+ref(~lhe(1).mask) = -4;
+plot_panel(ref, [cfg(1).rmin cfg(1).rmax], 'Stain Intensity (unitless)', ...
+    'Reference', fsize);
+sbar(slen, sth, cfg(1).pix, ref)
+saveas(gca, fullfile(figdir, 'stain_ref'), 'png');
+
+%% Local functions
+function img = crop_orient(img, c)
+% Crop in native coordinates, then rotate so gyri are at top
+img = img(c.y1:c.y2, c.x1:c.x2);
+if c.transpose
+    img = flipud(img');
+else
+    img = flipud(img);
+end
+end
+
+function ring = donut(bw, r)
+% Annulus of width r (pixels) outside the binary object
+bw   = logical(bw);
+ring = xor(bw, imdilate(bw, strel('disk', r)));
+end
+
+function plot_panel(img, lims, clabel, ttl, fsize)
 figure('Position', [500 500 1000 1000]);
-imagesc(ref);
-% clim([lmin, lmax]);
-title('Reference Stain - CAA 17 Occipital');
-c = colorbar;
-c.Label.String = 'Stain Intensity (unitless)';
-clim([rmin,rmax]);
-% Title, remove tick marks, colorbar
-title('Reference')
-set(gca,'XTick',[]); set(gca,'YTick',[])
-set(gca,'FontSize',fsize)
-% Add scale bar (microns)
-sbar(slen, sth, pix, ref)
-% Save figure
-fout = fullfile(figdir, 'stain_ref');
-saveas(gca,fout,'png');
+imagesc(img); colormap('gray'); clim(lims);
+cb = colorbar('southoutside'); cb.Label.String = clabel;
+if ~isempty(ttl), title(ttl); end
+set(gca, 'XTick', [], 'YTick', [], 'FontSize', fsize);
+end
 
-%% Figure of histogram matched
-% stain 
-stain = lhe(2).stain_matched;
-mask = lhe(2).mask;
-stain(~mask) = -4;
-% Apply crop and rotate
-stain = stain(y1:y2,x1:x2);
-stain = flipud(stain');
-% Create figure
-figure('Position', [500 500 1000 1000]);
-imagesc(stain); colormap('gray'); clim([rmin, rmax]); c = colorbar;
-c.Label.String = 'Stain Intensity (unitless)';
-% Title, remove tick marks, colorbar
-title('Stain Histogram Matched')
-set(gca,'XTick',[]); set(gca,'YTick',[])
-set(gca,'FontSize',fsize)
-% Add scale bar (microns)
-sbar(slen_zoom, sth, pix, stain)
-% Save figure
-fout = fullfile(figdir, 'histogram_matched');
-png_fout = strcat(fout,'.png');
-svg_fout = strcat(fout,'.svg');
-exportgraphics(gca,png_fout,'ContentType','vector','Resolution',600);
-exportgraphics(gca,svg_fout,'ContentType','vector','Resolution',600);
+function add_overlay(rgb, annot, alpha)
+ov = repmat(reshape(rgb, 1, 1, 3), [size(annot) 1]);
+h  = image(ov);
+set(h, 'AlphaData', double(annot) * alpha);
+end
 
-%% Figure of z-score
-% z stain 
-zstain = lhe(2).z_stain;
-mask = lhe(2).mask;
-zstain(~mask) = -4;
-% Apply crop and rotate
-zstain = zstain(y1:y2,x1:x2);
-zstain = flipud(zstain');
-% Create figure
-figure('Position', [500 500 1000 1000]);
-imagesc(zstain); colormap('gray'); clim([zmin, zmax]); c = colorbar;
-c.Label.String = 'z-score';
-% Title, remove tick marks, colorbar
-title('Z-score Stain')
-set(gca,'XTick',[]); set(gca,'YTick',[])
-set(gca,'FontSize',fsize)
-% Add scale bar (microns)
-sbar(slen_zoom, sth, pix, zstain)
-% Save figure
-fout = fullfile(figdir, 'histogram_matched_stain_z_score');
-png_fout = strcat(fout,'.png');
-svg_fout = strcat(fout,'.svg');
-exportgraphics(gca,png_fout,'ContentType','vector','Resolution',600);
-exportgraphics(gca,svg_fout,'ContentType','vector','Resolution',600);
-
-%% Create figure overlaying z-score with donuts
-
-%%% Create EPVS and Vessel annotations
-% EPVS
-epvs = lhe(2).epvs;
-se1 = strel('disk',0);
-se2 = strel('disk',rad_sm);
-inner_e = imdilate(epvs,se1);
-outter_e = imdilate(epvs,se2);
-epvs_annot = xor(inner_e, outter_e);
-epvs_annot = epvs_annot(y1:y2,x1:x2);
-epvs_annot = flipud(epvs_annot');
-% Vessel
-ves = lhe(2).ves;
-se1_v = strel('disk',0);
-se2_v = strel('disk',rad_sm);
-inner_v = imdilate(ves,se1_v);
-outter_v = imdilate(ves,se2_v);
-ves_annot = xor(inner_v, outter_v);
-ves_annot = ves_annot(y1:y2,x1:x2);
-ves_annot = flipud(ves_annot');
-
-% 1. Create Vermillion overlay for vessel [0.89, 0.26, 0.20]
-overlay_ves = cat(3, ones(size(zstain)) * 0.89, ... 
-                      ones(size(zstain)) * 0.26, ... 
-                      ones(size(zstain)) * 0.20);
-
-% 2. Create Dark Blue overlay for EPVS [0.68, 0.85, 0.90]
-% Dark Blue 0.0980    0.3922    0.6902
-overlay_epvs = cat(3, ones(size(zstain)) * 0.098, ... 
-                     ones(size(zstain)) * 0.3922, ... 
-                     ones(size(zstain)) * 0.6902);
-
-%%% Plot z-stain and then overlay donuts
-figure('Position', [500 500 1000 1000]);
-imagesc(zstain); colormap('gray'); hold on;
-
-% Plot EPVS Overlay (Vermillion)
-h1 = imagesc(overlay_epvs);
-set(h1, 'AlphaData', epvs_annot * 0.5); % 50% transparency [cite: 5]
-
-% Plot Vessel Overlay (Light Blue)
-h2 = imagesc(overlay_ves);
-set(h2, 'AlphaData', ves_annot * 0.5); % 50% transparency [cite: 5]
-
-set(gca, 'XTick', []); set(gca, 'YTick', []);
-c = colorbar; clim([zmin, zmax]);
-c.Label.String = 'z-score';
-set(gca, 'FontSize', fsize);
-
-%%% Take EPVS annotation and create overlay
-% epvs = lhe(2).epvs;
-% se1 = strel('disk',0);
-% se2 = strel('disk',rad_sm);
-% inner = imdilate(epvs,se1);
-% outter = imdilate(epvs,se2);
-% epvs_annot = xor(inner, outter);
-% % Overlay EPVS onto z_stain
-% overlay = cat(3, ones(size(zstain)), zeros(size(zstain)), zeros(size(zstain)));
-% 
-% %%% Plot z-stain and then overlay donuts
-% % z-stain
-% figure('Position', [500 500 1000 1000]);
-% imagesc(zstain); hold on;
-% % Overlay with annotation
-% h = imagesc(overlay);
-% set(h,'AlphaData',epvs_annot * 0.5);
-% set(gca,'XTick',[]); set(gca,'YTick',[])
-% c = colorbar; clim([zmin,zmax]);
-% c.Label.String = 'z-score';
-% set(gca,'FontSize',fsize)
-
-%%% Add scale bar (microns)
-sbar(slen_zoom, sth, pix, zstain)
-
-%%% Save figure
-fout = fullfile(figdir, 'histogram_matched_stain_z_score_overlay_donuts_zoom');
-png_fout = strcat(fout,'.png');
-svg_fout = strcat(fout,'.svg');
-exportgraphics(gca,png_fout,'ContentType','vector','Resolution',600);
-exportgraphics(gca,svg_fout,'ContentType','vector','Resolution',600);
+function export_png_svg(ax, fout)
+exportgraphics(ax, [fout '.png'], 'Resolution', 600);
+exportgraphics(ax, [fout '.svg'], 'ContentType', 'vector');
+end

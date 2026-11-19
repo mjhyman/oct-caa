@@ -20,14 +20,15 @@ Exports (cfg.formats) under <analysis folder>/figures/:
   <out_name>_main.*, rows/, panels/, supplemental/, supplemental/subjects/
 %}
 
-clear; clc; close all;
+clearvars -except caa swp_struct swp_op
+clc; close all;
 
 %% Settings
 cfg.beta_root    = '/projectnb/npbssmic/ns/CAA/beta_stats';
 cfg.base_name    = 'parenchyma_shells_2026-10-07_pct';
 cfg.method       = 'bootstrap';        % results of bootstrap_shells.R
-cfg.analysis_tag = 'B2000';            % B<number of resamples>
-cfg.scale        = 'pct';
+cfg.analysis_tag = 'B5000';            % B<number of resamples>
+cfg.scale        = 'raw';
 cfg.model_set    = 'joint';            % bootstrap: 'joint' and 'separate' give identical curves
 
 cfg.regions      = {'front', 'occip'};

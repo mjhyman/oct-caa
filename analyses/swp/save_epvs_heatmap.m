@@ -1,7 +1,7 @@
 %% Function to save .mat files and export TIFF
 function save_epvs_heatmap(fbase, sub, loc, prefix, ...
                 subsampled_volume, interpolated_volume, radius, p)
-    
+
 % Define full output path
 fpath = fullfile(fbase, sub, loc);
 if ~exist(fpath, 'dir')

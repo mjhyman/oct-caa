@@ -20,13 +20,14 @@ Exports (cfg.formats) under <analysis folder>/figures/:
   main, rows/, panels/, supplemental/, supplemental/subjects/
 %}
 
-clear; clc; close all;
+clc; close all;
+clearvars -except histo_op caa swp_op
 
 %% Settings
 cfg.hist_root    = '/projectnb/npbssmic/ns/CAA/histology';
 cfg.input_csv    = 'histo_shells_2026-10-08.csv';   % CSV the R models were fitted on
 cfg.method       = 'bootstrap';                     % results of bootstrap_shells.R
-cfg.analysis_tag = 'B2000';                         % B<number of resamples>
+cfg.analysis_tag = 'B5000';                         % B<number of resamples>
 cfg.scale        = 'z';                             % 'z', 'hmatch' or 'raw' (as fitted)
 cfg.model_set    = 'joint';                         % bootstrap: 'joint' and 'separate' are identical
 cfg.test_mode    = false;

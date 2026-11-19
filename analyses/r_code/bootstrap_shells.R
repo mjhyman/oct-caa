@@ -24,9 +24,9 @@
 suppressPackageStartupMessages(library(tidyverse))
 
 ######## Settings ############################################################
-dataset <- "histo"                 # "oct" or "histo"
+dataset <- "oct"                 # "oct" or "histo"
 
-B                <- 2000         # bootstrap resamples
+B                <- 5000         # bootstrap resamples
 boot_seed        <- 2026
 ci_prob          <- 0.95
 min_objects_flag <- 10           # flag distances with fewer objects
@@ -34,13 +34,13 @@ distance_col     <- "d_outer_um" # label shells by outer edge (40 ... 520)
 stage_levels     <- c("control", "moderate", "severe")
 nonzero_stages   <- c("moderate", "severe")
 regions          <- c("front", "occip")
-save_draws       <- TRUE         # bootstrap draws (rows = resamples, cols = distances)
+save_draws       <- FALSE         # bootstrap draws (rows = resamples, cols = distances)
 
 if (dataset == "oct") {
   common_dir      <- "/projectnb/npbssmic/ns/CAA"
-  input_filename  <- "parenchyma_shells_2026-10-07_pct.csv"
+  input_filename  <- "parenchyma_shells_2026-10-07_raw.csv"
   output_filepath <- "/projectnb/npbssmic/ns/CAA/beta_stats"
-  scales          <- c("pct")                     # "raw" and/or "pct"
+  scales          <- c("raw")                     # "raw" and/or "pct"
   props           <- c("scattering", "retardance")
   apply_bounds    <- TRUE                         # mus_ok / ret_ok flags
 } else if (dataset == "histo") {

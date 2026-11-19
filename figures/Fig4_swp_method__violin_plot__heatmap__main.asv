@@ -44,9 +44,9 @@ ves_fbase = '_swp_voxelwise_ves_radius_500_exp_2_interpolated_heatmap.mat';
 
 %%% Flags for importing data
 % Flag for SWP structs
-flag_load_swp_structs = false;
+flag_load_swp_structs = true;
 % Flag for importing .MAT structs
-flag_load_caa_structs = false;
+flag_load_caa_structs = true;
 
 %%% Number of bins for the x-axis along SWP
 nbin = 100;
@@ -241,7 +241,7 @@ end
 
 %% Violin/boxplot
 
-%{
+
 %%% Prepare data for violin_box_whisker_paired, and save dated outputs
 % Consumes the `swp` and `vol` structs produced by swp_pairs_refactor.m:
 %   swp.(region).(group) = [n_voxels x 2], columns [EPVS, vessel]
@@ -565,10 +565,10 @@ SHOW_GRID_BOX  = true;     % thin box helps delimit the data area on white
  
 %%% --- Full-range axis limits ---
 axis_lims.ctl.front.epv = [0, 150];
-axis_lims.ctl.front.ves = [0, 150];
+axis_lims.ctl.front.ves = [0, 100];
 axis_lims.ctl.occip     = axis_lims.ctl.front;
 axis_lims.sev.front.epv = [0, 600];
-axis_lims.sev.front.ves = [0, 160];
+axis_lims.sev.front.ves = [0, 200];
 axis_lims.sev.occip     = axis_lims.sev.front;
  
 %%% --- Zoom windows for the inset figures ---
@@ -587,7 +587,8 @@ clim.sev = [10^-4, 10^-1];
 cmap = local_density_cmap(256);
  
 %%% --- Iterate groups and regions ---
-for ii = 1:numel(groups_to_plot)
+for ii = 2:2
+% for ii = 1:numel(groups_to_plot)
     grp  = groups_to_plot{ii};
     assert(isfield(group_pairs, grp), 'group_pairs has no field "%s".', grp);
     regs = fieldnames(group_pairs.(grp));

@@ -42,7 +42,16 @@
 %   violin_<prop>_<valtype>_<unit>_<region>[_tags]_<qLL-HH>_<EXPL|MS>_<yyyymmdd>.{png,pdf,fig}
 %   violin_bin_summary_<valtype>_<qLL-HH>_<EXPL|MS>_<yyyymmdd>.csv
 %   violin_cliffs_delta_<valtype>_<qLL-HH>_<EXPL|MS>_<yyyymmdd>.csv
-%   qLL-HH = Q_EDGES in percent, e.g. [1/3 2/3] -> q33-67
+%   delta_summary_<valtype>_<qLL-HH>_<EXPL|MS>_<yyyymmdd>.{png,pdf,fig}
+%   qLL-HH = Q_EDGES in percent, e.g. [0.25 0.75] -> q25-75
+%
+% Delta summary: subject-level Cliff's delta for all six contrasts, one
+% marker per subject (shape = subject, colour = group), rows = mus /
+% retardance, columns = frontal / occipital. Hollow markers = contrast
+% involving a cell with < SPARSE_FRAC of that subject-region's voxels.
+% Grey band = |delta| < 0.147 (negligible); dotted lines = 0.33 / 0.474.
+% Set DELTA_SUMMARY_ONLY = true and DELTA_CSV to redraw the summary from
+% an existing violin_cliffs_delta_*.csv without loading any data.
 
 %% Initialization
 clearvars -except caa swp_struct swp_op
@@ -59,17 +68,21 @@ maxNumCompThreads(feature('numcores'));
 rng(1);
 
 %% Parameters
-EXPLORATORY           = true;       % EXPL = smaller KDE / Cliff subsamples
+EXPLORATORY           = false;       % EXPL = smaller KDE / Cliff subsamples
 FORCE_REBUILD_NX4     = false;      % true = rebuild swp_op even if in workspace
-VALUE_TYPE            = 'raw';      % 'raw' or 'pdif' (fractional diff. from WM median)
-Q_EDGES               = [1/4 3/4];  % low: x <= q(1); high: x >= q(2)
-% Choose withinSubject to first group within each subject then weight these
-% equally within the group violin plot
+VALUE_TYPE            = 'raw';      % 'raw' or 'pdif' (% change from WM median)
+Q_EDGES               = [0.25 0.75];  % low: x <= q(1); high: x >= q(2)
 GROUP_EDGE_MODE       = 'withinSubject';  % 'withinSubject' | 'group' | 'shared'
-EQUAL_WEIGHT_SUBJECTS = false;      % subsample group subjects to equal n per region
+EQUAL_WEIGHT_SUBJECTS = true;      % subsample group subjects to equal n per region
 MIN_N                 = 50;         % min voxels to draw a violin / compute delta
 ANNOTATE_PAIRS        = 'all';      % 'all' = 6 brackets; 'within' = vessel-within-EPVS only
 FIG_VISIBLE           = 'off';
+
+%%% Delta summary panel
+SPARSE_FRAC           = 0.01;       % hollow marker if either cell holds < 1% of voxels
+SUMMARY_GROUPS        = {'control','severe'};   % add 'moderate' to show CAA17
+DELTA_SUMMARY_ONLY    = false;      % true = redraw summary from DELTA_CSV and stop
+DELTA_CSV             = '';         % existing violin_cliffs_delta_*.csv
 
 if ~any(strcmp(GROUP_EDGE_MODE, {'withinSubject','group','shared'}))
     error('GROUP_EDGE_MODE must be ''withinSubject'', ''group'' or ''shared''.');
@@ -85,6 +98,18 @@ q_tag    = sprintf('q%02d-%02d', round(100*Q_EDGES));   % e.g. [1/3 2/3] -> q33-
 
 out_dir = '/projectnb/npbssmic/ns/CAA/figures/mus_ret_swp_violin_plots/';
 if ~exist(out_dir,'dir'); mkdir(out_dir); end
+
+scfg = struct('out_dir',out_dir, 'fig_visible',FIG_VISIBLE, ...
+              'sparse_frac',SPARSE_FRAC, 'groups',{SUMMARY_GROUPS});
+
+%% Delta summary only: redraw from an existing CSV (no data loading)
+if DELTA_SUMMARY_ONLY
+    T_d = readtable(DELTA_CSV, 'TextType','char');
+    [~, nm] = fileparts(DELTA_CSV);
+    plot_delta_summary(T_d, strrep(nm, 'violin_cliffs_delta_', 'delta_summary_'), scfg);
+    fprintf('Delta summary written to %s\n', out_dir);
+    return
+end
 
 %%% Group membership (pooled groups) and display labels
 groups.control = {'caa26','caa6'};
@@ -229,10 +254,15 @@ cfg.props     = {'mus','ret'};
 cfg.prop_col  = [1 2];
 cfg.prop_disp = {'\mu_s','Retardance'};
 if strcmp(VALUE_TYPE,'raw')
-    cfg.ylab = {'\mu_s','Retardance'};
+    cfg.ylab   = {'\mu_s','Retardance'};
+    cfg.yscale = 1;
+    cfg.units  = 'raw';
 else
-    cfg.ylab = {'\mu_s (fractional diff. from WM median)', ...
-                'Retardance (fractional diff. from WM median)'};
+    % pdif is stored as a fraction; plot and report as percent change
+    % from the tissue volume's WM median (same units as Fig. 5)
+    cfg.ylab   = {'\mu_s (\Delta%)', 'Retardance (\Delta%)'};
+    cfg.yscale = 100;
+    cfg.units  = 'percent';
 end
 cfg.vt          = VALUE_TYPE;
 cfg.Q           = Q_EDGES;
@@ -280,7 +310,7 @@ for r = 1:numel(regions)
         if ~isfield(D.(subs{s}), reg), continue; end
         M = clean_rows(D.(subs{s}).(reg));
         for p = 1:2
-            q = prctile(M(:,cfg.prop_col(p)), [0.5 99.5]);
+            q = cfg.yscale * prctile(M(:,cfg.prop_col(p)), [0.5 99.5]);
             lo(p) = min(lo(p), q(1));
             hi(p) = max(hi(p), q(2));
         end
@@ -293,7 +323,6 @@ all_sum = {};
 all_d   = {};
 
 %% Subject-level figures
-%{
 for s = 1:numel(subs)
     sub  = subs{s};
     regs = fieldnames(D.(sub));
@@ -317,7 +346,7 @@ for s = 1:numel(subs)
     end
 end
 clear M C
-%}
+
 %% Group-level figures (control and severe on separate figures)
 grp_names = fieldnames(groups);
 if EQUAL_WEIGHT_SUBJECTS, eqw_tag = '_eqW'; else, eqw_tag = ''; end
@@ -424,6 +453,10 @@ f_sum = fullfile(out_dir, sprintf('violin_bin_summary_%s_%s_%s_%s.csv',  VALUE_T
 f_d   = fullfile(out_dir, sprintf('violin_cliffs_delta_%s_%s_%s_%s.csv', VALUE_TYPE, q_tag, run_tag, date_str));
 writetable(T_sum, f_sum);
 writetable(T_d,   f_d);
+
+%% Cliff's delta summary (subject level)
+[~, nm] = fileparts(f_d);
+plot_delta_summary(T_d, strrep(nm, 'violin_cliffs_delta_', 'delta_summary_'), scfg);
 fprintf('Done. Outputs in %s\n', out_dir);
 
 
@@ -440,7 +473,7 @@ sum_rows = {};
 d_rows   = {};
 for p = 1:numel(cfg.props)
     col   = cfg.prop_col(p);
-    y     = M(:,col);
+    y     = cfg.yscale * M(:,col);   % percent for pdif; delta is scale-invariant
     cellY = cell(1,4);
     st    = repmat(cell_stats([]), 1, 4);
     for k = 1:4
@@ -453,7 +486,7 @@ for p = 1:numel(cfg.props)
     for s = 1:numel(ovl)
         med = NaN(1,4);
         for k = 1:4
-            v = ovl(s).M(ovl(s).C(:,k), col);
+            v = cfg.yscale * ovl(s).M(ovl(s).C(:,k), col);
             if numel(v) >= cfg.min_n, med(k) = median(v); end
         end
         ov(s) = struct('name',ovl(s).name, 'med',med, 'marker',cfg.markers{s});
@@ -480,6 +513,7 @@ for p = 1:numel(cfg.props)
             'cell_A',cfg.cell_lab{ka}, 'cell_B',cfg.cell_lab{kb}, ...
             'cliffs_delta',d_all(c), 'n_A',st(ka).n, 'n_B',st(kb).n, ...
             'n_A_used',na_u, 'n_B_used',nb_u, ...
+            'frac_A',st(ka).n/ntot, 'frac_B',st(kb).n/ntot, ...
             'on_figure',cfg.annot(c), 'figure',base); %#ok<AGROW>
     end
 
@@ -506,6 +540,7 @@ for p = 1:numel(cfg.props)
             'ves_edge_low',eV(1), 'ves_edge_high',eV(2), ...
             'edge_detail',meta.edge_detail, ...
             'n',st(k).n, 'frac_of_voxels',st(k).n/ntot, ...
+            'units',cfg.units, ...
             'median',st(k).med, 'q1',st(k).q1, 'q3',st(k).q3, ...
             'figure',base); %#ok<AGROW>
     end
@@ -635,6 +670,110 @@ C  = [El & Vl, El & Vh, Eh & Vl, Eh & Vh];
 end
 
 
+function plot_delta_summary(T, base, scfg)
+% Subject-level Cliff's delta, one marker per subject per contrast.
+% Rows = property (mus, retardance); columns = region (frontal, occipital).
+T = T(strcmp(T.level, 'subject') & ismember(T.group, scfg.groups), :);
+if isempty(T)
+    warning('violin:summary', 'No subject-level rows for the delta summary.');
+    return
+end
+has_frac = all(ismember({'frac_A','frac_B'}, T.Properties.VariableNames));
+if ~has_frac
+    warning('violin:summary', 'No frac_A/frac_B columns; sparse cells not marked.');
+end
+
+% Contrasts in display order: {cell A, cell B, label}; A is named first
+C = { 'EPVS-lo/Ves-hi', 'EPVS-lo/Ves-lo', 'Ves hi vs lo | EPVS lo';
+      'EPVS-hi/Ves-hi', 'EPVS-hi/Ves-lo', 'Ves hi vs lo | EPVS hi';
+      'EPVS-hi/Ves-lo', 'EPVS-lo/Ves-lo', 'EPVS hi vs lo | Ves lo';
+      'EPVS-hi/Ves-hi', 'EPVS-lo/Ves-hi', 'EPVS hi vs lo | Ves hi';
+      'EPVS-hi/Ves-lo', 'EPVS-lo/Ves-hi', 'EPVS hi\cdotVes lo vs EPVS lo\cdotVes hi';
+      'EPVS-hi/Ves-hi', 'EPVS-lo/Ves-lo', 'Both hi vs both lo' };
+nc = size(C,1);
+
+props     = {'mus','ret'};
+prop_disp = {'\mu_s','Retardance'};
+regions   = {'front','occip'};
+reg_disp  = {'Frontal','Occipital'};
+
+% Fixed subject order, markers and group colours
+subs_order = {'CAA26','CAA6','CAA22','CAA25','CAA17'};
+names = unique(T.name, 'stable');
+subs  = [subs_order(ismember(subs_order, names)), ...
+         reshape(setdiff(names, subs_order, 'stable'), 1, [])];
+mk    = {'o','s','^','d','v','p','h','>'};
+gcol  = struct('control',[0.25 0.25 0.25], 'severe',[0.80 0.15 0.45], ...
+               'moderate',[0.45 0.55 0.85]);
+if numel(subs) == 1, dy = 0; else, dy = linspace(-0.28, 0.28, numel(subs)); end
+scol = zeros(numel(subs), 3); sgrp = cell(1, numel(subs));
+for s = 1:numel(subs)
+    sgrp{s} = T.group{find(strcmp(T.name, subs{s}), 1)};
+    if isfield(gcol, sgrp{s}), scol(s,:) = gcol.(sgrp{s}); else, scol(s,:) = [.5 .5 .5]; end
+end
+
+fh = figure('Visible',scfg.fig_visible, 'Color','w', 'Position',[100 100 1000 780], ...
+            'CreateFcn','set(gcbo,''Visible'',''on'')');
+tl = tiledlayout(fh, 2, 2, 'TileSpacing','compact', 'Padding','compact');
+ylim_ = [0.4, nc + 0.6];
+for p = 1:2
+    for r = 1:2
+        ax = nexttile(tl); hold(ax, 'on');
+        % Reference: negligible band, medium/large thresholds, zero line
+        patch(ax, [-0.147 0.147 0.147 -0.147], ylim_([1 1 2 2]), [0.92 0.92 0.92], ...
+              'EdgeColor','none');
+        for xr = [-0.474 -0.33 0.33 0.474]
+            plot(ax, [xr xr], ylim_, ':', 'Color',[0.6 0.6 0.6]);
+        end
+        plot(ax, [0 0], ylim_, 'k-', 'LineWidth', 0.8);
+        for yb = [2.5 4.5]   % separate contrast families
+            plot(ax, [-1 1], [yb yb], '-', 'Color',[0.85 0.85 0.85]);
+        end
+
+        sel = strcmp(T.property, props{p}) & strcmp(T.region, regions{r});
+        for s = 1:numel(subs)
+            rs = sel & strcmp(T.name, subs{s});
+            if ~any(rs), continue; end
+            for c = 1:nc
+                i = find(rs & strcmp(T.cell_A, C{c,1}) & strcmp(T.cell_B, C{c,2}), 1);
+                if isempty(i) || isnan(T.cliffs_delta(i)), continue; end
+                is_sparse = has_frac && min(T.frac_A(i), T.frac_B(i)) < scfg.sparse_frac;
+                if is_sparse, fc = 'w'; else, fc = scol(s,:); end
+                plot(ax, T.cliffs_delta(i), c + dy(s), mk{s}, 'MarkerSize',7, ...
+                     'MarkerEdgeColor',scol(s,:), 'MarkerFaceColor',fc, 'LineWidth',1);
+            end
+        end
+
+        set(ax, 'YDir','reverse', 'YLim',ylim_, 'XLim',[-1 1], 'YTick',1:nc, ...
+                'Box','off', 'TickDir','out', 'FontSize',10, 'TickLabelInterpreter','tex');
+        if r == 1, ax.YTickLabel = C(:,3); else, ax.YTickLabel = {}; end
+        title(ax, sprintf('%s  |  %s', reg_disp{r}, prop_disp{p}), 'FontWeight','normal');
+        if p == 2, xlabel(ax, 'Cliff''s \delta   (> 0: first-named cell larger)'); end
+    end
+end
+
+%%% Shared legend (dummy handles)
+hl = gobjects(0); lab = {};
+for s = 1:numel(subs)
+    hl(end+1) = plot(ax, NaN, NaN, mk{s}, 'LineStyle','none', 'MarkerSize',7, ...
+                     'MarkerEdgeColor',scol(s,:), 'MarkerFaceColor',scol(s,:)); %#ok<AGROW>
+    lab{end+1} = sprintf('%s (%s)', subs{s}, sgrp{s}); %#ok<AGROW>
+end
+if has_frac
+    hl(end+1) = plot(ax, NaN, NaN, 'o', 'LineStyle','none', 'MarkerSize',7, ...
+                     'MarkerEdgeColor',[.3 .3 .3], 'MarkerFaceColor','w');
+    lab{end+1} = sprintf('cell < %g%% of voxels', 100*scfg.sparse_frac);
+end
+hl(end+1) = patch(ax, NaN, NaN, [0.92 0.92 0.92], 'EdgeColor','none');
+lab{end+1} = '|\delta| < 0.147';
+lg = legend(ax, hl, lab, 'Orientation','horizontal', 'Box','off', 'AutoUpdate','off');
+lg.Layout.Tile = 'south';
+
+title(tl, 'Subject-level Cliff''s \delta, per-subject quantile edges', 'FontSize',12);
+save_fig(fh, scfg.out_dir, base);
+end
+
+
 function s = edge_line(eE, eV)
 s = sprintf(['EPVS-SWP: low \\leq %.3g, high \\geq %.3g    ' ...
              'Ves-SWP: low \\leq %.3g, high \\geq %.3g'], eE(1), eE(2), eV(1), eV(2));
@@ -678,7 +817,7 @@ end
 
 function save_fig(fh, out_dir, base)
 exportgraphics(fh, fullfile(out_dir, [base '.png']), 'Resolution', 300);
-exportgraphics(fh, fullfile(out_dir, [base '.pdf']), 'ContentType', 'vector');
+exportgraphics(fh, fullfile(out_dir, [base '.svg']), 'ContentType', 'vector');
 savefig(fh, fullfile(out_dir, [base '.fig']));
 close(fh);
 end

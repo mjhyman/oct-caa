@@ -1,0 +1,1920 @@
+%% epvs_network_fold_depth: EPVS network metrics by depth from cortex and gyral/sulcal position
+% Parameter sweep over the fold/depth geometry. The caa struct is loaded
+% once; for each subject x region the network (tree, ensheathed unit E,
+% pruned skeletons, junctions, components) and the depth from the
+% grey-white interface are computed once, then every sweep configuration
+% re-runs only the fold classification and stratification.
+%
+% White matter is stratified by
+%   (1) depth from the grey-white interface (DEPTH_EDGES_MM bands, then 'deep'), and
+%   (2) fold class of the nearest interface point: crown, wall or fundus.
+% Volumes are processed in their native frame (no rotation).
+%
+% Network definitions (unchanged)
+%   Tree T = vessels U EPVS. Ensheathed unit E = EPVS U enclosed vessel.
+%   coverage = fraction of tree skeleton length inside E;
+%   branch_enrichment = (share of tree junctions inside E) / coverage;
+%   length/branch densities per mm^3 of tissue; components of E.
+%
+% Geometry
+%   Compartments  WM = mask_wm; GM = mask & ~mask_wm. Vessel/EPVS voxels are
+%               attributed to the compartment they lie in (outside both: nearer one).
+%   Interface GM  INTERFACE_GM = 'cortex' (default): only GM components that
+%               reach the outer tissue surface (background connected to the
+%               outside of the block) or the array faces (sectioned cortex)
+%               form the grey-white interface. GM pockets enclosed by WM stay
+%               GM but do not act as cortex, so they do not shorten the depth
+%               of the WM around them. 'all': every GM voxel forms interface.
+%   Interface   WM voxels (WM + tree voxels assigned to WM) 26-adjacent to interface GM
+%   Depth       Euclidean distance (mm) to the interface (isotropic grid)
+%   Fold metric (FOLD_METRIC; default 'sulc'), on the CURV_GRID_UM grid,
+%               after filling WM cavities < HOLE_FILL_MM3:
+%     'curvature' kappa = kappa1 + kappa2 (1/mm) of the WM surface smoothed
+%                 at FOLD_SIGMA_MM. Crown: kappa > K_CROWN_PER_MM; fundus:
+%                 kappa < -K_FUNDUS_PER_MM; wall otherwise. Labels local
+%                 tips and bottoms; larger sigma / smaller K extend the crown
+%                 down the gyral flank.
+%     'sulc'      depth (mm) of each interface point below the WM envelope
+%                 (WM closed with a ball of radius ENVELOPE_MM, which bridges
+%                 the sulci). Crown: depth < SULC_CROWN_MAX_MM; fundus: depth
+%                 > SULC_FUNDUS_MIN_MM. Labels whole gyral blades as crown.
+%                 The envelope is distorted within ~ENVELOPE_MM of cut faces.
+%   FOLD_RULE   'absolute' uses the thresholds above; 'tertile' uses
+%               within-volume tertiles of the metric (sensitivity check)
+%   Edge        interface points within EDGE_EXCL_XY_MM of an in-plane cut
+%               face (WM touching background or the dim-1/dim-2 array faces;
+%               background enclosed within the tissue is filled first, so
+%               internal holes and tears are not cut faces),
+%               or within EDGE_EXCL_Z_MM of the first/last section (dim 3).
+%               Smoothing pads by replication, so curvature near the first/
+%               last section is approximately valid; a small Z margin suffices.
+%   Assignment  WM and GM voxels inherit the class of their nearest
+%               interface point. WM deeper than DEPTH_EDGES_MM(end) is
+%               'deep' (no fold class), plotted as the last depth position.
+%   DEPTH_CERTAINTY (optional) if a cut face is closer than the nearest
+%               cortex, the true depth is only known to be >= min(depth,
+%               distance to cut). Then: 'deep' requires min(...) > last
+%               edge; WM with depth > distance to cut becomes 'edge'.
+%
+% Strata (CSV rows; 'fold' x 'depth_band', band_idx)
+%   WM: crown/wall/fundus/edge x bands (1..nb) and 'all' (nb+2)
+%       all_classified (crown+wall+fundus) x bands and 'all'
+%       all_depth (crown+wall+fundus+edge: every WM voxel with a depth band;
+%         edge invalidates the fold label, not the depth) x bands and 'all'
+%       deep x 'deep' (nb+1); all x 'all'
+%   GM: crown/wall/fundus/edge x 'cortex' (0); all x 'cortex'
+%   (CSVs from runs before edge x bands was added hold edge x 'all' only;
+%   for figures, edge x band is then derived as all_depth - all_classified
+%   from the additive columns; component volume shares are NaN.)
+%
+% Plot-only mode (PLOT_ONLY): skip all computation and redraw every figure
+%   from existing CSVs. PLOT_ONLY = a run folder (sweep or single
+%   configuration), a cfgNN_* subfolder, or 'latest' (newest run folder
+%   under base_dir). Each folder at or below it that holds
+%   epvs_network_strata_*.csv is redrawn from its newest strata CSV; depth
+%   edges are read from the CSV band labels. Figures go to
+%   <that folder>/replot_<yyyyMMdd_HHmmss>/ (existing outputs untouched);
+%   sweep_summary.csv, if present, is replotted into <run>/replot_<stamp>/.
+%
+% Outputs: <base>/<stamp>_<EXPL|MS>_sweep<N>_iso<..>um/
+%   sweep_configs.csv              one row per configuration (folder, tag, parameters)
+%   compartments.csv               per volume: GM, interface GM, enclosed GM and
+%                                  internal-hole volumes, GM EPVS presence
+%   sweep_summary.csv / sweep_summary_WM.{png,svg,fig}
+%                                  per configuration x volume: WM share in crown/
+%                                  fundus/edge/deep, interface shares, fundus/crown
+%                                  coverage and EPVS-fraction ratios
+%   sweep_config.{json,mat}, sweep_script.m
+%   cfgNN_<tag>/                   per configuration:
+%     epvs_network_strata_*.csv, _components_*.csv, _fold_summary_*.csv,
+%     _group_means_*.csv, config_*.json
+%     epvs_network_depth_{subjects,groups,groups_meanonly}_WM_*.{png,svg,fig}
+%       one column per region x fold (PLOT_FOLDS); lines = subjects / groups
+%     epvs_network_depth_byfold_{groups,subjects}_WM_*.{png,svg,fig}
+%       all classes on one axis (crown, wall, fundus, edge, all WM; deep
+%       after the dotted line); columns = region x group (means, subjects
+%       weighted equally) or subject x region
+%     epvs_network_fold_ratio_WM_*.{png,svg,fig}
+%     qc_metric_<sub>_<reg>.png, qc_folds_<sub>_<reg>.png,
+%     qc_folds_stack_<sub>_<reg>.tif (+ _pages.csv)
+%
+% Assumes dim 3 is the serial-sectioning axis (en face sections = dim1 x dim2).
+
+%% Initialization
+clearvars -except caa
+clc; close all;
+rng(1);
+
+%% Plot-only mode
+% '' = full run. Otherwise redraw figures from existing CSVs and stop:
+%   PLOT_ONLY = 'latest';   % newest run folder under base_dir
+% PLOT_ONLY = '/projectnb/npbssmic/ns/CAA/figures/epvs_network_fold_depth/20261031_210701_EXPL_iso40um_prV100E150_abs0.15_s0.5/';
+% PLOT_ONLY          = '';
+
+
+%% Fixed parameters (same for every configuration)
+EXPLORATORY        = true;
+VOXEL_UM           = [20,20,20];   % REQUIRED: native voxel size along array dims [1 2 3], um
+ISO_UM             = [];           % isotropic grid (scalar) for MS runs; [] = max(VOXEL_UM)
+EXPL_COARSEN       = 1;            % EXPL runs resample to ISO_UM * EXPL_COARSEN
+MIN_COMP_VOX       = 27;
+MIN_BRANCH_VES_UM  = 100;
+MIN_BRANCH_EPVS_UM = 150;
+PRUNE_ITER         = 2;
+MIN_TREE_LEN_MM    = 5;            % strata with less tree length get NaN ratios
+MIN_STRATUM_MM3    = 1;            % strata with less tissue get NaN fractions/densities
+TISSUE_FIELD       = 'mask';
+MUS_FIELD          = 'mus';
+INTERFACE_GM       = 'cortex';     % GM forming the interface: 'cortex' (connected to the
+                                   % outer surface / array faces) | 'all' (all of mask & ~mask_wm)
+INCLUDE_GM         = true;         % report GM strata (GM is always used for the interface)
+MIN_EPVS_PRESENT_VOX = 27;
+DEPTH_EDGES_MM     = [0 0.5 1 1.5 2];   % bands; WM deeper than the last edge = 'deep'
+                                        % (plot-only mode reads the edges from the CSV)
+
+%% Fold parameters: defaults for anything not swept
+FOLD = struct();
+FOLD.FOLD_METRIC        = 'sulc';       % 'sulc' | 'curvature'
+FOLD.FOLD_RULE          = 'absolute';   % 'absolute' | 'tertile'
+FOLD.FOLD_SIGMA_MM      = 0.75;         % curvature: surface smoothing
+FOLD.K_CROWN_PER_MM     = 0.15;         % curvature: crown if kappa >  K_CROWN
+FOLD.K_FUNDUS_PER_MM    = 0.15;         % curvature: fundus if kappa < -K_FUNDUS
+FOLD.ENVELOPE_MM        = 4;            % sulc: closing radius of the WM envelope
+FOLD.SULC_CROWN_MAX_MM  = 2;            % sulc: crown if depth below envelope <  this
+FOLD.SULC_FUNDUS_MIN_MM = 2;            % sulc: fundus if depth below envelope > this
+FOLD.EDGE_EXCL_XY_MM    = 1;            % in-plane cut faces
+FOLD.EDGE_EXCL_Z_MM     = 0.25;         % first/last section
+FOLD.DEPTH_CERTAINTY    = false;
+FOLD.CURV_GRID_UM       = 100;
+FOLD.HOLE_FILL_MM3      = 0.5;
+
+%% Sweep: full factorial over the listed values (fields must be FOLD fields).
+% Numeric/logical vectors or cell arrays of strings. Combinations that only
+% differ in parameters irrelevant to their metric/rule are run once.
+% SWEEP = struct() runs the FOLD defaults only.
+% SWEEP = struct();
+% SWEEP.ENVELOPE_MM        = [3.5 4];        % must bridge sulci between WM blades
+% SWEEP.SULC_CROWN_MAX_MM  = [1 1.5 2];
+% SWEEP.SULC_FUNDUS_MIN_MM = [2 2.5];        % keep below the envelope radius
+% Examples:
+% SWEEP.EDGE_EXCL_Z_MM  = [0 0.25];
+% SWEEP.EDGE_EXCL_XY_MM = [0.5 1];
+% SWEEP.SULC_FUNDUS_MIN_MM = [2.5 3 4];
+% SWEEP.DEPTH_CERTAINTY    = [false true];
+% Curvature instead (set FOLD.FOLD_METRIC = 'curvature', or sweep both):
+% SWEEP.FOLD_METRIC        = {'sulc','curvature'};
+% SWEEP.FOLD_SIGMA_MM      = [0.75 1 1.5 2];
+% SWEEP.K_CROWN_PER_MM     = [0.05 0.10 0.15];
+
+%% Figures
+PLOT_FOLDS         = {'all_depth','crown','fundus'};   % columns per region in the depth
+                                   % figures ('all_depth' = all WM by depth, edge included);
+                                   % the byfold figures always show every class
+GRID_ON            = true;
+SHARE_Y_SCOPE      = 'row';        % 'row' | 'region' | 'none'
+FIG_VISIBLE        = 'off';
+
+%% QC overlays
+QC_CONFIGS         = [];           % configurations with metric histogram + PNG montage; [] = all
+QC_TIF_CONFIGS     = [];           % configurations with TIF stacks; [] = all, 0 = none
+QC_N_SECTIONS      = 6;
+QC_MONTAGE_SCALE   = 0.5;
+QC_SHOW_SEG        = true;
+QC_ALPHA           = 0.35;
+QC_SCALEBAR_MM     = 5;
+QC_TIF_STEP        = 5;
+QC_TIF_SCALE       = 0.5;
+SAVE_FOLD_LABELS   = false;
+SAVE_COMP_LABELS   = false;
+
+%% Checks
+if isempty(VOXEL_UM), error('Set VOXEL_UM to the native voxel size [dim1 dim2 dim3] in um.'); end
+if isempty(ISO_UM), ISO_UM = max(VOXEL_UM); end
+if numel(ISO_UM) > 1
+    if any(ISO_UM ~= ISO_UM(1))
+        error('ISO_UM must be a scalar (isotropic grid); got %s.', mat2str(ISO_UM));
+    end
+    ISO_UM = ISO_UM(1);
+end
+if ~isscalar(EXPL_COARSEN), error('EXPL_COARSEN must be a scalar.'); end
+if DEPTH_EDGES_MM(1) ~= 0 || any(diff(DEPTH_EDGES_MM) <= 0) || ~all(isfinite(DEPTH_EDGES_MM))
+    error('DEPTH_EDGES_MM must start at 0, increase, and be finite (deeper WM = ''deep'').');
+end
+if ~any(strcmp(SHARE_Y_SCOPE, {'row','region','none'})), error('SHARE_Y_SCOPE: row | region | none.'); end
+if ~all(ismember(PLOT_FOLDS, {'all_depth','crown','wall','fundus','edge'}))
+    error('PLOT_FOLDS: all_depth, crown, wall, fundus, edge.');
+end
+if ~any(strcmp(INTERFACE_GM, {'cortex','all'})), error('INTERFACE_GM: cortex | all.'); end
+bad = setdiff(fieldnames(SWEEP), fieldnames(FOLD));
+if ~isempty(bad), error('SWEEP fields not in FOLD: %s', strjoin(bad, ', ')); end
+
+if EXPLORATORY
+    run_tag = 'EXPL'; iso_um = ISO_UM * EXPL_COARSEN;
+else
+    run_tag = 'MS';   iso_um = ISO_UM;
+end
+date_str = char(datetime('now','Format','yyyyMMdd'));
+base_dir = '/projectnb/npbssmic/ns/CAA/figures/epvs_network_fold_depth/';
+
+%%% Figure options (shared by the full run and plot-only mode)
+opt = struct('grid_on',GRID_ON, 'share_scope',SHARE_Y_SCOPE, 'vis',FIG_VISIBLE, ...
+             'min_tree_len_mm',MIN_TREE_LEN_MM, 'min_stratum_mm3',MIN_STRATUM_MM3);
+opt.plot_folds = PLOT_FOLDS;
+opt.rule_text  = '';
+opt = set_depth_ticks(opt, DEPTH_EDGES_MM);
+
+%% Plot-only mode: redraw figures from existing CSVs, then stop
+if ~isempty(PLOT_ONLY)
+    replot_from_csv(PLOT_ONLY, base_dir, opt);
+    return
+end
+
+%%% Configurations
+configs = build_sweep(FOLD, SWEEP);
+nCfg = numel(configs);
+for k = 1:nCfg, check_fold(configs(k)); end
+cg_list = unique(max([configs.CURV_GRID_UM], iso_um));
+fprintf('%d configuration(s)\n', nCfg);
+
+%%% Output folders
+run_stamp = char(datetime('now','Format','yyyyMMdd_HHmmss'));
+sweep_dir = fullfile(base_dir, sprintf('%s_%s_sweep%d_iso%gum', run_stamp, run_tag, nCfg, iso_um));
+if exist(sweep_dir,'dir'), error('Run folder already exists: %s', sweep_dir); end
+mkdir(sweep_dir);
+cfg_dirs = cell(nCfg, 1);
+for k = 1:nCfg
+    configs(k).folder = sprintf('cfg%02d_%s', k, configs(k).tag);
+    cfg_dirs{k} = fullfile(sweep_dir, configs(k).folder);
+    mkdir(cfg_dirs{k});
+end
+writetable(struct2table(configs, 'AsArray', true), fullfile(sweep_dir, 'sweep_configs.csv'));
+fprintf('Writing outputs to %s\n', sweep_dir);
+
+if isempty(QC_CONFIGS), QC_CONFIGS = 1:nCfg; end
+if isempty(QC_TIF_CONFIGS), QC_TIF_CONFIGS = 1:nCfg; end
+
+subj_group = struct('caa26','control', 'caa6','control', ...
+                    'caa22','severe',  'caa25','severe', 'caa17','moderate');
+regions = {'front','occip'};
+
+cfg = struct();
+cfg.voxel_um           = VOXEL_UM;
+cfg.iso_um             = iso_um;
+cfg.min_comp_vox       = MIN_COMP_VOX;
+cfg.min_branch_ves_um  = MIN_BRANCH_VES_UM;
+cfg.min_branch_epvs_um = MIN_BRANCH_EPVS_UM;
+cfg.prune_iter         = PRUNE_ITER;
+cfg.min_tree_len_mm    = MIN_TREE_LEN_MM;
+cfg.min_stratum_mm3    = MIN_STRATUM_MM3;
+cfg.min_epvs_present_vox = MIN_EPVS_PRESENT_VOX;
+cfg.include_gm         = INCLUDE_GM;
+cfg.depth_edges_mm     = DEPTH_EDGES_MM;
+cfg.mus_field          = MUS_FIELD;
+cfg.grid_on            = GRID_ON;
+cfg.keep_labels        = SAVE_COMP_LABELS;
+
+qc = struct('n_sections',QC_N_SECTIONS, 'montage_scale',QC_MONTAGE_SCALE, ...
+            'show_seg',QC_SHOW_SEG, 'alpha',QC_ALPHA, 'scalebar_mm',QC_SCALEBAR_MM, ...
+            'tif',true, 'tif_step',QC_TIF_STEP, 'tif_scale',QC_TIF_SCALE);
+
+%% Load caa structs (skipped if already in workspace)
+if ~exist('caa','var')
+    mat_dir = '/projectnb/npbssmic/ns/CAA/';
+    files = struct('caa6', "/caa6/caa6.mat", 'caa17', "/caa17/occip/caa17.mat", ...
+                   'caa22',"/caa22/caa22.mat", 'caa25',"/caa25/caa25.mat", ...
+                   'caa26',"/caa26/caa26.mat");
+    fn = fieldnames(files);
+    caa = struct();
+    caa_source = struct();
+    for s = 1:numel(fn)
+        fprintf('Loading %s\n', upper(fn{s}));
+        fpath = char(fullfile(mat_dir, files.(fn{s})));
+        tmp = load(fpath);
+        caa.(fn{s}) = tmp.(fn{s});
+        caa_source.(fn{s}) = fpath;
+        clear tmp
+    end
+else
+    fprintf('caa found in workspace; skipping load\n');
+    caa_source = 'caa struct already in workspace (source files not recorded)';
+end
+
+%% Volumes (outer) x configurations (inner)
+Tb_cfg = repmat({{}}, nCfg, 1);
+Tc_cfg = repmat({{}}, nCfg, 1);
+fs_cfg = repmat({{}}, nCfg, 1);
+gm_check = {}; processed = {};
+subs = fieldnames(subj_group);
+for s = 1:numel(subs)
+    sub = subs{s};
+    if ~isfield(caa, sub), continue; end
+    for r = 1:numel(regions)
+        reg = regions{r};
+        if ~isfield(caa.(sub), reg), continue; end
+        V = caa.(sub).(reg);
+        fprintf('%s %s: network\n', upper(sub), reg);
+        if ~isfield(V, TISSUE_FIELD)
+            warning('net:tis', '%s %s: no field %s; interface undefined. Skipped.', sub, reg, TISSUE_FIELD);
+            continue
+        end
+        seg = logical(V.seg);
+        epv = logical(V.epvs);
+        tis = logical(V.(TISSUE_FIELD));
+        wm  = logical(V.mask_wm);
+        [gm, gmi, cst] = derive_gm(tis, wm, INTERFACE_GM, prod(VOXEL_UM) / 1e9);
+        islands = gm & ~gmi;                        % GM not acting as cortex (QC outline)
+        fprintf('\tGM %.1f mm^3 (interface GM %.1f, enclosed %.2f); internal holes %.2f mm^3\n', ...
+                cst.gm_mm3, cst.gm_iface_mm3, cst.gm_enclosed_mm3, cst.internal_hole_mm3);
+        if ~any(gmi(:))
+            warning('net:gm', '%s %s: no interface GM; interface undefined. Skipped.', sub, reg);
+            continue
+        end
+
+        NB = network_base(seg, epv, wm, gm, gmi, tis, cfg, cg_list);
+        clear gmi
+        clear seg epv tis
+        has_mus = isfield(V, MUS_FIELD);
+        if ~has_mus, warning('net:mus', '%s %s: no field %s; overlays skipped.', sub, reg, MUS_FIELD); end
+
+        for k = 1:nCfg
+            f = configs(k);
+            [Tb, Tc, g, geo] = stratify(NB, f, cfg);
+            n_ne = g.n_crown + g.n_wall + g.n_fundus;
+            fprintf('\tcfg%02d %s: interface crown %.0f%%, wall %.0f%%, fundus %.0f%%; edge %.0f%%; deep %.2f mm^3\n', ...
+                    k, f.tag, 100 * [g.n_crown g.n_wall g.n_fundus] / max(1, n_ne), ...
+                    100 * g.n_edge / max(1, n_ne + g.n_edge), g.n_deep_vox * iso_um^3 / 1e9);
+
+            ttl = sprintf('%s %s | cfg%02d: %s', upper(sub), reg, k, describe_fold(f));
+            if ismember(k, QC_CONFIGS)
+                qc_metric_hist(g, f, cfg, ttl, fullfile(cfg_dirs{k}, sprintf('qc_metric_%s_%s.png', sub, reg)));
+            end
+            if has_mus && (ismember(k, QC_CONFIGS) || ismember(k, QC_TIF_CONFIGS))
+                qk = qc;
+                qk.tif = ismember(k, QC_TIF_CONFIGS);
+                qk.png = ismember(k, QC_CONFIGS);
+                qc_fold_overlay(V, wm, gm, islands, geo, cfg, qk, ttl, ...
+                    fullfile(cfg_dirs{k}, sprintf('qc_folds_%s_%s.png', sub, reg)), ...
+                    fullfile(cfg_dirs{k}, sprintf('qc_folds_stack_%s_%s.tif', sub, reg)));
+            end
+
+            kq = nan(1, 3);
+            if ~isempty(g.val_iface), kq = prctile(g.val_iface, [5 50 95]); end
+            fs_cfg{k}{end+1} = struct('name',upper(sub), 'group',subj_group.(sub), 'region',reg, ...
+                'fold_metric',f.FOLD_METRIC, 'fold_rule',f.FOLD_RULE, ...
+                'thr_1',g.thr(1), 'thr_2',g.thr(2), ...
+                'n_iface_crown',g.n_crown, 'n_iface_wall',g.n_wall, 'n_iface_fundus',g.n_fundus, ...
+                'n_iface_edge',g.n_edge, 'frac_iface_edge',g.n_edge / max(1, n_ne + g.n_edge), ...
+                'metric_p05',kq(1), 'metric_p50',kq(2), 'metric_p95',kq(3), ...
+                'deep_mm3',g.n_deep_vox * iso_um^3 / 1e9, ...
+                'uncertain_mm3',g.n_uncertain_vox * iso_um^3 / 1e9, 'curv_grid_um',g.curv_grid_um);
+            Tb_cfg{k}{end+1} = [meta_table(upper(sub), subj_group.(sub), reg, height(Tb)), Tb];
+            Tc_cfg{k}{end+1} = [meta_table(upper(sub), subj_group.(sub), reg, height(Tc)), Tc];
+
+            if SAVE_FOLD_LABELS
+                F = geo.F; B = geo.B; native_size = size(V.epvs); %#ok<NASGU>
+                fold_codes = {'1 crown','2 wall','3 fundus','4 edge','5 deep'}; %#ok<NASGU>
+                save(fullfile(cfg_dirs{k}, sprintf('fold_labels_%s_%s_%s.mat', sub, reg, date_str)), ...
+                     'F', 'B', 'iso_um', 'native_size', 'fold_codes', 'DEPTH_EDGES_MM', '-v7.3');
+                clear F B
+            end
+            clear geo
+        end
+
+        if SAVE_COMP_LABELS
+            L = NB.L; native_size = size(V.epvs); %#ok<NASGU>
+            save(fullfile(sweep_dir, sprintf('epvs_labels_%s_%s_%s.mat', sub, reg, date_str)), ...
+                 'L', 'iso_um', 'native_size', '-v7.3');
+            clear L
+        end
+        info = NB.info;
+        gm_check{end+1} = struct('name',upper(sub), 'group',subj_group.(sub), 'region',reg, ...
+            'gm_mm3',cst.gm_mm3, 'gm_iface_mm3',cst.gm_iface_mm3, ...
+            'gm_enclosed_mm3',cst.gm_enclosed_mm3, 'interface_gm',INTERFACE_GM, ...
+            'internal_hole_mm3',cst.internal_hole_mm3, ...
+            'gm_has_epvs',info.gm_has_epvs, 'gm_epvs_vox',info.gm_epvs_vox, ...
+            'gm_epvs_mm3',info.gm_epvs_mm3, 'gm_epvs_frac',info.gm_epvs_frac, ...
+            'gm_n_epvs_comp',info.gm_n_epvs_comp); %#ok<AGROW>
+        processed{end+1} = struct('subject',upper(sub), 'group',subj_group.(sub), ...
+            'region',reg, 'native_size',size(V.epvs)); %#ok<AGROW>
+        clear NB V gm wm islands
+    end
+end
+if ~isempty(gm_check)
+    writetable(struct2table(vertcat(gm_check{:})), fullfile(sweep_dir, 'compartments.csv'));
+end
+
+%% Per-configuration outputs
+S_all = {};
+for k = 1:nCfg
+    if isempty(Tb_cfg{k}), continue; end
+    f   = configs(k);
+    out = cfg_dirs{k};
+    tag = sprintf('cfg%02d_%s_%s', k, run_tag, date_str);
+    Tb  = vertcat(Tb_cfg{k}{:});
+    Tc  = vertcat(Tc_cfg{k}{:});
+    FS  = struct2table(vertcat(fs_cfg{k}{:}));
+    writetable(Tb, fullfile(out, sprintf('epvs_network_strata_%s.csv', tag)));
+    writetable(Tc, fullfile(out, sprintf('epvs_network_components_%s.csv', tag)));
+    writetable(FS, fullfile(out, sprintf('epvs_network_fold_summary_%s.csv', tag)));
+
+    opt.rule_text = describe_fold(f);
+    make_config_figures(Tb, opt, out, tag);
+
+    num_vars = Tb.Properties.VariableNames(varfun(@isnumeric, Tb, 'OutputFormat','uniform'));
+    num_vars = setdiff(num_vars, {'band_idx'}, 'stable');
+    Tg = Tb(ismember(Tb.group, {'control','severe'}), :);
+    if ~isempty(Tg)
+        Gm = groupsummary(Tg, {'compartment','group','region','fold','depth_band','band_idx'}, 'mean', num_vars);
+        Gm.Properties.VariableNames = strrep(Gm.Properties.VariableNames, 'mean_', '');
+        Gm = renamevars(Gm, 'GroupCount', 'n_subjects');
+        writetable(Gm, fullfile(out, sprintf('epvs_network_group_means_%s.csv', tag)));
+    end
+
+    cmeta = struct('config_id',k, 'fold',f, 'fixed',cfg, 'description',describe_fold(f));
+    fid = fopen(fullfile(out, sprintf('config_%s.json', tag)), 'w');
+    fprintf(fid, '%s\n', jsonencode(cmeta, 'PrettyPrint', true));
+    fclose(fid);
+
+    S_all{end+1} = sweep_rows(Tb, FS, f, k, fieldnames(SWEEP)); %#ok<AGROW>
+end
+
+%% Sweep summary
+if ~isempty(S_all)
+    S = vertcat(S_all{:});
+    writetable(S, fullfile(sweep_dir, 'sweep_summary.csv'));
+    fh = plot_sweep_summary(S, nCfg, opt);
+    save_fig(fh, sweep_dir, 'sweep_summary_WM');
+end
+
+%% Sweep metadata and script copy
+meta = struct();
+meta.created         = char(datetime('now','Format','yyyy-MM-dd HH:mm:ss'));
+meta.matlab_version  = version;
+meta.script          = mfilename('fullpath');
+meta.run_tag         = run_tag;
+meta.sweep_folder    = sweep_dir;
+meta.fixed           = cfg;
+meta.fold_defaults   = FOLD;
+meta.sweep           = SWEEP;
+meta.n_configs       = nCfg;
+meta.configs         = configs;
+meta.plot_folds      = PLOT_FOLDS;
+meta.share_y_scope   = SHARE_Y_SCOPE;
+meta.qc              = qc;
+meta.qc_configs      = QC_CONFIGS;
+meta.qc_tif_configs  = QC_TIF_CONFIGS;
+meta.interface_gm    = INTERFACE_GM;
+meta.compartment_rule = ['WM = mask_wm; GM = mask & ~mask_wm; interface GM = GM components ', ...
+    'connected to exterior background or array faces (interface_gm = cortex) or all GM; ', ...
+    'internal background filled before cut-face detection'];
+meta.subject_groups  = subj_group;
+meta.input_source    = caa_source;
+meta.processed       = [processed{:}];
+save(fullfile(sweep_dir, 'sweep_config.mat'), 'meta');
+fid = fopen(fullfile(sweep_dir, 'sweep_config.json'), 'w');
+fprintf(fid, '%s\n', jsonencode(meta, 'PrettyPrint', true));
+fclose(fid);
+src = [mfilename('fullpath') '.m'];
+if exist(src, 'file')
+    copyfile(src, fullfile(sweep_dir, 'sweep_script.m'));
+else
+    warning('net:script', 'Script path unavailable (run as selection?); script copy not saved.');
+end
+fprintf('Done. Outputs in %s\n', sweep_dir);
+
+
+%% ======================= Local functions ===============================
+
+function opt = set_depth_ticks(opt, edges)
+opt.depth_edges = edges;
+nb = numel(edges) - 1;
+opt.band_ticks = arrayfun(@(b) sprintf('%g–%g', edges(b), edges(b+1)), 1:nb, 'UniformOutput', false);
+opt.deep_tick  = sprintf('deep (>%g)', edges(end));
+end
+
+
+function make_config_figures(Tb, opt, out, tag)
+% Every per-configuration figure from one strata table (full run and plot-only).
+Tb = add_edge_bands(Tb, numel(opt.depth_edges) - 1, opt.min_tree_len_mm, opt.min_stratum_mm3);
+modes = {'subjects','groups','groups_meanonly'};
+for i = 1:numel(modes)
+    fh = plot_depth_profiles(Tb, opt, modes{i});
+    save_fig(fh, out, sprintf('epvs_network_depth_%s_WM_%s', modes{i}, tag));
+end
+for m = {'groups','subjects'}
+    fh = plot_depth_by_fold(Tb, opt, m{1});
+    save_fig(fh, out, sprintf('epvs_network_depth_byfold_%s_WM_%s', m{1}, tag));
+end
+fh = plot_fold_ratio(Tb, opt);
+save_fig(fh, out, sprintf('epvs_network_fold_ratio_WM_%s', tag));
+end
+
+
+function replot_from_csv(target, base_dir, opt)
+% Redraw figures from existing CSVs. target: run folder, cfg subfolder, or 'latest'.
+if strcmpi(target, 'latest')
+    d = dir(base_dir);
+    d = d([d.isdir] & ~startsWith({d.name}, '.'));
+    if isempty(d), error('No run folders in %s.', base_dir); end
+    [~, i] = max([d.datenum]);
+    target = fullfile(base_dir, d(i).name);
+end
+if ~exist(target, 'dir'), error('PLOT_ONLY folder not found: %s', target); end
+fprintf('Plot-only mode: %s\n', target);
+
+files = dir(fullfile(target, '**', 'epvs_network_strata_*.csv'));
+files = files(~contains({files.folder}, 'replot_'));
+if isempty(files), error('No epvs_network_strata_*.csv at or below %s.', target); end
+stamp   = char(datetime('now','Format','yyyyMMdd_HHmmss'));
+folders = unique({files.folder}, 'stable');
+need    = {'name','group','region','compartment','fold','depth_band','band_idx', ...
+           'tissue_mm3','epvs_frac','coverage','len_density_epvs','len_density_tree', ...
+           'branch_density_epvs','branch_density_tree'};
+for k = 1:numel(folders)
+    fk = files(strcmp({files.folder}, folders{k}));
+    [~, i] = max([fk.datenum]);                           % newest strata CSV in this folder
+    csv = fullfile(fk(i).folder, fk(i).name);
+    fprintf('\t%s\n', csv);
+    Tb = readtable(csv, 'TextType','char', 'Delimiter',',');
+    miss = setdiff(need, Tb.Properties.VariableNames);
+    if ~isempty(miss)
+        warning('net:replot', 'Skipped %s: missing columns %s.', csv, strjoin(miss, ', '));
+        continue
+    end
+    o = set_depth_ticks(opt, depth_edges_from_csv(Tb, opt.depth_edges));
+    o.rule_text = read_rule_text(folders{k});
+    out = fullfile(folders{k}, ['replot_' stamp]);
+    mkdir(out);
+    [~, nm] = fileparts(fk(i).name);
+    make_config_figures(Tb, o, out, erase(nm, 'epvs_network_strata_'));
+    fprintf('\t-> %s\n', out);
+end
+
+ss = fullfile(target, 'sweep_summary.csv');
+if exist(ss, 'file')
+    S = readtable(ss, 'TextType','char');
+    out = fullfile(target, ['replot_' stamp]);
+    if ~exist(out, 'dir'), mkdir(out); end
+    fh = plot_sweep_summary(S, max(S.config_id), opt);
+    save_fig(fh, out, 'sweep_summary_WM');
+    fprintf('\t-> %s (sweep summary)\n', out);
+end
+fprintf('Plot-only done.\n');
+end
+
+
+function e = depth_edges_from_csv(T, default)
+% Depth edges from band labels '<lo>-<hi> mm' (band_idx 1..nb).
+r = strcmp(T.compartment, 'wm') & T.band_idx >= 1;
+lab = T.depth_band(r); idx = T.band_idx(r);
+tok = regexp(lab, '^([\d.]+)-([\d.]+) mm$', 'tokens', 'once');
+ok  = ~cellfun(@isempty, tok);
+if ~any(ok), e = default; return; end
+[ub, iu] = unique(idx(ok));
+tk = tok(ok); tk = tk(iu);
+lo = cellfun(@(t) str2double(t{1}), tk);
+hi = cellfun(@(t) str2double(t{2}), tk);
+if ~isequal(ub(:)', 1:numel(ub)) || any(abs(lo(2:end) - hi(1:end-1)) > 1e-9)
+    warning('net:edges', 'Could not read contiguous depth bands from the CSV; using DEPTH_EDGES_MM.');
+    e = default; return
+end
+e = [lo(1), hi(:)'];
+end
+
+
+function t = read_rule_text(folder)
+% Fold-rule description from config_*.json in the folder, else the folder name.
+t = '';
+j = dir(fullfile(folder, 'config_*.json'));
+if ~isempty(j)
+    [~, i] = max([j.datenum]);
+    try
+        m = jsondecode(fileread(fullfile(folder, j(i).name)));
+        if isfield(m, 'description'), t = m.description; end
+    catch
+    end
+end
+if isempty(t)
+    [~, t] = fileparts(folder);
+    t = strrep(t, '_', '\_');
+end
+end
+
+
+function T = add_edge_bands(T, nb, min_tree_mm, min_stratum_mm3)
+% CSVs written before edge x depth band was stratified hold edge x 'all'
+% only. Derive edge x band = all_depth - all_classified from the additive
+% columns (tissue, EPVS/vessel/E volumes, skeleton lengths, junctions,
+% component counts) and recompute ratios and densities with the same
+% NaN thresholds. Component volume shares cannot be derived (NaN).
+isW = strcmp(T.compartment, 'wm');
+if any(isW & strcmp(T.fold, 'edge') & T.band_idx >= 1 & T.band_idx <= nb), return; end
+vn = T.Properties.VariableNames;
+if ~all(ismember({'all_depth','all_classified'}, unique(T.fold(isW)))), return; end
+raw = intersect({'tree_len_mm','tree_len_in_epvs_mm','tree_junctions','tree_junctions_in_epvs', ...
+                 'epvs_len_mm','epvs_junctions','n_comp'}, vn, 'stable');
+frc = intersect({'epvs_frac','ves_frac','ens_frac'}, vn, 'stable');
+vols = unique(T(isW, {'name','region'}), 'rows', 'stable');
+add = {};
+for v = 1:height(vols)
+    rv = isW & strcmp(T.name, vols.name{v}) & strcmp(T.region, vols.region{v});
+    for b = 1:nb
+        ia = find(rv & strcmp(T.fold, 'all_depth')      & T.band_idx == b, 1);
+        ic = find(rv & strcmp(T.fold, 'all_classified') & T.band_idx == b, 1);
+        if isempty(ia) || isempty(ic), continue; end
+        A = T(ia, :); C = T(ic, :);
+        t = A.tissue_mm3 - C.tissue_mm3;
+        if ~(t > 1e-9), continue; end
+        R = A;
+        R.fold = {'edge'};
+        R.tissue_mm3 = t;
+        for c = 1:numel(raw), R.(raw{c}) = A.(raw{c}) - C.(raw{c}); end
+        for c = 1:numel(frc), R.(frc{c}) = (A.(frc{c}) * A.tissue_mm3 - C.(frc{c}) * C.tissue_mm3) / t; end
+        lt = R.tree_len_mm; ltin = R.tree_len_in_epvs_mm;
+        jt = R.tree_junctions; jtin = R.tree_junctions_in_epvs;
+        cov = ltin / lt; enr = (jtin / jt) / cov; tbd = jt / lt;
+        if lt < min_tree_mm, cov = NaN; enr = NaN; tbd = NaN; end
+        R.coverage = cov;
+        if ismember('branch_enrichment', vn), R.branch_enrichment = enr; end
+        if ismember('tree_branch_per_mm', vn), R.tree_branch_per_mm = tbd; end
+        if all(ismember({'epvs_len_mm','epvs_junctions','epvs_branch_per_mm'}, vn))
+            ebd = R.epvs_junctions / R.epvs_len_mm;
+            if R.epvs_len_mm < min_tree_mm, ebd = NaN; end
+            R.epvs_branch_per_mm = ebd;
+        end
+        dens = {'len_density_tree',lt; 'len_density_epvs',ltin; 'len_density_ves',lt - ltin; ...
+                'branch_density_tree',jt; 'branch_density_epvs',jtin; 'branch_density_ves',jt - jtin};
+        for c = 1:size(dens, 1)
+            if ismember(dens{c, 1}, vn), R.(dens{c, 1}) = dens{c, 2} / t; end
+        end
+        if ismember('comp_per_mm3', vn), R.comp_per_mm3 = R.n_comp / t; end
+        for c = intersect({'largest_comp_share','branched_share'}, vn), R.(c{1}) = NaN; end
+        if t < min_stratum_mm3
+            nanc = intersect([frc, dens(:, 1)', {'comp_per_mm3','coverage','branch_enrichment', ...
+                              'tree_branch_per_mm','epvs_branch_per_mm'}], vn);
+            for c = 1:numel(nanc), R.(nanc{c}) = NaN; end
+        end
+        add{end+1} = R; %#ok<AGROW>
+    end
+end
+if ~isempty(add)
+    T = [T; vertcat(add{:})];
+    fprintf('\tedge x depth band derived as all_depth - all_classified (%d rows)\n', numel(add));
+end
+end
+
+
+function configs = build_sweep(base, SWEEP)
+% Full factorial over SWEEP fields; duplicates (identical effective settings) removed.
+names = fieldnames(SWEEP);
+vals  = cellfun(@(n) to_cell(SWEEP.(n)), names, 'UniformOutput', false);
+if isempty(names)
+    combos = {[]};
+else
+    sz  = cellfun(@numel, vals);
+    rng_ = arrayfun(@(k) 1:sz(k), 1:numel(names), 'UniformOutput', false);
+    idx = cell(1, numel(names));
+    [idx{:}] = ndgrid(rng_{:});
+    combos = num2cell(cell2mat(cellfun(@(x) x(:), idx, 'UniformOutput', false)), 2);
+end
+configs = struct([]);
+keys = {};
+for c = 1:numel(combos)
+    f = base;
+    for n = 1:numel(names)
+        f.(names{n}) = vals{n}{combos{c}(n)};
+    end
+    f.DEPTH_CERTAINTY = logical(f.DEPTH_CERTAINTY);
+    key = fold_key(f);
+    if any(strcmp(keys, key)), continue; end
+    keys{end+1} = key; %#ok<AGROW>
+    f.config_id = numel(keys);
+    f.tag       = fold_tag(f);
+    f.folder    = '';
+    if isempty(configs), configs = f; else, configs(end+1) = f; end %#ok<AGROW>
+end
+end
+
+
+function c = to_cell(v)
+if iscell(v), c = v(:)'; elseif ischar(v) || isstring(v), c = cellstr(v); else, c = num2cell(v(:)'); end
+end
+
+
+function check_fold(f)
+if ~any(strcmp(f.FOLD_METRIC, {'curvature','sulc'})), error('FOLD_METRIC: curvature | sulc.'); end
+if ~any(strcmp(f.FOLD_RULE, {'absolute','tertile'})), error('FOLD_RULE: absolute | tertile.'); end
+if strcmp(f.FOLD_METRIC, 'sulc') && f.SULC_CROWN_MAX_MM > f.SULC_FUNDUS_MIN_MM
+    error('cfg %s: SULC_CROWN_MAX_MM must not exceed SULC_FUNDUS_MIN_MM.', f.tag);
+end
+if f.K_CROWN_PER_MM < 0 || f.K_FUNDUS_PER_MM < 0, error('K thresholds must be >= 0.'); end
+end
+
+
+function key = fold_key(f)
+% Settings that affect the result for this metric/rule.
+k = struct('metric',f.FOLD_METRIC, 'rule',f.FOLD_RULE, 'exy',f.EDGE_EXCL_XY_MM, ...
+           'ez',f.EDGE_EXCL_Z_MM, 'dc',logical(f.DEPTH_CERTAINTY), 'cg',f.CURV_GRID_UM, ...
+           'hole',f.HOLE_FILL_MM3);
+if strcmp(f.FOLD_METRIC, 'curvature')
+    k.sigma = f.FOLD_SIGMA_MM;
+    if strcmp(f.FOLD_RULE, 'absolute'), k.kc = f.K_CROWN_PER_MM; k.kf = f.K_FUNDUS_PER_MM; end
+else
+    k.env = f.ENVELOPE_MM;
+    if strcmp(f.FOLD_RULE, 'absolute'), k.sc = f.SULC_CROWN_MAX_MM; k.sf = f.SULC_FUNDUS_MIN_MM; end
+end
+key = jsonencode(k);
+end
+
+
+function t = fold_tag(f)
+if strcmp(f.FOLD_METRIC, 'curvature')
+    if strcmp(f.FOLD_RULE, 'absolute')
+        t = sprintf('curv_s%g_kc%g_kf%g', f.FOLD_SIGMA_MM, f.K_CROWN_PER_MM, f.K_FUNDUS_PER_MM);
+    else
+        t = sprintf('curv_s%g_tert', f.FOLD_SIGMA_MM);
+    end
+else
+    if strcmp(f.FOLD_RULE, 'absolute')
+        t = sprintf('sulc_e%g_c%g_f%g', f.ENVELOPE_MM, f.SULC_CROWN_MAX_MM, f.SULC_FUNDUS_MIN_MM);
+    else
+        t = sprintf('sulc_e%g_tert', f.ENVELOPE_MM);
+    end
+end
+t = sprintf('%s_exy%g_ez%g', t, f.EDGE_EXCL_XY_MM, f.EDGE_EXCL_Z_MM);
+if f.DEPTH_CERTAINTY, t = [t '_dc']; end
+end
+
+
+function d = describe_fold(f)
+if strcmp(f.FOLD_METRIC, 'curvature')
+    if strcmp(f.FOLD_RULE, 'absolute')
+        d = sprintf('curvature, \\sigma = %g mm, crown \\kappa > %g, fundus \\kappa < -%g mm^{-1}', ...
+                    f.FOLD_SIGMA_MM, f.K_CROWN_PER_MM, f.K_FUNDUS_PER_MM);
+    else
+        d = sprintf('curvature, \\sigma = %g mm, tertiles', f.FOLD_SIGMA_MM);
+    end
+else
+    if strcmp(f.FOLD_RULE, 'absolute')
+        d = sprintf('sulcal depth, envelope %g mm, crown < %g, fundus > %g mm', ...
+                    f.ENVELOPE_MM, f.SULC_CROWN_MAX_MM, f.SULC_FUNDUS_MIN_MM);
+    else
+        d = sprintf('sulcal depth, envelope %g mm, tertiles', f.ENVELOPE_MM);
+    end
+end
+d = sprintf('%s; edge %g mm (xy), %g mm (z)', d, f.EDGE_EXCL_XY_MM, f.EDGE_EXCL_Z_MM);
+if f.DEPTH_CERTAINTY, d = [d '; depth certainty']; end
+end
+
+
+function [gm, gmi, st] = derive_gm(tis, wm, mode, vox_mm3)
+% GM = mask & ~mask_wm. Interface GM: components connected to the outer
+% tissue surface (exterior background) or the array faces ('cortex'), or all GM.
+nb26 = true(3, 3, 3);
+gm   = tis & ~wm;
+filled = imfill(tis | wm, 'holes');
+st = struct();
+st.internal_hole_mm3 = nnz(filled & ~(tis | wm)) * vox_mm3;
+if strcmp(mode, 'all')
+    gmi = gm;
+else
+    seed = gm & imdilate(~filled, nb26);           % touches background outside the block
+    seed([1 end], :, :) = seed([1 end], :, :) | gm([1 end], :, :);   % sectioned cortex
+    seed(:, [1 end], :) = seed(:, [1 end], :) | gm(:, [1 end], :);
+    seed(:, :, [1 end]) = seed(:, :, [1 end]) | gm(:, :, [1 end]);
+    gmi = imreconstruct(seed, gm, 26);
+    clear seed
+end
+clear filled
+st.gm_mm3          = nnz(gm) * vox_mm3;
+st.gm_iface_mm3    = nnz(gmi) * vox_mm3;
+st.gm_enclosed_mm3 = st.gm_mm3 - st.gm_iface_mm3;
+end
+
+
+function NB = network_base(ves, epv, wm, gm, gmi, tis, cfg, cg_list)
+% Configuration-independent part: compartments, E, skeletons, junctions,
+% components, depth from the interface, coarse geometry masks.
+iso  = cfg.iso_um;
+nb26 = true(3, 3, 3);
+[ves, epv, wm, gm, gmi, tis] = resample_iso(cfg.voxel_um, iso, ves, epv, wm, gm, gmi, tis);
+epv  = bwareaopen(epv, cfg.min_comp_vox, 26);
+ves  = bwareaopen(ves, cfg.min_comp_vox, 26);
+tree = ves | epv;
+has_gm = any(gm(:));
+tissue_all = wm | gm | tree;
+
+lab = zeros(size(wm), 'uint8');
+lab(wm) = 1;
+lab(gm & ~wm) = 2;
+un = tree & lab == 0;
+if any(un(:))
+    dW = bwdist(wm); dG = bwdist(gm);
+    lab(un & dW <= dG) = 1;
+    lab(un & dG <  dW) = 2;
+    clear dW dG
+end
+clear un wm
+
+paren = tissue_all & ~tree;
+dE  = bwdist(epv);
+dP  = bwdist(paren);
+ens = epv | (ves & dE < dP);
+clear dE dP paren tissue_all
+
+St = prune_spurs(bwskel(tree), ens, cfg.min_branch_ves_um, cfg.min_branch_epvs_um, iso, cfg.prune_iter);
+Se = prune_spurs(bwskel(ens),  ens, cfg.min_branch_epvs_um, cfg.min_branch_epvs_um, iso, cfg.prune_iter);
+[it, wt] = skel_weights(St, iso);
+[ie, we] = skel_weights(Se, iso);
+jt = junctions(St);
+je = junctions(Se);
+clear St Se
+
+cc = bwconncomp(ens, 26);
+L  = labelmatrix(cc);
+nC = cc.NumObjects;
+ie_ens = find(ens);
+Lid    = double(L(ie_ens));
+
+iface = lab == 1 & imdilate(gmi & ~tree, nb26);
+has_iface = any(iface(:));
+if has_iface
+    D = bwdist(iface) * (iso / 1000);
+else
+    warning('net:iface', 'No grey-white interface found; fold classes undefined.');
+    D = nan(size(lab), 'single');
+end
+clear iface
+
+szF = [size(lab, 1) size(lab, 2) size(lab, 3)];
+C = struct('cg', {}, 'W', {}, 'G', {}, 'T', {});
+for i = 1:numel(cg_list)
+    cg  = max(cg_list(i), iso);
+    szC = max(1, round(szF * iso / cg));
+    C(i).cg = cg;
+    C(i).W  = to_grid(lab == 1, szC);
+    C(i).G  = to_grid(gmi & ~tree, szC);
+    C(i).T  = imfill(to_grid(tis | tree, szC) | C(i).W, 'holes');   % internal holes are not cut faces
+end
+clear tis tree gmi
+
+NB = struct();
+NB.iso = iso; NB.szF = szF; NB.lab = lab; NB.epv = epv; NB.ves = ves; NB.ens = ens;
+NB.D = D; NB.has_iface = has_iface; NB.coarse = C;
+NB.it = it; NB.wt = wt; NB.ie = ie; NB.we = we; NB.jt = jt; NB.je = je;
+NB.nC = nC; NB.ie_ens = ie_ens; NB.Lid = Lid;
+NB.cvol_mm3  = reshape(cellfun(@numel, cc.PixelIdxList), [], 1) * iso^3 / 1e9;
+NB.cepvs_mm3 = acc(double(L(epv)), 1, nC) * iso^3 / 1e9;
+NB.cn_wm     = acc(Lid, double(lab(ie_ens) == 1), nC);
+NB.cn_gm     = acc(Lid, double(lab(ie_ens) == 2), nC);
+NB.ccomp     = 1 + (NB.cn_gm > NB.cn_wm);
+NB.clen_mm   = acc(double(L(ie)), we, nC) / 1000;
+NB.cjun      = acc(double(L(je)), 1, nC);
+NB.ctreej    = acc(double(L(jt(ens(jt)))), 1, nC);
+NB.cdepth    = reshape(cellfun(@(p) median(D(p), 'omitnan'), cc.PixelIdxList), [], 1);
+if cfg.keep_labels, NB.L = L; end
+clear L cc
+
+info = struct();
+info.has_gm_mask    = has_gm;
+info.gm_epvs_vox    = nnz(epv & lab == 2);
+info.gm_epvs_mm3    = info.gm_epvs_vox * iso^3 / 1e9;
+info.gm_epvs_frac   = info.gm_epvs_vox / max(1, nnz(lab == 2));
+info.gm_n_epvs_comp = nnz(NB.ccomp == 2);
+info.gm_has_epvs    = has_gm && info.gm_epvs_vox >= cfg.min_epvs_present_vox;
+NB.info        = info;
+NB.has_gm      = has_gm;
+NB.wm_epvs_vox = nnz(epv & lab == 1);
+end
+
+
+function [F, g] = fold_geometry(NB, f, cfg)
+% Fold class per voxel: 1 crown, 2 wall, 3 fundus, 4 edge, 5 deep (0 outside).
+iso  = NB.iso;
+szF  = NB.szF;
+nb26 = true(3, 3, 3);
+cg   = max(f.CURV_GRID_UM, iso);
+g = struct('metric',f.FOLD_METRIC, 'thr',[NaN NaN], 'val_iface',zeros(0, 1), ...
+           'n_crown',0, 'n_wall',0, 'n_fundus',0, 'n_edge',0, 'curv_grid_um',cg, ...
+           'n_deep_vox',0, 'n_uncertain_vox',0);
+F = zeros(szF, 'uint8');
+if ~NB.has_iface, return; end
+C = NB.coarse([NB.coarse.cg] == cg);
+if isempty(C), error('No coarse grid cached for %g um.', cg); end
+C = C(1);
+h   = cg / 1000;
+szC = [size(C.W, 1) size(C.W, 2) size(C.W, 3)];
+
+%%% WM surface with small cavities filled; interface on the coarse grid
+Wc = C.W;
+holes    = imfill(Wc, 'holes') & ~Wc;
+max_hole = max(1, round(f.HOLE_FILL_MM3 / h^3));
+Wc  = Wc | (holes & ~bwareaopen(holes, max_hole + 1, 26));
+clear holes
+ifc = Wc & imdilate(C.G, nb26);
+
+%%% Cut faces: in-plane (background or dim-1/2 array faces) and first/last section
+faceXY = false(szC);
+faceXY([1 end], :, :) = true;
+faceXY(:, [1 end], :) = true;
+cutXY = Wc & (imdilate(~C.T, nb26) | faceXY);
+clear faceXY
+dXY = bwdist(cutXY) * h;
+kz  = reshape(1:szC(3), 1, 1, []);
+dZ  = single(min(kz - 1, szC(3) - kz)) * h;
+edge = ifc & (dXY < f.EDGE_EXCL_XY_MM | dZ < f.EDGE_EXCL_Z_MM);
+
+%%% Fold metric on the coarse grid
+switch f.FOLD_METRIC
+    case 'curvature'
+        val = surface_curvature(Wc, h, f.FOLD_SIGMA_MM);
+        hi_is_crown = true;
+        thr = [-f.K_FUNDUS_PER_MM, f.K_CROWN_PER_MM];     % [fundus below, crown above]
+    case 'sulc'
+        rr   = f.ENVELOPE_MM / h;
+        hull = (bwdist(~(bwdist(Wc) <= rr)) > rr) | Wc;   % Euclidean closing of WM
+        if ~any(~hull(:))
+            warning('net:hull', ['WM envelope fills the whole array (ENVELOPE_MM too large ', ...
+                    'for the block margin); sulcal depth undefined, all interface = wall.']);
+            val = zeros(szC, 'single');
+        else
+            val = bwdist(~hull) * h;                       % depth below envelope, mm
+        end
+        clear hull
+        hi_is_crown = false;
+        thr = [f.SULC_CROWN_MAX_MM, f.SULC_FUNDUS_MIN_MM]; % [crown below, fundus above]
+end
+
+%%% Classify interface points; propagate to nearest-interface territory
+ii = find(ifc);
+if isempty(ii)
+    warning('net:ifc', 'Interface vanished on the %g-um grid; all voxels classed edge.', cg);
+    terr = 4 * ones(szC, 'uint8');
+else
+    v  = double(val(ii));
+    ed = edge(ii);
+    if strcmp(f.FOLD_RULE, 'tertile') && any(~ed)
+        thr = quantile(v(~ed), [1/3 2/3]);
+    end
+    if hi_is_crown
+        isC = v > thr(2); isF = v < thr(1);
+    else
+        isC = v < thr(1); isF = v > thr(2);
+    end
+    cls = 2 * ones(numel(ii), 1, 'uint8');
+    cls(isC) = 1; cls(isF) = 3; cls(ed) = 4;
+    Lc = zeros(szC, 'uint8');
+    Lc(ii) = cls;
+    [~, nn] = bwdist(ifc);
+    terr = Lc(nn);
+    g.thr = thr;
+    g.val_iface = v(~ed);
+    g.n_crown = nnz(cls == 1); g.n_wall = nnz(cls == 2);
+    g.n_fundus = nnz(cls == 3); g.n_edge = nnz(cls == 4);
+    clear Lc nn
+end
+clear val ifc edge
+
+if isequal(szC, szF), T = terr; else, T = imresize3(terr, szF, 'nearest'); end
+clear terr
+lab = NB.lab;
+inL = lab > 0;
+F(inL) = T(inL);
+clear T inL
+
+%%% Deep WM (and optional depth certainty at cut faces)
+last = cfg.depth_edges_mm(end);
+W1   = lab == 1;
+if f.DEPTH_CERTAINTY
+    dAll = min(dXY, dZ);                                  % distance to any cut face, mm
+    if isequal(szC, szF), Dcut = dAll; else, Dcut = imresize3(dAll, szF, 'nearest'); end
+    clear dAll
+    deep = W1 & min(NB.D, Dcut) > last;
+    unc  = W1 & ~deep & NB.D > Dcut;
+    F(unc) = 4;
+    g.n_uncertain_vox = nnz(unc);
+    clear Dcut unc
+else
+    deep = W1 & NB.D > last;
+end
+F(deep) = 5;
+g.n_deep_vox = nnz(deep);
+end
+
+
+function K = surface_curvature(Wc, h, sigma_mm)
+% kappa1 + kappa2 (1/mm) of the smoothed WM surface; > 0 convex WM (crown).
+sd = (bwdist(Wc) - bwdist(~Wc)) * h;
+sd = imgaussfilt3(sd, sigma_mm / h);
+[gx, gy, gz] = gradient(sd, h);
+clear sd
+nrm = sqrt(gx.^2 + gy.^2 + gz.^2) + eps('single');
+gx = gx ./ nrm; gy = gy ./ nrm; gz = gz ./ nrm;
+clear nrm
+[dxx, ~, ~] = gradient(gx, h); clear gx
+[~, dyy, ~] = gradient(gy, h); clear gy
+[~, ~, dzz] = gradient(gz, h); clear gz
+K = dxx + dyy + dzz;
+end
+
+
+function [Tb, Tc, g, geo] = stratify(NB, f, cfg)
+% Configuration-dependent part: fold classes, strata, per-stratum metrics.
+iso = NB.iso;
+[F, g] = fold_geometry(NB, f, cfg);
+e   = cfg.depth_edges_mm;
+nb  = numel(e) - 1;
+lab = NB.lab;
+
+Bnd = zeros(NB.szF, 'uint8');
+sel = lab == 1 & F >= 1 & F <= 4;
+Bnd(sel) = uint8(discretize(NB.D(sel), e));           % beyond range -> 0
+clear sel
+
+%%% Stratum code per voxel: 1 + (c-1) + 2*(f-1) + 10*b  (c 1..2, f 1..5, b 0..nb)
+ncode = 10 * (nb + 1);
+code  = uint16(lab) + 2 * uint16(F) + 10 * uint16(Bnd);
+code  = code - 2;                                      % saturates at 0
+code(lab == 0 | F == 0) = 0;
+
+inC  = code > 0;
+nVox = hcount(code(inC), ncode);
+nEpv = hcount(code(inC & NB.epv), ncode);
+nVes = hcount(code(inC & NB.ves), ncode);
+nEns = hcount(code(inC & NB.ens), ncode);
+clear inC
+cit = code(NB.it); ens_it = NB.ens(NB.it); okt = cit > 0;
+Lt   = acc(cit(okt), NB.wt(okt), ncode) / 1000;
+LtIn = acc(cit(okt & ens_it), NB.wt(okt & ens_it), ncode) / 1000;
+cie = code(NB.ie); oke = cie > 0;
+Le   = acc(cie(oke), NB.we(oke), ncode) / 1000;
+cjt = code(NB.jt); ens_jt = NB.ens(NB.jt); okj = cjt > 0;
+Jt   = acc(cjt(okj), 1, ncode);
+JtIn = acc(cjt(okj & ens_jt), 1, ncode);
+cje = code(NB.je); okq = cje > 0;
+Je   = acc(cje(okq), 1, ncode);
+clear code
+
+%%% Components: fold class by majority, depth band by median depth
+nC = NB.nC;
+Fe = F(NB.ie_ens);
+fcnt = zeros(nC, 5);
+for fi = 1:5, fcnt(:, fi) = acc(NB.Lid, double(Fe == fi), nC); end
+[mx, cfold] = max(fcnt, [], 2);
+cfold(mx == 0) = 0;
+if nC == 0, cfold = zeros(0, 1); end
+cband = discretize(NB.cdepth, e);
+cband(isnan(cband)) = 0;
+cband(NB.ccomp == 2 | cfold == 5 | cfold == 0) = 0;
+ccode = 1 + (NB.ccomp - 1) + 2 * (cfold - 1) + 10 * cband;
+ccode(cfold == 0) = 0;
+
+fold_names = {'crown','wall','fundus','edge','deep'};
+fold_ext   = [{'none'}, fold_names];
+blab = arrayfun(@(b) sprintf('%g-%g mm', e(b), e(b+1)), 1:nb, 'UniformOutput', false);
+blab_ext = [{'none'}, blab];
+comp_names = {'wm','gm'};
+Tc = table((1:nC)', reshape(comp_names(NB.ccomp), [], 1), reshape(fold_ext(cfold + 1), [], 1), ...
+    NB.cvol_mm3, NB.cepvs_mm3, NB.cn_gm ./ max(1, NB.cn_wm + NB.cn_gm), NB.cdepth, ...
+    reshape(blab_ext(cband + 1), [], 1), NB.clen_mm, NB.cjun, NB.ctreej, ...
+    'VariableNames', {'comp_id','compartment','fold','vol_mm3','epvs_only_vol_mm3', ...
+                      'frac_in_gm','median_depth_mm','depth_band','skel_len_mm', ...
+                      'epvs_junctions','tree_junctions_inside'});
+
+%%% Strata: {compartment, fold, band label, band_idx, codes}
+mk = @(c, fs, bs) reshape(1 + (c - 1) + 2 * (fs(:) - 1) + 10 * reshape(bs, 1, []), [], 1);
+ALL = nb + 2; DEEP = nb + 1;
+defs = cell(0, 5);
+for fi = 1:4                                              % crown, wall, fundus, edge
+    for b = 1:nb, defs(end+1, :) = {1, fold_names{fi}, blab{b}, b, mk(1, fi, b)}; end %#ok<AGROW>
+    defs(end+1, :) = {1, fold_names{fi}, 'all', ALL, mk(1, fi, 0:nb)}; %#ok<AGROW>
+end
+for b = 1:nb, defs(end+1, :) = {1, 'all_classified', blab{b}, b, mk(1, 1:3, b)}; end %#ok<AGROW>
+defs(end+1, :) = {1, 'all_classified', 'all', ALL, mk(1, 1:3, 0:nb)};
+for b = 1:nb, defs(end+1, :) = {1, 'all_depth', blab{b}, b, mk(1, 1:4, b)}; end %#ok<AGROW>
+defs(end+1, :) = {1, 'all_depth', 'all', ALL, mk(1, 1:4, 0:nb)};
+defs(end+1, :) = {1, 'deep', 'deep', DEEP, mk(1, 5, 0)};
+defs(end+1, :) = {1, 'all', 'all', ALL, mk(1, 1:5, 0:nb)};
+if NB.has_gm && cfg.include_gm
+    for fi = 1:4, defs(end+1, :) = {2, fold_names{fi}, 'cortex', 0, mk(2, fi, 0)}; end %#ok<AGROW>
+    defs(end+1, :) = {2, 'all', 'cortex', 0, mk(2, 1:4, 0)};
+end
+
+rows = cell(size(defs, 1), 1);
+for d = 1:size(defs, 1)
+    [c, fl, bl, bi, cds] = defs{d, :};
+    if c == 1
+        comp_has_epvs = NB.wm_epvs_vox >= cfg.min_epvs_present_vox; comp_epvs_vox = NB.wm_epvs_vox;
+    else
+        comp_has_epvs = NB.info.gm_has_epvs; comp_epvs_vox = NB.info.gm_epvs_vox;
+    end
+    n_vox = sum(nVox(cds));
+    t_mm3 = n_vox * iso^3 / 1e9;
+    lt = sum(Lt(cds)); ltin = sum(LtIn(cds)); le = sum(Le(cds));
+    jtt = sum(Jt(cds)); jtin = sum(JtIn(cds)); jee = sum(Je(cds));
+
+    coverage = ltin / lt;
+    enrich   = (jtin / jtt) / coverage;
+    tree_bd  = jtt / lt;
+    if lt < cfg.min_tree_len_mm, coverage = NaN; enrich = NaN; tree_bd = NaN; end
+    epv_bd = jee / le;
+    if le < cfg.min_tree_len_mm, epv_bd = NaN; end
+
+    selc = ismember(ccode, cds);
+    vtot = sum(NB.cvol_mm3(selc));
+    if vtot > 0
+        largest  = max(NB.cvol_mm3(selc)) / vtot;
+        branched = sum(NB.cvol_mm3(selc & NB.cjun > 0)) / vtot;
+    else
+        largest = NaN; branched = NaN;
+    end
+
+    fr   = [sum(nEpv(cds)), sum(nVes(cds)), sum(nEns(cds))] / n_vox;
+    dens = [lt, ltin, lt - ltin, jtt, jtin, jtt - jtin] / t_mm3;
+    cpm  = nnz(selc) / t_mm3;
+    if t_mm3 < cfg.min_stratum_mm3
+        fr(:) = NaN; dens(:) = NaN; cpm = NaN;
+        coverage = NaN; enrich = NaN; tree_bd = NaN; epv_bd = NaN;
+    end
+
+    rows{d} = struct( ...
+        'compartment',comp_names{c}, 'fold',fl, 'depth_band',bl, 'band_idx',bi, ...
+        'compartment_has_epvs',comp_has_epvs, 'compartment_epvs_vox',comp_epvs_vox, ...
+        'tissue_mm3',t_mm3, 'epvs_frac',fr(1), 'ves_frac',fr(2), 'ens_frac',fr(3), ...
+        'tree_len_mm',lt, 'tree_len_in_epvs_mm',ltin, 'coverage',coverage, ...
+        'tree_junctions',jtt, 'tree_junctions_in_epvs',jtin, ...
+        'branch_enrichment',enrich, 'tree_branch_per_mm',tree_bd, ...
+        'epvs_len_mm',le, 'epvs_junctions',jee, 'epvs_branch_per_mm',epv_bd, ...
+        'len_density_tree',dens(1), 'len_density_epvs',dens(2), 'len_density_ves',dens(3), ...
+        'branch_density_tree',dens(4), 'branch_density_epvs',dens(5), 'branch_density_ves',dens(6), ...
+        'n_comp',nnz(selc), 'comp_per_mm3',cpm, ...
+        'largest_comp_share',largest, 'branched_share',branched);
+end
+Tb  = struct2table(vertcat(rows{:}));
+geo = struct('F',F, 'B',Bnd, 'iso_um',iso);
+end
+
+
+function S = sweep_rows(Tb, FS, f, k, swept)
+% One row per volume for the sweep summary.
+T = Tb(strcmp(Tb.compartment, 'wm'), :);
+vols = unique(T(:, {'name','group','region'}), 'rows', 'stable');
+rows = cell(height(vols), 1);
+for v = 1:height(vols)
+    rv  = strcmp(T.name, vols.name{v}) & strcmp(T.region, vols.region{v});
+    get = @(fold, band, col) first_or_nan(T.(col)(rv & strcmp(T.fold, fold) & strcmp(T.depth_band, band)));
+    tot = get('all', 'all', 'tissue_mm3');
+    fsv = FS(strcmp(FS.name, vols.name{v}) & strcmp(FS.region, vols.region{v}), :);
+    n_if = fsv.n_iface_crown + fsv.n_iface_wall + fsv.n_iface_fundus;
+    row = struct('config_id',k, 'tag',f.tag, 'name',vols.name{v}, 'group',vols.group{v}, ...
+                 'region',vols.region{v});
+    for n = 1:numel(swept), row.(swept{n}) = f.(swept{n}); end
+    row.wm_mm3          = tot;
+    row.wm_share_crown  = get('crown',  'all',  'tissue_mm3') / tot;
+    row.wm_share_wall   = get('wall',   'all',  'tissue_mm3') / tot;
+    row.wm_share_fundus = get('fundus', 'all',  'tissue_mm3') / tot;
+    row.wm_share_edge   = get('edge',   'all',  'tissue_mm3') / tot;
+    row.wm_share_deep   = get('deep',   'deep', 'tissue_mm3') / tot;
+    row.iface_share_crown  = fsv.n_iface_crown / max(1, n_if);
+    row.iface_share_fundus = fsv.n_iface_fundus / max(1, n_if);
+    row.iface_share_edge   = fsv.frac_iface_edge;
+    row.cov_ratio_fundus_crown  = get('fundus', 'all', 'coverage')  / get('crown', 'all', 'coverage');
+    row.epvs_ratio_fundus_crown = get('fundus', 'all', 'epvs_frac') / get('crown', 'all', 'epvs_frac');
+    rows{v} = row;
+end
+S = struct2table(vertcat(rows{:}), 'AsArray', true);
+end
+
+
+function x = first_or_nan(v)
+if isempty(v), x = NaN; else, x = v(1); end
+end
+
+
+function B = to_grid(A, sz)
+if isequal([size(A, 1) size(A, 2) size(A, 3)], sz)
+    B = logical(A);
+else
+    B = imresize3(single(A), sz, 'linear') >= 0.5;
+end
+end
+
+
+function n = hcount(v, ncode)
+if isempty(v), n = zeros(ncode, 1); return; end
+n = reshape(histcounts(v, 0.5:1:ncode + 0.5), [], 1);
+end
+
+
+function out = acc(sub, w, n)
+out = zeros(n, 1);
+if isempty(sub) || n == 0, return; end
+if isscalar(w), w = repmat(w, numel(sub), 1); end
+out = accumarray(double(sub(:)), double(w(:)), [n 1]);
+end
+
+
+function qc_metric_hist(g, f, cfg, ttl, fname)
+% Histogram of the fold metric at non-edge interface points, with thresholds.
+fc = fold_colors();
+fh = figure('Visible','off', 'Color','w', 'Position',[100 100 820 470]);
+ax = axes(fh); hold(ax, 'on');
+v = g.val_iface;
+if ~isempty(v)
+    lim = prctile(v, [0.5 99.5]);
+    if lim(2) <= lim(1), lim = lim + [-1 1]; end
+    histogram(ax, v(v >= lim(1) & v <= lim(2)), 100, 'FaceColor',[0.55 0.55 0.55], 'EdgeColor','none');
+end
+if strcmp(f.FOLD_METRIC, 'curvature')
+    if all(isfinite(g.thr))
+        xline(ax, g.thr(1), '-', 'fundus', 'Color',fc(3,:), 'LineWidth',1.5);
+        xline(ax, g.thr(2), '-', 'crown',  'Color',fc(1,:), 'LineWidth',1.5);
+    end
+    xline(ax, 0, 'k--');
+    xlabel(ax, 'WM surface curvature \kappa_1 + \kappa_2 (mm^{-1});  > 0 crown, < 0 fundus');
+else
+    if all(isfinite(g.thr))
+        xline(ax, g.thr(1), '-', 'crown',  'Color',fc(1,:), 'LineWidth',1.5);
+        xline(ax, g.thr(2), '-', 'fundus', 'Color',fc(3,:), 'LineWidth',1.5);
+    end
+    xlabel(ax, 'Depth of interface below WM envelope (mm);  shallow crown, deep fundus');
+end
+n_ne = g.n_crown + g.n_wall + g.n_fundus;
+pc = 100 * [g.n_crown g.n_wall g.n_fundus] / max(1, n_ne);
+title(ax, {ttl, sprintf(['crown %.0f%%, wall %.0f%%, fundus %.0f%% of non-edge interface; ', ...
+    'edge %.0f%% of interface; deep WM %.1f mm^3'], pc, 100 * g.n_edge / max(1, n_ne + g.n_edge), ...
+    g.n_deep_vox * cfg.iso_um^3 / 1e9)}, 'FontWeight','normal', 'FontSize',9);
+ylabel(ax, sprintf('Interface voxels (%g-\\mum grid)', g.curv_grid_um));
+set(ax, 'Box','off', 'TickDir','out');
+if cfg.grid_on, grid(ax, 'on'); end
+exportgraphics(fh, fname, 'Resolution', 150);
+close(fh);
+end
+
+
+function qc_fold_overlay(V, wm, gm, islands, geo, cfg, qc, ttl, png_name, tif_name)
+% Fold territories, interface, depth-band boundaries and (optionally)
+% EPVS/vessel outlines on mu_s: PNG montage (qc.png) and TIF stack (qc.tif).
+mus = V.(cfg.mus_field);
+vz  = cfg.voxel_um(3);
+zs  = find(squeeze(any(any(wm, 1), 2)));
+if isempty(zs), warning('net:qc', 'No WM sections; QC skipped.'); return; end
+pages = zs(1:qc.tif_step:end);
+
+vals = cell(numel(pages), 1);
+for p = 1:numel(pages)
+    m = wm(:, :, pages(p));
+    v = double(mus(:, :, pages(p)));
+    v = v(m & isfinite(v));
+    if numel(v) > 2e4, v = v(randperm(numel(v), 2e4)); end
+    vals{p} = v;
+end
+vals = vertcat(vals{:});
+win = [0 1];
+if ~isempty(vals), win = prctile(vals, [1 99]); end
+if win(2) <= win(1), win(2) = win(1) + 1; end
+fc = fold_colors();
+
+if qc.png
+    nT  = min(qc.n_sections, numel(zs));
+    sel = unique(zs(round(linspace(1, numel(zs), nT))));
+    nT  = numel(sel);
+    ncol = min(3, nT); nrow = ceil(nT / ncol);
+    fh = figure('Visible','off', 'Color','w', 'Position',[100 100 520 * ncol 560 * nrow]);
+    tl = tiledlayout(fh, nrow, ncol, 'TileSpacing','compact', 'Padding','compact');
+    for t = 1:nT
+        z = sel(t);
+        rgb = render_fold_section(z, qc.montage_scale, V, wm, gm, islands, geo, cfg, qc, win);
+        ax = nexttile(tl);
+        image(ax, rgb); axis(ax, 'image'); axis(ax, 'off'); hold(ax, 'on');
+        title(ax, sprintf('section %d (z = %.2f mm)', z, (z - 1) * vz / 1000), 'FontWeight','normal');
+        if t == 1
+            px = qc.scalebar_mm * 1000 / (cfg.voxel_um(2) / qc.montage_scale);
+            x0 = 0.05 * size(rgb, 2); y0 = 0.95 * size(rgb, 1);
+            plot(ax, [x0 x0 + px], [y0 y0], 'w-', 'LineWidth', 3);
+            text(ax, x0, y0, sprintf('%g mm', qc.scalebar_mm), 'Color','w', ...
+                 'VerticalAlignment','bottom', 'FontWeight','bold');
+        end
+    end
+    hl = [patch(ax, NaN, NaN, fc(1,:), 'EdgeColor','none', 'DisplayName','crown'), ...
+          patch(ax, NaN, NaN, fc(2,:), 'EdgeColor','none', 'DisplayName','wall'), ...
+          patch(ax, NaN, NaN, fc(3,:), 'EdgeColor','none', 'DisplayName','fundus'), ...
+          patch(ax, NaN, NaN, fc(5,:), 'EdgeColor','none', ...
+                'DisplayName',sprintf('deep (> %g mm)', cfg.depth_edges_mm(end))), ...
+          patch(ax, NaN, NaN, fc(4,:), 'EdgeColor','none', 'DisplayName','edge (excluded, hatched)'), ...
+          plot(ax, NaN, NaN, '-', 'Color',[0.5 0.5 0.5], 'LineWidth',1.5, ...
+               'DisplayName','depth-band boundaries (white)'), ...
+          plot(ax, NaN, NaN, '-', 'Color',island_color(), 'LineWidth',1.5, ...
+               'DisplayName','enclosed GM (not used as cortex)')];
+    if qc.show_seg
+        hl(end+1) = plot(ax, NaN, NaN, '-', 'Color',[0.20 0.45 1.00], 'LineWidth',1.5, 'DisplayName','EPVS outline');
+        hl(end+1) = plot(ax, NaN, NaN, '-', 'Color',[0.95 0.50 0.10], 'LineWidth',1.5, 'DisplayName','vessel outline');
+    end
+    lg = legend(hl, 'Orientation','horizontal', 'Box','off', 'NumColumns', 4);
+    lg.Layout.Tile = 'south';
+    title(tl, {ttl, sprintf('fold territories on \\mu_s; interface coloured by class; depth edges %s mm', ...
+          mat2str(cfg.depth_edges_mm))}, 'FontSize', 10);
+    exportgraphics(fh, png_name, 'Resolution', 200);
+    close(fh);
+end
+
+if ~qc.tif, return; end
+np   = numel(pages);
+px_y = cfg.voxel_um(1) / qc.tif_scale;
+px_x = cfg.voxel_um(2) / qc.tif_scale;
+desc = sprintf('ImageJ=1.53t\nimages=%d\nslices=%d\nunit=micron\nspacing=%g\nloop=false\n', ...
+               np, np, qc.tif_step * vz);
+can_text = ~isempty(which('insertText'));
+t = Tiff(tif_name, 'w8');
+closer = onCleanup(@() t.close());
+for p = 1:np
+    z = pages(p);
+    rgb = render_fold_section(z, qc.tif_scale, V, wm, gm, islands, geo, cfg, qc, win);
+    if can_text
+        try
+            rgb = insertText(rgb, [8 8], sprintf('section %d   z = %.2f mm', z, (z - 1) * vz / 1000), ...
+                             'FontSize',18, 'TextColor','white', 'BoxColor','black', 'BoxOpacity',0.6);
+        catch
+            can_text = false;
+        end
+    end
+    ts = struct();
+    ts.ImageLength         = size(rgb, 1);
+    ts.ImageWidth          = size(rgb, 2);
+    ts.Photometric         = Tiff.Photometric.RGB;
+    ts.BitsPerSample       = 8;
+    ts.SamplesPerPixel     = 3;
+    ts.PlanarConfiguration = Tiff.PlanarConfiguration.Chunky;
+    ts.Compression         = Tiff.Compression.LZW;
+    ts.RowsPerStrip        = 16;
+    ts.XResolution         = 1 / px_x;
+    ts.YResolution         = 1 / px_y;
+    ts.ResolutionUnit      = Tiff.ResolutionUnit.None;
+    ts.Software            = 'MATLAB epvs_network_fold_depth';
+    if p == 1, ts.ImageDescription = desc; end
+    t.setTag(ts);
+    t.write(rgb);
+    if p < np, t.writeDirectory(); end
+end
+clear closer
+[pth, nm] = fileparts(tif_name);
+writetable(table((1:np)', pages(:), (pages(:) - 1) * vz / 1000, ...
+    'VariableNames', {'page','section','z_mm'}), fullfile(pth, [nm '_pages.csv']));
+end
+
+
+function rgb = render_fold_section(z, scale, V, wm, gm, islands, geo, cfg, qc, win)
+mus = V.(cfg.mus_field);
+n1 = size(mus, 1); n2 = size(mus, 2);
+zi = min(size(geo.F, 3), max(1, round((z - 0.5) * cfg.voxel_um(3) / geo.iso_um + 0.5)));
+Fi = geo.F(:, :, zi);
+Bi = geo.B(:, :, zi);
+if ~isequal(size(Fi), [n1 n2])
+    Fi = imresize(Fi, [n1 n2], 'nearest');
+    Bi = imresize(Bi, [n1 n2], 'nearest');
+end
+mu = single(mus(:, :, z));
+w2 = wm(:, :, z);
+g2 = gm(:, :, z);
+i2 = islands(:, :, z);
+e2 = logical(V.epvs(:, :, z));
+s2 = logical(V.seg(:, :, z));
+if scale ~= 1
+    sz = max(1, round([n1 n2] * scale));
+    mu = imresize(mu, sz, 'bilinear');
+    Fi = imresize(Fi, sz, 'nearest'); Bi = imresize(Bi, sz, 'nearest');
+    w2 = imresize(w2, sz, 'nearest'); g2 = imresize(g2, sz, 'nearest');
+    i2 = imresize(i2, sz, 'nearest');
+    e2 = imresize(e2, sz, 'nearest'); s2 = imresize(s2, sz, 'nearest');
+end
+gray = (mu - win(1)) / (win(2) - win(1));
+gray(~isfinite(gray)) = 0;
+gray = min(max(gray, 0), 1);
+R = gray; G = gray; B = gray;
+fc = fold_colors();
+for f = [1 2 3 5]                                         % crown, wall, fundus, deep
+    [R, G, B] = paint(R, G, B, w2 & Fi == f, fc(f, :), qc.alpha);
+end
+[cc, rr] = meshgrid(1:size(R, 2), 1:size(R, 1));          % edge zone, hatched
+[R, G, B] = paint(R, G, B, w2 & Fi == 4 & mod(rr + cc, 10) < 3, fc(4, :), 1);
+if qc.show_seg
+    [R, G, B] = paint(R, G, B, bwperim(e2), [0.20 0.45 1.00], 1);
+    [R, G, B] = paint(R, G, B, bwperim(s2), [0.95 0.50 0.10], 1);
+end
+[R, G, B] = paint(R, G, B, bwperim(i2), island_color(), 1);   % islands
+nb = numel(cfg.depth_edges_mm) - 1;                       % depth-band boundaries
+Bx = Bi; Bx(w2 & Fi == 5) = nb + 1; Bx(~w2) = 0;
+[R, G, B] = paint(R, G, B, w2 & Bx > 0 & imdilate(Bx, ones(3)) > Bx, [1 1 1], 1);
+il = w2 & imdilate(g2, ones(3));                          % interface, by class
+for f = 1:4
+    [R, G, B] = paint(R, G, B, imdilate(il & Fi == f, ones(3)), fc(f, :), 1);
+end
+rgb = uint8(255 * cat(3, R, G, B));
+end
+
+
+function [R, G, B] = paint(R, G, B, m, c, a)
+R(m) = (1 - a) * R(m) + a * c(1);
+G(m) = (1 - a) * G(m) + a * c(2);
+B(m) = (1 - a) * B(m) + a * c(3);
+end
+
+
+function c = island_color()
+c = [0.20 0.85 0.20];                                     % green
+end
+
+
+function fc = fold_colors()
+% crown gold, wall light grey, fundus magenta, edge red, deep olive
+fc = [0.95 0.75 0.10; 0.75 0.75 0.75; 0.85 0.20 0.75; 0.90 0.10 0.10; 0.55 0.60 0.25];
+end
+
+
+function P = metric_rows()
+% {ylabel, primary column, secondary column (dashed) or '', scale, log y}
+P = { 'EPVS volume fraction (%)',     'epvs_frac',           '',                    100, false;
+      'Coverage (% of tree length)',  'coverage',            '',                    100, false;
+      'Length density (mm/mm^3)',     'len_density_epvs',    'len_density_tree',      1, true;
+      'Branch density (per mm^3)',    'branch_density_epvs', 'branch_density_tree',   1, true };
+end
+
+
+function y = get_profile(T, reg, fold, name, col, nb)
+% 1 x (nb+1): depth bands for 'fold', then the deep-WM value.
+y  = nan(1, nb + 1);
+r  = strcmp(T.region, reg) & strcmp(T.name, name);
+rf = r & strcmp(T.fold, fold) & T.band_idx >= 1 & T.band_idx <= nb;
+y(T.band_idx(rf)) = T.(col)(rf);
+rd = r & strcmp(T.fold, 'deep') & T.band_idx == nb + 1;
+if any(rd), y(nb + 1) = T.(col)(find(rd, 1)); end
+end
+
+
+function fh = plot_depth_profiles(T, opt, mode)
+% Rows: metrics. Columns: region x fold (opt.plot_folds). x: depth bands, then
+% deep WM (same value in every fold column; separated by a dotted line).
+% mode = 'subjects' | 'groups' | 'groups_meanonly'.
+nb = numel(opt.depth_edges) - 1;
+T  = T(strcmp(T.compartment, 'wm'), :);
+if ~strcmp(mode, 'subjects'), T = T(ismember(T.group, {'control','severe'}), :); end
+P  = metric_rows(); np = size(P, 1);
+regions = {'front','occip'}; reg_disp = {'Frontal','Occipital'};
+folds = opt.plot_folds; nf = numel(folds); ncol = 2 * nf;
+gcol = group_colors();
+subs_order = {'CAA26','CAA6','CAA22','CAA25','CAA17'};
+mk     = {'o','s','^','d','v'};
+styles = {'-', '--'};
+tint   = @(c) 0.45 * c + 0.55;
+ticks  = [opt.band_ticks, {opt.deep_tick}];
+
+fh = figure('Visible',opt.vis, 'Color','w', 'Position',[100 100 280 * ncol + 120 1150], ...
+            'CreateFcn','set(gcbo,''Visible'',''on'')');
+tl = tiledlayout(fh, np, ncol, 'TileSpacing','compact', 'Padding','compact');
+axg = gobjects(np, ncol);
+hl  = gobjects(0);
+for m = 1:np
+    vcols = P(m, 2:3); vcols = vcols(~cellfun(@isempty, vcols));
+    for r = 1:2
+        for fi = 1:nf
+            col = (r - 1) * nf + fi;
+            ax  = nexttile(tl, (m - 1) * ncol + col); hold(ax, 'on');
+            axg(m, col) = ax;
+            first = (m == 1 && col == 1);
+            rreg = strcmp(T.region, regions{r});
+            if strcmp(mode, 'subjects')
+                for s = 1:numel(subs_order)
+                    rs = rreg & strcmp(T.name, subs_order{s});
+                    if ~any(rs), continue; end
+                    grp = T.group{find(rs, 1)}; c = gcol.(grp);
+                    for v = 1:numel(vcols)
+                        y = get_profile(T, regions{r}, folds{fi}, subs_order{s}, vcols{v}, nb) * P{m, 4};
+                        if P{m, 5}, y(y <= 0) = NaN; end
+                        if v == 1, mfc = c; else, mfc = 'w'; end
+                        h = plot(ax, 1:nb, y(1:nb), [styles{v} mk{s}], 'Color',c, 'MarkerFaceColor',mfc, ...
+                                 'MarkerSize',6, 'LineWidth',1);
+                        plot(ax, nb + 1, y(nb + 1), mk{s}, 'Color',c, 'MarkerFaceColor',mfc, 'MarkerSize',6);
+                        if first && v == 1
+                            h.DisplayName = sprintf('%s (%s)', subs_order{s}, grp); hl(end+1) = h; %#ok<AGROW>
+                        end
+                    end
+                end
+            else
+                groups = {'control','severe'};
+                for gi = 1:2
+                    c  = gcol.(groups{gi});
+                    rg = rreg & strcmp(T.group, groups{gi});
+                    if ~any(rg), continue; end
+                    subs = unique(T.name(rg), 'stable');
+                    for v = 1:numel(vcols)
+                        Y = nan(numel(subs), nb + 1);
+                        for s = 1:numel(subs)
+                            Y(s, :) = get_profile(T, regions{r}, folds{fi}, subs{s}, vcols{v}, nb) * P{m, 4};
+                        end
+                        if v == 1, mfc = c; else, mfc = 'w'; end
+                        if strcmp(mode, 'groups')
+                            Yp = Y; if P{m, 5}, Yp(Yp <= 0) = NaN; end
+                            for s = 1:numel(subs)
+                                plot(ax, 1:nb, Yp(s, 1:nb), styles{v}, 'Color',tint(c), 'LineWidth',0.8);
+                                plot(ax, nb + 1, Yp(s, nb + 1), '.', 'Color',tint(c), 'MarkerSize',10);
+                            end
+                        end
+                        mu = mean(Y, 1, 'omitnan');           % equal subject weight
+                        if P{m, 5}, mu(mu <= 0) = NaN; end
+                        h = plot(ax, 1:nb, mu(1:nb), [styles{v} 'o'], 'Color',c, 'MarkerFaceColor',mfc, ...
+                                 'MarkerSize',6, 'LineWidth',2);
+                        plot(ax, nb + 1, mu(nb + 1), 'o', 'Color',c, 'MarkerFaceColor',mfc, ...
+                             'MarkerSize',7, 'LineWidth',1.5);
+                        if first && v == 1
+                            h.DisplayName = sprintf('%s mean (n = %d)', groups{gi}, numel(subs));
+                            hl(end+1) = h; %#ok<AGROW>
+                        end
+                    end
+                end
+            end
+            xline(ax, nb + 0.5, ':', 'Color',[0.5 0.5 0.5], 'HandleVisibility','off');
+            style_axes(ax, opt, P{m, 5}, ticks);
+            if col == 1, ylabel(ax, P{m, 1}); end
+            if m == 1, title(ax, sprintf('%s, %s', reg_disp{r}, fold_display(folds{fi})), 'FontWeight','normal'); end
+            if m == np, xlabel(ax, 'Depth from grey-white interface (mm)'); end
+        end
+    end
+end
+apply_share(axg, opt.share_scope, nf);
+if strcmp(mode, 'groups')
+    hl(end+1) = plot(ax, NaN, NaN, '-', 'Color',tint([0.25 0.25 0.25]), 'LineWidth',0.8, ...
+                     'DisplayName','individual subjects');
+end
+hl(end+1) = plot(ax, NaN, NaN, 'k-o',  'MarkerFaceColor','k', 'DisplayName','EPVS (solid)');
+hl(end+1) = plot(ax, NaN, NaN, 'k--o', 'MarkerFaceColor','w', 'DisplayName','whole tree (dashed)');
+lg = legend(hl, 'Orientation','horizontal', 'Box','off', 'AutoUpdate','off', 'NumColumns',4);
+lg.Layout.Tile = 'south';
+switch mode
+    case 'subjects', sfx = 'per subject';
+    case 'groups',   sfx = 'control vs severe means with individual subjects';
+    otherwise,       sfx = 'control vs severe means';
+end
+title(tl, {sprintf('White matter: EPVS network by depth and fold class (%s)', sfx), ...
+      sprintf('%s; deep WM shown after the dotted line (same in every fold column)', opt.rule_text)}, ...
+      'FontSize', 11);
+end
+
+
+function fh = plot_depth_by_fold(T, opt, mode)
+% All fold classes on one axis vs depth: crown, wall, fundus, edge and all
+% WM (all_depth = crown + wall + fundus + edge) by depth band, then deep WM
+% after the dotted line. Rows: the same metrics as the depth figures (EPVS
+% solid, whole tree dashed on the density rows).
+% mode = 'groups'  : control and severe means (subjects weighted equally);
+%                    columns Frontal control | Frontal severe | Occipital ...
+%        'subjects': one column per subject x region (frontal block, then occipital).
+nb = numel(opt.depth_edges) - 1;
+T  = T(strcmp(T.compartment, 'wm'), :);
+P  = metric_rows(); np = size(P, 1);
+regions = {'front','occip'}; reg_disp = {'Frontal','Occipital'};
+fc    = fold_colors();
+cls   = {'crown','wall','fundus','edge','all_depth'};
+cdisp = {'crown','wall','fundus','edge','all WM'};
+ccol  = [fc(1:4, :); 0.15 0.15 0.15];
+ccol(2, :) = [0.55 0.55 0.55];                    % wall: darker than the QC overlay grey for lines
+clw   = [1.5 1.5 1.5 1.5 2.5];
+dcol  = fc(5, :);
+styles = {'-', '--'};
+ticks  = [opt.band_ticks, {opt.deep_tick}];
+
+%%% Panels: {region, subject names, title}
+panels = cell(0, 3);
+if strcmp(mode, 'groups')
+    for r = 1:2
+        for gname = {'control','severe'}
+            rg = strcmp(T.region, regions{r}) & strcmp(T.group, gname{1});
+            subs = unique(T.name(rg), 'stable');
+            if isempty(subs), continue; end
+            panels(end+1, :) = {regions{r}, subs, ...
+                sprintf('%s, %s (n = %d)', reg_disp{r}, gname{1}, numel(subs))}; %#ok<AGROW>
+        end
+    end
+    sfx = 'control vs severe means, subjects weighted equally';
+else
+    order = {'CAA26','CAA6','CAA22','CAA25','CAA17'};
+    order = [order, setdiff(unique(T.name, 'stable')', order, 'stable')];
+    for r = 1:2
+        for s = 1:numel(order)
+            rs = strcmp(T.region, regions{r}) & strcmp(T.name, order{s});
+            if ~any(rs), continue; end
+            panels(end+1, :) = {regions{r}, order(s), ...
+                sprintf('%s %s (%s)', order{s}, reg_disp{r}, T.group{find(rs, 1)})}; %#ok<AGROW>
+        end
+    end
+    sfx = 'per subject';
+end
+npan = size(panels, 1);
+fh = figure('Visible',opt.vis, 'Color','w', 'Position',[100 100 max(700, 250 * npan + 120) 1150], ...
+            'CreateFcn','set(gcbo,''Visible'',''on'')');
+if npan == 0
+    annotation(fh, 'textbox', [0.3 0.45 0.4 0.1], 'String','No WM strata to plot', 'EdgeColor','none');
+    return
+end
+tl = tiledlayout(fh, np, npan, 'TileSpacing','compact', 'Padding','compact');
+axg = gobjects(np, npan);
+hl  = gobjects(0);
+for m = 1:np
+    vcols = P(m, 2:3); vcols = vcols(~cellfun(@isempty, vcols));
+    for p = 1:npan
+        ax = nexttile(tl, (m - 1) * npan + p); hold(ax, 'on');
+        axg(m, p) = ax;
+        reg = panels{p, 1}; subs = panels{p, 2};
+        first = (m == 1 && p == 1);
+        for v = 1:numel(vcols)
+            for c = 1:numel(cls)
+                Y = nan(numel(subs), nb + 1);
+                for s = 1:numel(subs)
+                    Y(s, :) = get_profile(T, reg, cls{c}, subs{s}, vcols{v}, nb) * P{m, 4};
+                end
+                y = mean(Y, 1, 'omitnan');                    % equal subject weight
+                if P{m, 5}, y(y <= 0) = NaN; end
+                if v == 1, mfc = ccol(c, :); else, mfc = 'w'; end
+                h = plot(ax, 1:nb, y(1:nb), [styles{v} 'o'], 'Color',ccol(c, :), ...
+                         'MarkerFaceColor',mfc, 'MarkerSize',5, 'LineWidth',clw(c));
+                if first && v == 1, h.DisplayName = cdisp{c}; hl(end+1) = h; end %#ok<AGROW>
+                if c == 1                                     % deep WM: one value, drawn once
+                    if v == 1, dfc = dcol; else, dfc = 'w'; end
+                    hd = plot(ax, nb + 1, y(nb + 1), 'o', 'Color',dcol, 'MarkerFaceColor',dfc, ...
+                              'MarkerSize',7, 'LineWidth',1.5);
+                    if first && v == 1
+                        hd.DisplayName = sprintf('deep WM (> %g mm)', opt.depth_edges(end));
+                        hl(end+1) = hd; %#ok<AGROW>
+                    end
+                end
+            end
+        end
+        xline(ax, nb + 0.5, ':', 'Color',[0.5 0.5 0.5], 'HandleVisibility','off');
+        style_axes(ax, opt, P{m, 5}, ticks);
+        if p == 1, ylabel(ax, P{m, 1}); end
+        if m == 1, title(ax, panels{p, 3}, 'FontWeight','normal'); end
+        if m == np, xlabel(ax, 'Depth from grey-white interface (mm)'); end
+    end
+end
+for m = 1:np                                                  % y-sharing by row / region
+    switch opt.share_scope
+        case 'row'
+            share_ylim(axg(m, :));
+        case 'region'
+            for r = 1:2, share_ylim(axg(m, strcmp(panels(:, 1), regions{r}))); end
+    end
+end
+hl(end+1) = plot(ax, NaN, NaN, 'k-o',  'MarkerFaceColor','k', 'DisplayName','EPVS (solid)');
+hl(end+1) = plot(ax, NaN, NaN, 'k--o', 'MarkerFaceColor','w', 'DisplayName','whole tree (dashed)');
+lg = legend(hl, 'Orientation','horizontal', 'Box','off', 'AutoUpdate','off', 'NumColumns',4);
+lg.Layout.Tile = 'south';
+title(tl, {sprintf('White matter: EPVS network by depth, all fold classes (%s)', sfx), ...
+      sprintf('%s; all WM = crown + wall + fundus + edge; deep WM after the dotted line', opt.rule_text)}, ...
+      'FontSize', 11);
+end
+
+
+function d = fold_display(f)
+if strcmp(f, 'all_depth'), d = 'all WM'; else, d = f; end
+end
+
+
+function fh = plot_fold_ratio(T, opt)
+% Fundus / crown ratio per subject vs depth band (log axis; 1 = no fold effect).
+nb = numel(opt.depth_edges) - 1;
+T  = T(strcmp(T.compartment, 'wm') & T.band_idx >= 1 & T.band_idx <= nb, :);
+R  = { 'Coverage, fundus / crown',             'coverage';
+       'EPVS volume fraction, fundus / crown', 'epvs_frac' };
+regions = {'front','occip'}; reg_disp = {'Frontal','Occipital'};
+gcol = group_colors();
+subs_order = {'CAA26','CAA6','CAA22','CAA25','CAA17'};
+mk = {'o','s','^','d','v'};
+
+fh = figure('Visible',opt.vis, 'Color','w', 'Position',[100 100 900 700], ...
+            'CreateFcn','set(gcbo,''Visible'',''on'')');
+tl = tiledlayout(fh, size(R, 1), 2, 'TileSpacing','compact', 'Padding','compact');
+axg = gobjects(size(R, 1), 2);
+hl  = gobjects(0);
+for m = 1:size(R, 1)
+    for r = 1:2
+        ax = nexttile(tl); hold(ax, 'on'); axg(m, r) = ax;
+        G = struct('control', nan(0, nb), 'severe', nan(0, nb));
+        for s = 1:numel(subs_order)
+            base = strcmp(T.region, regions{r}) & strcmp(T.name, subs_order{s});
+            if ~any(base), continue; end
+            grp = T.group{find(base, 1)}; c = gcol.(grp);
+            yF = nan(1, nb); yC = nan(1, nb);
+            rf = base & strcmp(T.fold, 'fundus'); yF(T.band_idx(rf)) = T.(R{m, 2})(rf);
+            rc = base & strcmp(T.fold, 'crown');  yC(T.band_idx(rc)) = T.(R{m, 2})(rc);
+            y = yF ./ yC;
+            y(~isfinite(y) | y <= 0) = NaN;
+            h = plot(ax, 1:nb, y, ['-' mk{s}], 'Color',c, 'MarkerFaceColor',c, ...
+                     'MarkerSize',5, 'LineWidth',0.8);
+            if m == 1 && r == 1
+                h.DisplayName = sprintf('%s (%s)', subs_order{s}, grp); hl(end+1) = h; %#ok<AGROW>
+            end
+            if isfield(G, grp), G.(grp)(end+1, :) = y; end
+        end
+        gn = fieldnames(G);
+        for gi = 1:numel(gn)
+            if isempty(G.(gn{gi})), continue; end
+            gmu = exp(mean(log(G.(gn{gi})), 1, 'omitnan'));
+            h = plot(ax, 1:nb, gmu, '-', 'Color',gcol.(gn{gi}), 'LineWidth',2.5);
+            if m == 1 && r == 1
+                h.DisplayName = sprintf('%s geometric mean', gn{gi}); hl(end+1) = h; %#ok<AGROW>
+            end
+        end
+        yline(ax, 1, 'k--', 'HandleVisibility','off');
+        style_axes(ax, opt, true, opt.band_ticks);
+        if r == 1, ylabel(ax, R{m, 1}); end
+        if m == 1, title(ax, reg_disp{r}, 'FontWeight','normal'); end
+        if m == size(R, 1), xlabel(ax, 'Depth from grey-white interface (mm)'); end
+    end
+end
+apply_share(axg, opt.share_scope, 1);
+lg = legend(hl, 'Orientation','horizontal', 'Box','off', 'AutoUpdate','off', 'NumColumns',4);
+lg.Layout.Tile = 'south';
+title(tl, {'White matter: fundus / crown ratio', opt.rule_text}, 'FontSize', 11);
+end
+
+
+function fh = plot_sweep_summary(S, nCfg, opt)
+% Per configuration: WM share by fold class, edge, deep, and fundus/crown
+% coverage ratio; one line per subject (group colour).
+M = { 'Crown share of WM (%)',          'wm_share_crown',          100;
+      'Fundus share of WM (%)',         'wm_share_fundus',         100;
+      'Edge share of WM (%)',           'wm_share_edge',           100;
+      'Deep share of WM (%)',           'wm_share_deep',           100;
+      'Coverage ratio, fundus / crown', 'cov_ratio_fundus_crown',  1 };
+regions = {'front','occip'}; reg_disp = {'Frontal','Occipital'};
+gcol = group_colors();
+subs_order = {'CAA26','CAA6','CAA22','CAA25','CAA17'};
+mk = {'o','s','^','d','v'};
+fh = figure('Visible',opt.vis, 'Color','w', 'Position',[100 100 max(900, 60 * nCfg + 300) 1300], ...
+            'CreateFcn','set(gcbo,''Visible'',''on'')');
+tl = tiledlayout(fh, size(M, 1), 2, 'TileSpacing','compact', 'Padding','compact');
+axg = gobjects(size(M, 1), 2);
+hl  = gobjects(0);
+for m = 1:size(M, 1)
+    for r = 1:2
+        ax = nexttile(tl); hold(ax, 'on'); axg(m, r) = ax;
+        for s = 1:numel(subs_order)
+            rs = strcmp(S.region, regions{r}) & strcmp(S.name, subs_order{s});
+            if ~any(rs), continue; end
+            c = gcol.(S.group{find(rs, 1)});
+            [x, o] = sort(S.config_id(rs));
+            y = S.(M{m, 2})(rs) * M{m, 3};
+            h = plot(ax, x, y(o), ['-' mk{s}], 'Color',c, 'MarkerFaceColor',c, 'MarkerSize',5, 'LineWidth',1);
+            if m == 1 && r == 1
+                h.DisplayName = sprintf('%s (%s)', subs_order{s}, S.group{find(rs, 1)}); hl(end+1) = h; %#ok<AGROW>
+            end
+        end
+        if m == size(M, 1), yline(ax, 1, 'k--', 'HandleVisibility','off'); end
+        set(ax, 'XLim',[0.5 nCfg + 0.5], 'XTick',1:nCfg, 'Box','off', 'TickDir','out', 'FontSize',9);
+        if opt.grid_on, grid(ax, 'on'); end
+        if r == 1, ylabel(ax, M{m, 1}); end
+        if m == 1, title(ax, reg_disp{r}, 'FontWeight','normal'); end
+        if m == size(M, 1), xlabel(ax, 'Configuration (see sweep\_configs.csv)'); end
+    end
+end
+apply_share(axg, opt.share_scope, 1);
+lg = legend(hl, 'Orientation','horizontal', 'Box','off', 'AutoUpdate','off', 'NumColumns',5);
+lg.Layout.Tile = 'south';
+title(tl, 'Sweep summary (white matter)', 'FontSize', 12);
+end
+
+
+function style_axes(ax, opt, logy, ticks)
+n = numel(ticks);
+set(ax, 'XLim',[0.5 n + 0.5], 'XTick',1:n, 'XTickLabel',ticks, ...
+        'Box','off', 'TickDir','out', 'FontSize',10);
+if logy, set(ax, 'YScale','log'); end
+if opt.grid_on
+    grid(ax, 'on');
+    if logy, set(ax, 'YMinorGrid','on'); end
+end
+end
+
+
+function apply_share(axg, scope, nf)
+for m = 1:size(axg, 1)
+    switch scope
+        case 'row'
+            share_ylim(axg(m, :));
+        case 'region'
+            for r = 1:size(axg, 2) / nf
+                share_ylim(axg(m, (r - 1) * nf + (1:nf)));
+            end
+    end
+end
+end
+
+
+function share_ylim(axs)
+axs = axs(isgraphics(axs));
+if numel(axs) < 2, return; end
+yl  = cell2mat(get(axs(:), 'YLim'));
+lim = [min(yl(:, 1)), max(yl(:, 2))];
+if all(isfinite(lim)) && lim(2) > lim(1)
+    set(axs, 'YLim', lim);
+    linkaxes(axs, 'y');
+end
+end
+
+
+function T = meta_table(name, grp, reg, n)
+T = table(repmat({name}, n, 1), repmat({grp}, n, 1), repmat({reg}, n, 1), ...
+          'VariableNames', {'name','group','region'});
+end
+
+
+function gcol = group_colors()
+% Control = teal #008A69; moderate CAA = purple #AE75A2; severe CAA = black.
+gcol = struct('control',  [  0 138 105] / 255, ...
+              'moderate', [174 117 162] / 255, ...
+              'severe',   [0.25 0.25 0.25]);
+end
+
+
+function varargout = resample_iso(vox_um, iso_um, varargin)
+scale = reshape(vox_um, 1, []) ./ iso_um;
+varargout = cell(1, numel(varargin));
+for a = 1:numel(varargin)
+    A = varargin{a};
+    if isempty(A), varargout{a} = A; continue; end
+    A = logical(A);
+    if all(abs(scale - 1) < 1e-6)
+        varargout{a} = A;
+    else
+        newsz = max(1, round(size(A) .* scale));
+        varargout{a} = imresize3(uint8(A), newsz, 'nearest') > 0;
+    end
+end
+end
+
+
+function [idx, w] = skel_weights(S, iso)
+sz  = size(S);
+idx = find(S);
+[i, j, k] = ind2sub(sz, idx);
+w = zeros(numel(idx), 1);
+for di = -1:1
+    for dj = -1:1
+        for dk = -1:1
+            if di == 0 && dj == 0 && dk == 0, continue; end
+            ii = i + di; jj = j + dj; kk = k + dk;
+            ok = ii >= 1 & ii <= sz(1) & jj >= 1 & jj <= sz(2) & kk >= 1 & kk <= sz(3);
+            nbr = false(numel(idx), 1);
+            nbr(ok) = S(sub2ind(sz, ii(ok), jj(ok), kk(ok)));
+            w = w + nbr * (0.5 * iso * sqrt(di^2 + dj^2 + dk^2));
+        end
+    end
+end
+end
+
+
+function S = prune_spurs(S, inE, thr_ves_um, thr_epvs_um, iso, n_iter)
+nb26 = true(3, 3, 3);
+for pass = 1:n_iter
+    B = bwmorph3(S, 'branchpoints');
+    if ~any(B(:)), break; end
+    Ep   = bwmorph3(S, 'endpoints');
+    Bd   = imdilate(B, nb26);
+    Sseg = S & ~B;
+    ccs  = bwconncomp(Sseg, 26);
+    n    = ccs.NumObjects;
+    if n == 0, break; end
+    Ls       = labelmatrix(ccs);
+    [idx, w] = skel_weights(Sseg, iso);
+    lab      = double(Ls(idx));
+    len      = accumarray(lab, w, [n 1]) + iso;
+    term     = accumarray(lab, double(Ep(idx)), [n 1], @max) > 0;
+    attached = accumarray(lab, double(Bd(idx)), [n 1], @max) > 0;
+    fracE    = accumarray(lab, double(inE(idx)), [n 1], @mean);
+    thr      = repmat(thr_ves_um, n, 1);
+    thr(fracE >= 0.5) = thr_epvs_um;
+    prune    = term & attached & (len < thr);
+    if ~any(prune), break; end
+    S(idx(prune(lab))) = false;
+    S = bwskel(S);
+end
+end
+
+
+function j = junctions(S)
+Bp = bwmorph3(S, 'branchpoints');
+cc = bwconncomp(Bp, 26);
+j  = reshape(cellfun(@(p) p(1), cc.PixelIdxList), [], 1);
+if isempty(j), j = zeros(0, 1); end
+end
+
+
+function save_fig(fh, out_dir, base)
+exportgraphics(fh, fullfile(out_dir, [base '.png']), 'Resolution', 300);
+try
+    exportgraphics(fh, fullfile(out_dir, [base '.svg']), 'ContentType', 'vector');
+catch
+    print(fh, fullfile(out_dir, [base '.svg']), '-dsvg', '-vector');
+end
+savefig(fh, fullfile(out_dir, [base '.fig']));
+close(fh);
+end
